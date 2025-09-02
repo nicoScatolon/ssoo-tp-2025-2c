@@ -39,7 +39,7 @@ typedef struct{
     char* logLevel;
 } configStorage;
 
-
+t_config* iniciarConfig(char* path)
 configMaster cargarConfiguracionMaster(t_config* config);
 configQuery cargarConfiguracionQuery(t_config* config);
 configWorker cargarConfiguracionWorker(t_config* config);

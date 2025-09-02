@@ -1,7 +1,7 @@
 #include "config.h"
 
 t_config* iniciarConfig(char* path){
-    t_config* config = config_create(path)
+    t_config* config = config_create(path);
     if (config == NULL){
         printf("Error al leer el archivo de configuracion: %s\n",path);
         exit(EXIT_FAILURE);
