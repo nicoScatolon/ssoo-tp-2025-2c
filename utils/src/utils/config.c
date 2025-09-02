@@ -43,7 +43,6 @@ configWorker cargarConfiguracionWorker(t_config* config){
 configStorage cargarConfiguracionStorage(t_config* config){
     configStorage configStorage;
     configStorage.puertoEscucha = config_get_int_value(config,"PUERTO_ESCUCHA");
-    configStorage.aux= config_get_string_value(config,"FRESH_START");
     configStorage.freshStart = string_to_bool(config_get_string_value(config, "FRESH_START"));
     configStorage.puntoMontaje = config_get_string_value(config,"PUNTO_MONTAJE");
     configStorage.retardoOperacion= config_get_int_value(config,"RETARDO_OPERACION");

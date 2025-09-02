@@ -32,7 +32,6 @@ typedef struct{
 
 typedef struct{
     uint32_t puertoEscucha;
-    char* aux;
     bool freshStart;
     char* puntoMontaje;
     uint32_t retardoOperacion;
