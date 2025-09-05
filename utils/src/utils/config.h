@@ -39,10 +39,10 @@ typedef struct{
     char* logLevel;
 } configStorage;
 
-t_config* iniciarConfig(char* path)
-configMaster cargarConfiguracionMaster(t_config* config);
-configQuery cargarConfiguracionQuery(t_config* config);
-configWorker cargarConfiguracionWorker(t_config* config);
-configStorage cargarConfiguracionStorage(t_config*config);
-bool string_to_bool(char* str)
+t_config* iniciarConfig(char* path);
+configMaster agregarConfiguracionMaster(t_config* config);
+configQuery agregarConfiguracionQuery(t_config* config);
+configWorker agregarConfiguracionWorker(t_config* config);
+configStorage agregarConfiguracionStorage(t_config*config);
+bool string_to_bool(char* str);
 #endif

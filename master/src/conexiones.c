@@ -1,7 +1,8 @@
 #include "utils/config.h"
 #include "utils/logs.h"
 #include "conexiones.h"
-
+#include "utils/globals.h"
+#include "utils/paquete.h"
 
 
 void agregarQueryControl(char* path,int socketCliente, int prioridad){
@@ -9,41 +10,42 @@ void agregarQueryControl(char* path,int socketCliente, int prioridad){
     nuevaQueryControl->path = strdup(path);
     nuevaQueryControl->socket = socketCliente;
     nuevaQueryControl->prioridad = prioridad;
-    nuevaQueryControl->queryControlID = generarIdQueryControl(); //Podemos utilizar el path o el socket para distinguirlo
+    nuevaQueryControl->queryControlID = generarIdQueryControl(); 
     pthread_mutex_init(&nuevaQueryControl->mutex,NULL);
     list_add(queriesControl,nuevaQueryControl);
     pthread_mutex_lock(&mutex_cantidadQueriesControl);
     cantidadQueriesControl++;
     pthread_mutex_unlock(&mutex_cantidadQueriesControl);
-    log_info(log, "## Se conecta un Query Control para ejecutar la Query <PATH_QUERY> <%s> con prioridad <PRIORIDAD> <%d> - Id asignado: <QUERY_ID> <%d> . Nivel multiprogramación <CANTIDAD> <%d>",path,prioridad,nuevaQueryControl->queryControlID,cantidadQueriesControl);
-    agregarQuery(path,prioridad);
+    log_info(logger, "## Se conecta un Query Control para ejecutar la Query <PATH_QUERY> <%s> con prioridad <PRIORIDAD> <%d> - Id asignado: <QUERY_ID> <%d> . Nivel multiprogramación <CANTIDAD> <%d>",path,prioridad,nuevaQueryControl->queryControlID,cantidadQueriesControl);
+    agregarQuery(path,prioridad,nuevaQueryControl->queryControlID);
 }
 void agregarWorker(int socketCliente){
     worker *nuevoWorker = malloc(sizeof(worker));
     nuevoWorker->pathActual = strdup("");
     nuevoWorker->socket = socketCliente;
-    nuevoWorker->ocupado = FALSE;
+    nuevoWorker->ocupado = false;
     nuevoWorker->workerID = generarIdWorker();
     pthread_mutex_init(&nuevoWorker->mutex,NULL);
     list_add(workers,nuevoWorker);
     pthread_mutex_lock(&mutex_grado);
     gradoMultiprogramacion++;
     pthread_mutex_unlock(&mutex_grado);
-    log_info(log,"Conexión de Worker: ## Se conecta el Worker <WORKER_ID> <%d> - Cantidad total de Workers: <CANTIDAD> <%d> ",nuevoWorker->workerID,gradoMultiprogramacion);
+    log_info(logger,"Conexión de Worker: ## Se conecta el Worker <WORKER_ID> <%d> - Cantidad total de Workers: <CANTIDAD> <%d> ",nuevoWorker->workerID,gradoMultiprogramacion);
 
 }
-void agregarQuery(char* path,int prioridad){
+void agregarQuery(char* path,int prioridad,int id){
     query *nuevaQuery = malloc(sizeof(query));
     nuevaQuery->path = strdup(path);
     qcb_t *nuevoqcb = malloc(sizeof(qcb_t));
-    nuevaQuery->qcb=nuevoqcb;
+    nuevaQuery->qcb= nuevoqcb;
     nuevaQuery->qcb->prioridad = prioridad;
-    nuevaQuery->qcb->queryID = generarIdQuery();
+    nuevaQuery->qcb->queryID = id;
     nuevaQuery->qcb->PC = 0;
     pthread_mutex_init(&nuevaQuery->mutex,NULL);
-    list_add(ready,nuevaQuery);
-    log_debug(log,"Se encolo query ID <%d> en READY",nuevaQuery->qcb->queryID);
+    list_add(READY,nuevaQuery);
+    log_debug(logger,"Se encolo query ID <%d> en READY",nuevaQuery->qcb->queryID);
 }
+
 uint32_t generarIdQueryControl() {
     pthread_mutex_lock(&mutex_id_queryControl);
     uint32_t id = siguienteIdQueryControl++;
@@ -56,9 +58,65 @@ uint32_t generarIdWorker() {
     pthread_mutex_unlock(&mutex_id_worker);
     return id;
 }
-uint32_t generarIdQuery() {
-    pthread_mutex_lock(&mutex_id_query);
-    uint32_t id = siguienteIdQuery++;
-    pthread_mutex_unlock(&mutex_id_query);
-    return id;
+
+void establecerConexiones(){
+    char* puertoQueryControl = string_itoa(config->puertoEscucha);
+    int socketQueryControl= iniciarServidor(puertoQueryControl,logger,"MASTER");
+    free(puertoQueryControl);
+    
+    pthread_t hiloQueryControl;
+    pthread_create(&hiloQueryControl,NULL,escucharQueryControl,(void*)(intptr_t)socketQueryControl);
+    pthread_detach(hiloQueryControl);
+}
+
+
+
+void comprobacionModulo(modulo modulo_origen, modulo esperado, char *modulo, void (*operacion)(int), int socket_cliente)
+{
+    if (modulo_origen == esperado)
+    {
+        log_debug(logger, "Se conecto %s", modulo);
+        pthread_t hilo_operacion;
+        pthread_create(&hilo_operacion, NULL, operacion, (void *)(int)socket_cliente);
+        pthread_detach(hilo_operacion); // Operaciones de modulos
+    }
+    else
+    {
+        log_warning(logger, "No es %s", modulo);
+        close(socket_cliente);
+    }
+}
+void *escucharQueryControl(void* socketServidorVoid){
+    int socketServidor = (intptr_t) socketServidorVoid;
+    log_debug(logger,"Servidor MASTER_QUERY_CONTROL escuchando conexiones");
+    while (1)
+    {
+        int socketCliente = esperarCliente(socketServidor,logger);
+        modulo moduloOrigen;
+        recv(socketCliente,&moduloOrigen,sizeof(modulo),0);
+        comprobacionModulo(moduloOrigen,QUERY_CONTROL,"QUERYCONTROL",operarQueryControl,socketCliente);
+    }
+    return NULL;
+}
+void * operarQueryControl(void* socketClienteVoid){
+    int socketCliente =(intptr_t) socketClienteVoid;
+
+    while(1){
+        opcode codigo = recibirOpcode(socketCliente);
+        switch (codigo)
+        {
+        case INICIAR_QUERY_CONTROL:{
+               
+            t_paquete*paquete;
+            recibirPaquete(socketCliente);
+            char* path = recibirStringDePaquete(paquete);
+            int prioridad = recibirIntPaquete(paquete);
+            agregarQueryControl(path,socketCliente,prioridad);
+            free(path);
+            break;
+        }
+        default:
+            break;
+        }
+    }
 }

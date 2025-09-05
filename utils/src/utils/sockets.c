@@ -111,3 +111,10 @@ int crearConexion(char *ip, char* puerto,t_log * logger)
 	freeaddrinfo(server_info);
 	return socket_cliente;
 }
+
+void comprobarSocket(int socket, char* moduloOrigen, char* moduloDestino){
+    if(socket == -1){
+        log_error(logger, "No se pudo conectar a %s desde %s", moduloDestino, moduloOrigen);
+        exit(EXIT_FAILURE);
+    }
+}

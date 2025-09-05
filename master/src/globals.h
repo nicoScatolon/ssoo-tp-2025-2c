@@ -9,9 +9,6 @@ static pthread_mutex_t mutex_id_queryControl = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t siguienteIdWorker = 0;
 static pthread_mutex_t mutex_id_worker = PTHREAD_MUTEX_INITIALIZER;
 
-static uint32_t siguienteIdQuery = 0;
-static pthread_mutex_t mutex_id_query = PTHREAD_MUTEX_INITIALIZER;
-
 
 static uint32_t gradoMultiprogramacion = 0;
 static pthread_mutex_t mutex_grado = PTHREAD_MUTEX_INITIALIZER;
@@ -19,11 +16,12 @@ static pthread_mutex_t mutex_grado = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t cantidadQueriesControl = 0;
 static pthread_mutex_t mutex_cantidadQueriesControl = PTHREAD_MUTEX_INITIALIZER;
 
+extern t_log* logger;
+extern t_config* config;
 
-t_log* log;
-t_list* ready;
-t_list* execute;
-t_list* exit;
+t_list* READY;
+t_list* EXECUTE;
+t_list* EXIT;
 t_list* workers;
 t_list* queriesControl;
 
@@ -41,6 +39,7 @@ typedef struct
     int queryControlID;
     pthread_mutex_t mutex;
 }queryControl;
+
 typedef struct 
 {
     char*pathActual;

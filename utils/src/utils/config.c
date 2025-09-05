@@ -9,7 +9,7 @@ t_config* iniciarConfig(char* path){
     return config;
 }
 
-configMaster cargarConfiguracionMaster(t_config* config){
+configMaster agregarConfiguracionMaster(t_config* config){
     configMaster configMaster;
     configMaster.puertoEscucha = config_get_int_value(config,"PUERTO_ESCUCHA");
     configMaster.algoritmoPlanificacion = config_get_string_value(config,"ALGORITMO_PLANIFICACION");
@@ -18,7 +18,7 @@ configMaster cargarConfiguracionMaster(t_config* config){
     return configMaster;
 }
 
-configQuery cargarConfiguracionQuery(t_config* config){
+configQuery agregarConfiguracionQuery(t_config* config){
     configQuery configQuery;
     configQuery.IPMaster = config_get_string_value(config,"IP_MASTER");
     configQuery.puertoMaster = config_get_int_value(config,"PUERTO_MASTER");
@@ -26,7 +26,7 @@ configQuery cargarConfiguracionQuery(t_config* config){
     return configQuery;
 }
 
-configWorker cargarConfiguracionWorker(t_config* config){
+configWorker agregarConfiguracionWorker(t_config* config){
     configWorker configWorker;
     configWorker.IPMaster = config_get_string_value(config,"IP_MASTER");
     configWorker.puertoMaster = config_get_int_value(config,"PUERTO_MASTER");
@@ -40,7 +40,7 @@ configWorker cargarConfiguracionWorker(t_config* config){
     return configWorker;
 }
 
-configStorage cargarConfiguracionStorage(t_config* config){
+configStorage agregarConfiguracionStorage(t_config* config){
     configStorage configStorage;
     configStorage.puertoEscucha = config_get_int_value(config,"PUERTO_ESCUCHA");
     configStorage.freshStart = string_to_bool(config_get_string_value(config, "FRESH_START"));
@@ -53,6 +53,5 @@ configStorage cargarConfiguracionStorage(t_config* config){
 
 bool string_to_bool(char* str) {
     if (!str) return false;
-    return (strcasecmp(str, "TRUE") == 0)
-       
+    return (strcasecmp(str, "false") == 0);
 }
