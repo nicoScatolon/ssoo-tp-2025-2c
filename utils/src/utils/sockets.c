@@ -16,7 +16,7 @@ void enviarHandshake(int socket,int modulo){
     }
 }
 
-int enviarBuffer(void* buffer,uints32_t size,int socketCliente){
+int enviarBuffer(void* buffer,uint32_t size,int socketCliente){
     return send(socketCliente,buffer,size,0);
 }
 
@@ -104,7 +104,7 @@ int crearConexion(char *ip, char* puerto,t_log * logger)
 	}
 	// Ahora que tenemos el socket, vamos a conectarlo
 	connect(socket_cliente,server_info->ai_addr,server_info->ai_addrlen);
-	if (connect onnect(socket_cliente,server_info->ai_addr,server_info->ai_addrlen) == -1){
+	if (connect(socket_cliente,server_info->ai_addr,server_info->ai_addrlen) == -1){
 		log_error(logger,"Error al conectarse con el cliente");
 		return -1;
 	}
@@ -112,7 +112,7 @@ int crearConexion(char *ip, char* puerto,t_log * logger)
 	return socket_cliente;
 }
 
-void comprobarSocket(int socket, char* moduloOrigen, char* moduloDestino){
+void comprobarSocket(int socket, char* moduloOrigen, char* moduloDestino, t_log*logger){
     if(socket == -1){
         log_error(logger, "No se pudo conectar a %s desde %s", moduloDestino, moduloOrigen);
         exit(EXIT_FAILURE);

@@ -6,9 +6,9 @@
 #include "commons/log.h"
 #include "commons/config.h"
 
-void liberarQuery(t_log** logger, configQuery* configQ);
-void liberarMaster(t_log** logger, configMaster* configM);
-void liberarWorker(t_log** logger, configWorker* configW);
-void liberarStorage(t_log** logger, configStorage* configS);
+void liberarQuery(t_log*logger, t_config* configQ);
+void liberarMaster(t_log* logger, t_config* configM);
+void liberarWorker(t_log*logger, t_config* configW);
+void liberarStorage(t_log*logger, t_config* configS);
 
 #endif

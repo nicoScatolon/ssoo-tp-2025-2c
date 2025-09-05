@@ -1,8 +1,9 @@
 #include "utils/config.h"
 #include "utils/logs.h"
 #include "conexiones.h"
-#include "utils/globals.h"
+#include "utils/globales.h"
 #include "utils/paquete.h"
+#include "globals.h"
 
 
 void agregarQueryControl(char* path,int socketCliente, int prioridad){
@@ -60,7 +61,7 @@ uint32_t generarIdWorker() {
 }
 
 void establecerConexiones(){
-    char* puertoQueryControl = string_itoa(config->puertoEscucha);
+    char* puertoQueryControl = string_itoa(configM->puertoEscucha);
     int socketQueryControl= iniciarServidor(puertoQueryControl,logger,"MASTER");
     free(puertoQueryControl);
     
@@ -71,13 +72,13 @@ void establecerConexiones(){
 
 
 
-void comprobacionModulo(modulo modulo_origen, modulo esperado, char *modulo, void (*operacion)(int), int socket_cliente)
+void comprobacionModulo(modulo modulo_origen, modulo esperado, char *modulo, void*(*operacion)(void*), int socket_cliente)
 {
     if (modulo_origen == esperado)
     {
         log_debug(logger, "Se conecto %s", modulo);
         pthread_t hilo_operacion;
-        pthread_create(&hilo_operacion, NULL, operacion, (void *)(int)socket_cliente);
+        pthread_create(&hilo_operacion, NULL, operacion, (void *)(intptr_t)socket_cliente);
         pthread_detach(hilo_operacion); // Operaciones de modulos
     }
     else
@@ -107,8 +108,7 @@ void * operarQueryControl(void* socketClienteVoid){
         {
         case INICIAR_QUERY_CONTROL:{
                
-            t_paquete*paquete;
-            recibirPaquete(socketCliente);
+            t_paquete*paquete =recibirPaquete(socketCliente);
             char* path = recibirStringDePaquete(paquete);
             int prioridad = recibirIntPaquete(paquete);
             agregarQueryControl(path,socketCliente,prioridad);

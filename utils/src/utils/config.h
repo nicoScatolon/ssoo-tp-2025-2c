@@ -3,19 +3,20 @@
 
 #include "../commons/common.h"
 #include "commons/log.h"
+#include "globales.h"
 
 typedef struct 
 {
     uint32_t puertoEscucha;
     char* algoritmoPlanificacion;
     uint32_t tiempoAging;
-    char* logLevel;
+    t_log_level logLevel;
 } configMaster;
 
 typedef struct{
     char* IPMaster;
     uint32_t puertoMaster;
-    char* logLevel;
+    t_log_level logLevel;
 } configQuery;
 
 typedef struct{
@@ -27,7 +28,7 @@ typedef struct{
     uint32_t retardoMemoria;
     char* algoritmoReemplazo;
     char* pathQueries;
-    char* logLevel;
+    t_log_level logLevel;
 } configWorker;
 
 typedef struct{
@@ -36,7 +37,7 @@ typedef struct{
     char* puntoMontaje;
     uint32_t retardoOperacion;
     uint32_t retardoAccesoBloque;
-    char* logLevel;
+    t_log_level logLevel;
 } configStorage;
 
 t_config* iniciarConfig(char* path);
@@ -45,4 +46,6 @@ configQuery agregarConfiguracionQuery(t_config* config);
 configWorker agregarConfiguracionWorker(t_config* config);
 configStorage agregarConfiguracionStorage(t_config*config);
 bool string_to_bool(char* str);
+t_log_level obtenerNivelLog(t_config* config);
+void checkNULL(t_config* config) ;
 #endif

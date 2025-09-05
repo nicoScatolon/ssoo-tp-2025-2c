@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/time.h> //PRUEBO
-#include "utils/globals.h"
+#include "utils/globales.h"
 
 
 typedef struct {

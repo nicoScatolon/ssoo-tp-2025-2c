@@ -1,63 +1,66 @@
-#ifndef GLOBALES_H
-#define GLOBALES_H
+#ifndef GLOBALS_H
+#define GLOBALS_H
 
 #include "utils/config.h"
 #include "utils/logs.h"
-static uint32_t siguienteIdQueryControl = 0;
-static pthread_mutex_t mutex_id_queryControl = PTHREAD_MUTEX_INITIALIZER;
+#include <commons/collections/list.h>
+#include <pthread.h>
+#include <stdint.h>
+#include <stdbool.h>
 
-static uint32_t siguienteIdWorker = 0;
-static pthread_mutex_t mutex_id_worker = PTHREAD_MUTEX_INITIALIZER;
+// ✅ SOLO DECLARACIONES con extern - NO definiciones
+extern pthread_mutex_t mutex_id_queryControl;
+extern pthread_mutex_t mutex_id_worker;
+extern pthread_mutex_t mutex_grado;
+extern pthread_mutex_t mutex_cantidadQueriesControl;
 
-
-static uint32_t gradoMultiprogramacion = 0;
-static pthread_mutex_t mutex_grado = PTHREAD_MUTEX_INITIALIZER;
-
-static uint32_t cantidadQueriesControl = 0;
-static pthread_mutex_t mutex_cantidadQueriesControl = PTHREAD_MUTEX_INITIALIZER;
+extern uint32_t siguienteIdQueryControl;
+extern uint32_t siguienteIdWorker;
+extern uint32_t gradoMultiprogramacion;
+extern uint32_t cantidadQueriesControl;
 
 extern t_log* logger;
-extern t_config* config;
+extern configMaster* configM;
 
-t_list* READY;
-t_list* EXECUTE;
-t_list* EXIT;
-t_list* workers;
-t_list* queriesControl;
+extern t_list* READY;
+extern t_list* EXECUTE;
+extern t_list* EXIT;
+extern t_list* workers;
+extern t_list* queriesControl;
 
-typedef enum{
+// ✅ Enums y structs (estos SÍ van en .h)
+typedef enum {
     QUERY_READY,
     QUERY_EXECUTE,
     QUERY_EXIT
 } estadoQuery;
 
-typedef struct 
-{
-    char*path;
+typedef struct {
+    char* path;
     int socket;
     int prioridad;
     int queryControlID;
     pthread_mutex_t mutex;
-}queryControl;
+} queryControl;
 
-typedef struct 
-{
-    char*pathActual;
+typedef struct {
+    char* pathActual;
     int socket;
     int workerID;
     bool ocupado;
     pthread_mutex_t mutex;
-}worker;
-typedef struct{
+} worker;
+
+typedef struct {
     int PC;
     int prioridad;
     int queryID;
-}qcb_t;
-typedef struct 
-{
-    char*path;
-    qcb_t *qcb;
+} qcb_t;
+
+typedef struct {
+    char* path;
+    qcb_t* qcb;
     pthread_mutex_t mutex;
-}query;
+} query;
 
 #endif

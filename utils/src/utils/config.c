@@ -14,7 +14,7 @@ configMaster agregarConfiguracionMaster(t_config* config){
     configMaster.puertoEscucha = config_get_int_value(config,"PUERTO_ESCUCHA");
     configMaster.algoritmoPlanificacion = config_get_string_value(config,"ALGORITMO_PLANIFICACION");
     configMaster.tiempoAging=config_get_int_value(config,"TIEMPO_AGING");
-    configMaster.logLevel=  config_get_string_value(config,"LOG_LEVEL");
+    configMaster.logLevel= obtenerNivelLog(config);
     return configMaster;
 }
 
@@ -22,7 +22,7 @@ configQuery agregarConfiguracionQuery(t_config* config){
     configQuery configQuery;
     configQuery.IPMaster = config_get_string_value(config,"IP_MASTER");
     configQuery.puertoMaster = config_get_int_value(config,"PUERTO_MASTER");
-    configQuery.logLevel=  config_get_string_value(config,"LOG_LEVEL");
+    configQuery.logLevel=  obtenerNivelLog(config);
     return configQuery;
 }
 
@@ -36,7 +36,7 @@ configWorker agregarConfiguracionWorker(t_config* config){
     configWorker.retardoMemoria = config_get_int_value(config,"RETARDO_MEMORIA");
     configWorker.algoritmoReemplazo = config_get_string_value(config,"ALGORITMO_REEMPLAZO");
     configWorker.pathQueries = config_get_string_value(config,"PATH_QUERIES");
-    configWorker.logLevel =  config_get_string_value(config,"LOG_LEVEL");
+    configWorker.logLevel =  obtenerNivelLog(config);
     return configWorker;
 }
 
@@ -47,11 +47,23 @@ configStorage agregarConfiguracionStorage(t_config* config){
     configStorage.puntoMontaje = config_get_string_value(config,"PUNTO_MONTAJE");
     configStorage.retardoOperacion= config_get_int_value(config,"RETARDO_OPERACION");
     configStorage.retardoAccesoBloque = config_get_int_value(config,"RETARDO_ACCESO_BLOQUE");
-    configStorage.logLevel =  config_get_string_value(config,"LOG_LEVEL");
+    configStorage.logLevel =  obtenerNivelLog(config);
     return configStorage;
 }
 
 bool string_to_bool(char* str) {
     if (!str) return false;
     return (strcasecmp(str, "false") == 0);
+}
+
+t_log_level obtenerNivelLog(t_config* config) {
+    checkNULL(config);
+    char* str = config_get_string_value(config, "LOG_LEVEL");
+    return log_level_from_string(str);
+}
+
+void checkNULL(t_config* config) {
+    if (config != NULL) return;
+    fprintf(stderr, "ERROR: config es NULL\n");
+    exit(EXIT_FAILURE);
 }

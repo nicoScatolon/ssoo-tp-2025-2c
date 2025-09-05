@@ -5,8 +5,7 @@
 #include "utils/sockets.h"
 #include "utils/logs.h"
 
-extern configMaster* configM;
-extern t_log* logger;
+
 
 void iniciarConfiguracionMaster(char* nombreConfig, configMaster*configM);
 

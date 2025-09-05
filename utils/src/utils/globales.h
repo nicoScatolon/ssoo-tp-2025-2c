@@ -1,5 +1,5 @@
-#ifndef GLOBALS_H
-#define GLOBALS_H
+#ifndef GLOBALES_H
+#define GLOBALES_H
 
 typedef enum
 {
