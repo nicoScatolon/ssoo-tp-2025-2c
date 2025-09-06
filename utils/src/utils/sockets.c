@@ -103,7 +103,6 @@ int crearConexion(char *ip, char* puerto,t_log * logger)
 		return -1;
 	}
 	// Ahora que tenemos el socket, vamos a conectarlo
-	connect(socket_cliente,server_info->ai_addr,server_info->ai_addrlen);
 	if (connect(socket_cliente,server_info->ai_addr,server_info->ai_addrlen) == -1){
 		log_error(logger,"Error al conectarse con el cliente");
 		return -1;

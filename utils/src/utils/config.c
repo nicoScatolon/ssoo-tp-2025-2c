@@ -1,9 +1,18 @@
 #include "config.h"
 
-t_config* iniciarConfig(char* path){
-    t_config* config = config_create(path);
-    if (config == NULL){
-        printf("Error al leer el archivo de configuracion: %s\n",path);
+t_config* iniciarConfig(const char* modulo, const char* archivo) {
+    char pathConcatenado[512];  
+    snprintf(
+        pathConcatenado,
+        sizeof(pathConcatenado),
+        "/home/utnso/tp-2025-2c-Here-we-go-again/%s/configs/%s",
+        modulo,
+        archivo
+    );
+
+    t_config* config = config_create(pathConcatenado);
+    if (config == NULL) {
+        printf("Error al leer el archivo de configuracion: %s\n", pathConcatenado);
         exit(EXIT_FAILURE);
     }
     return config;

@@ -72,6 +72,19 @@ void establecerConexiones(){
 
 
 
+void *escucharQueryControl(void* socketServidorVoid){
+    int socketServidor = (intptr_t) socketServidorVoid;
+    log_debug(logger,"Servidor MASTER_QUERY_CONTROL escuchando conexiones");
+    while (1)
+    {
+        int socketCliente = esperarCliente(socketServidor,logger);
+        printf("socketCliente %d",socketCliente);
+        modulo moduloOrigen;
+        recv(socketCliente,&moduloOrigen,sizeof(modulo),0);
+        comprobacionModulo(moduloOrigen,QUERY_CONTROL,"QUERYCONTROL",operarQueryControl,socketCliente);
+    }
+    return NULL;
+}
 void comprobacionModulo(modulo modulo_origen, modulo esperado, char *modulo, void*(*operacion)(void*), int socket_cliente)
 {
     if (modulo_origen == esperado)
@@ -86,18 +99,6 @@ void comprobacionModulo(modulo modulo_origen, modulo esperado, char *modulo, voi
         log_warning(logger, "No es %s", modulo);
         close(socket_cliente);
     }
-}
-void *escucharQueryControl(void* socketServidorVoid){
-    int socketServidor = (intptr_t) socketServidorVoid;
-    log_debug(logger,"Servidor MASTER_QUERY_CONTROL escuchando conexiones");
-    while (1)
-    {
-        int socketCliente = esperarCliente(socketServidor,logger);
-        modulo moduloOrigen;
-        recv(socketCliente,&moduloOrigen,sizeof(modulo),0);
-        comprobacionModulo(moduloOrigen,QUERY_CONTROL,"QUERYCONTROL",operarQueryControl,socketCliente);
-    }
-    return NULL;
 }
 void * operarQueryControl(void* socketClienteVoid){
     int socketCliente =(intptr_t) socketClienteVoid;

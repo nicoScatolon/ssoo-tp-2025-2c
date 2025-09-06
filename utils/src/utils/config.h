@@ -40,7 +40,7 @@ typedef struct{
     t_log_level logLevel;
 } configStorage;
 
-t_config* iniciarConfig(char* path);
+t_config* iniciarConfig(const char* modulo, const char* archivo);
 configMaster agregarConfiguracionMaster(t_config* config);
 configQuery agregarConfiguracionQuery(t_config* config);
 configWorker agregarConfiguracionWorker(t_config* config);

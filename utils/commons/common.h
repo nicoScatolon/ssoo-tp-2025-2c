@@ -29,6 +29,8 @@
 #include <commons/collections/dictionary.h> 
 #include <commons/temporal.h> 
 #include <commons/bitarray.h> 
+#include <commons/crypto.h>
+
 
 
 #endif 

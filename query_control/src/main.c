@@ -3,7 +3,7 @@
 configQuery *configQ;
 t_log* logger;
 int main(int argc,char*argv[]){
-    if (argc < 3)
+    if (argc < 4)
     {
         printf("No se pasaron los parametros necesarios\n");
         return EXIT_FAILURE;
@@ -13,13 +13,13 @@ int main(int argc,char*argv[]){
         return EXIT_FAILURE;
     }
     
-    char* nombreConfiguracion = argv[0];
-    char* path = argv[1];
-    int  prioridad = argv[2];
-
-    iniciarConfiguracionQueryControl(nombreConfiguracion,&configQ);
-    *logger = iniciar_logger("queryControl",configQ->logLevel);
+    char* nombreConfiguracion = argv[1];
+    char* path = argv[2];
+    int  prioridad = atoi(argv[3]);
+    configQ=malloc(sizeof(configQuery));
+    iniciarConfiguracionQueryControl(nombreConfiguracion,configQ);
+    logger = iniciar_logger("queryControl",configQ->logLevel);
     iniciarConexion(path,prioridad);
-    esperarRespuesta();
-    liberarQuery(logger,config);
+    //esperarRespuesta();
+    //liberarQuery(logger,config);
 }
