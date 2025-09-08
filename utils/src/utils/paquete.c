@@ -136,7 +136,7 @@ void enviarOpcode(opcode codigo, int socket) {
     send(socket, &codigo, sizeof(opcode), 0);
 }
 
-opcode recibirOpcode( int socket) {
+opcode recibirOpcode(int socket) {
     opcode codigo;
     ssize_t recibido = recv(socket, &codigo, sizeof(opcode), MSG_WAITALL);
     if (recibido <= 0) { // 0 = cliente cerró, -1 = error

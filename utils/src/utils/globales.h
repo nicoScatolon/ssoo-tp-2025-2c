@@ -5,7 +5,7 @@ typedef enum
 {
     INICIAR_QUERY_CONTROL,
     FINALIZAR_QUERY_CONTROL,
-    INFORMACION_QUERY_CONTROL
+    INFORMACION_QUERY_CONTROL,
 
 }opcode;
 typedef enum{

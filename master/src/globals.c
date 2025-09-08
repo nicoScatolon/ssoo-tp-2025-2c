@@ -1,6 +1,5 @@
 #include "globals.h"
 
-#include "globals.h"
 
 
 t_list* READY = NULL;
@@ -18,3 +17,4 @@ pthread_mutex_t mutex_id_queryControl = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_id_worker = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_grado = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_cantidadQueriesControl = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_lista_workers = PTHREAD_MUTEX_INITIALIZER;

@@ -20,7 +20,6 @@
 #include <sys/types.h>   
 
 
-
 #include <commons/log.h>     
 #include <commons/config.h>   
 #include <commons/string.h>   
@@ -30,7 +29,5 @@
 #include <commons/temporal.h> 
 #include <commons/bitarray.h> 
 #include <commons/crypto.h>
-
-
 
 #endif 

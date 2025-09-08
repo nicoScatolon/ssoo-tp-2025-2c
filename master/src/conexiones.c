@@ -27,7 +27,9 @@ void agregarWorker(int socketCliente){
     nuevoWorker->ocupado = false;
     nuevoWorker->workerID = generarIdWorker();
     pthread_mutex_init(&nuevoWorker->mutex,NULL);
+    pthread_mutex_lock(&mutex_lista_workers);
     list_add(workers,nuevoWorker);
+    pthread_mutex_unlock(&mutex_lista_workers);
     pthread_mutex_lock(&mutex_grado);
     gradoMultiprogramacion++;
     pthread_mutex_unlock(&mutex_grado);

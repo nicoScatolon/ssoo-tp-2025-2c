@@ -1,14 +1,13 @@
+#ifndef WORKER_CONEXIONES_H
+#define WORKER_CONEXIONES_H
 
-#ifndef CONFIGURACION_H
-#define CONFIGURACION_H
-#include "utils/config.h"
 #include "utils/sockets.h"
-// #include "utils/logs.h"
+#include "utils/logs.h"
+#include "utils/paquete.h"
+#include "globals.h"
 
-extern configWorker* configW;
+int conexionConMaster(void);
 
-
-void iniciarConfiguracionWorker(char*nombreConfig ,configWorker* configWorker);
-
+void escucharMaster(int socketMaster);
 
 #endif

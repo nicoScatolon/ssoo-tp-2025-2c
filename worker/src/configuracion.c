@@ -1,5 +1,5 @@
 #include "configuracion.h"
 void iniciarConfiguracionWorker(char*nombreConfig ,configWorker* configWorker){
-    t_config* config = iniciarConfig("woker",nombreConfig);
+    t_config* config = iniciarConfig("worker",nombreConfig);
     *configW = agregarConfiguracionQuery(config);
 }

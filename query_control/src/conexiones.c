@@ -23,6 +23,12 @@ int iniciarConexion(char* path, int prioridad){ //Iniciar conexion con cliente (
 
 void* esperarRespuesta(void* socketClienteVoid){
     int socketMaster = (intptr_t) socketClienteVoid;
+    opcode codigo = recibirOpcode(socketMaster);
+    if (codigo < 0) {
+        log_warning(logger, "Cliente desconectado en socket %d", socketMaster);
+        close(socketMaster);
+        return NULL;
+        }
     while(1){
         opcode codigo = recibirOpcode(socketMaster);
         if (codigo < 0) {

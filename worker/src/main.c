@@ -20,10 +20,14 @@ int main(int argc, char* argv[]) {
 
     logger = iniciar_logger("worker", configW->logLevel);
     
-    
+    log_info(logger, "## Iniciando Worker...");
 
+    int socketMaster = conexionConMaster();
 
+    escucharMaster(socketMaster);
 
+    log_info(logger, "## Finalizando Worker.");
+    return EXIT_SUCCESS;
 
     return 0;
 }
