@@ -147,6 +147,7 @@ void * operarQueryControl(void* socketClienteVoid){
         }
         default:
             log_warning(logger, "Opcode desconocido: %d", codigo);
+            return NULL;
             break;
         }
     }
