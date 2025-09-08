@@ -91,7 +91,12 @@ void comprobacionModulo(modulo modulo_origen, modulo esperado, char *modulo, voi
     {
         log_debug(logger, "Se conecto %s", modulo);
         pthread_t hilo_operacion;
-        pthread_create(&hilo_operacion, NULL, operacion, (void *)(intptr_t)socket_cliente);
+        //log_debug(logger,"Aca no se rompio");
+        if (pthread_create(&hilo_operacion, NULL, operacion, (void*)(intptr_t)socket_cliente) != 0) {
+            log_error(logger, "No se pudo crear el hilo para %d", esperado);
+            close(socket_cliente);
+        }
+        //log_debug(logger,"Se rompio antes del detach");
         pthread_detach(hilo_operacion); // Operaciones de modulos
     }
     else
@@ -102,22 +107,49 @@ void comprobacionModulo(modulo modulo_origen, modulo esperado, char *modulo, voi
 }
 void * operarQueryControl(void* socketClienteVoid){
     int socketCliente =(intptr_t) socketClienteVoid;
-
+    //log_debug(logger,"Llego a operarQueryControl");
     while(1){
         opcode codigo = recibirOpcode(socketCliente);
+        if (codigo < 0) {
+            log_warning(logger, "Cliente desconectado en socket %d", socketCliente);
+            close(socketCliente);
+            return NULL;
+        }
         switch (codigo)
         {
         case INICIAR_QUERY_CONTROL:{
-               
-            t_paquete*paquete =recibirPaquete(socketCliente);
-            char* path = recibirStringDePaquete(paquete);
-            int prioridad = recibirIntPaquete(paquete);
+            t_paquete* paquete = recibirPaquete(socketCliente);
+            if (!paquete) {
+                log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
+                break;
+            }
+
+            int offset = 0;
+            log_debug(logger,"antes de recibir el string");
+            
+            char* path = recibirStringDePaqueteConOffset(paquete, &offset);
+            if (!path) {
+                log_error(logger, "Error desempaquetando path");
+                eliminarPaquete(paquete);
+                break;
+            }
+
+            log_debug(logger,"despues de recibir el string, valor: %s",path);
+            int prioridad = recibirIntDePaqueteconOffset(paquete, &offset);
+            
+            log_debug(logger,"prioridad %d, path %s ",prioridad,path);
+
             agregarQueryControl(path,socketCliente,prioridad);
+            
             free(path);
+            eliminarPaquete(paquete);
             break;
         }
         default:
+            log_warning(logger, "Opcode desconocido: %d", codigo);
             break;
         }
     }
+    close(socketCliente);
+    return NULL;
 }

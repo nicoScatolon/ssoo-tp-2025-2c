@@ -10,6 +10,7 @@ int main(int argc, char* argv[]) {
     char* nombreConfig = argv[1]; //no se si es el 0 o el 1
     configM = malloc(sizeof(configMaster));
     iniciarConfiguracionMaster(nombreConfig, configM);
+    inicializarListas();
     logger = iniciar_logger("master", configM->logLevel);
     establecerConexiones();
     pthread_exit(NULL);

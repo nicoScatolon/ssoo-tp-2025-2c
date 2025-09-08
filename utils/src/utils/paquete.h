@@ -10,13 +10,14 @@
 #include "utils/globales.h"
 
 
+
 typedef struct {
     uint32_t size;
     void* stream;
 } t_buffer;
 
 typedef struct {
-    opcode opcode;
+    //opcode opcode;
     t_buffer* buffer;
 } t_paquete;
 
@@ -31,6 +32,7 @@ t_paquete* recibirPaquete(int socket_cliente);
 int recibirIntPaquete(t_paquete* paquete);
 char* recibirStringDePaquete(t_paquete* paquete);
 char* recibirStringDePaqueteConOffset(t_paquete* paquete, int* offset);
+int recibirIntDePaqueteconOffset(t_paquete* paquete, int* offset);
 opcode recibirOpcode(int socket);
 void enviarOpcode(opcode codigo, int socket);
 #endif 

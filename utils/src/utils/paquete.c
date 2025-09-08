@@ -52,12 +52,33 @@ void eliminarPaquete(t_paquete* paquete) {
 
 t_paquete* recibirPaquete(int socket_cliente) {
     t_paquete* paquete = malloc(sizeof(t_paquete));
+    if (!paquete) return NULL;
+    
     paquete->buffer = malloc(sizeof(t_buffer));
+    if (!paquete->buffer) { free(paquete); return NULL; }
 
-    recv(socket_cliente, &(paquete->buffer->size), sizeof(uint32_t), MSG_WAITALL);
+    ssize_t recibido = recv(socket_cliente, &(paquete->buffer->size), sizeof(uint32_t), MSG_WAITALL);
+    if (recibido <= 0) { // 0 = cliente cerró, -1 = error
+        free(paquete->buffer);
+        free(paquete);
+        return NULL;
+    }
+
 
     paquete->buffer->stream = malloc(paquete->buffer->size);
-    recv(socket_cliente, paquete->buffer->stream, paquete->buffer->size, MSG_WAITALL);
+    if (!paquete->buffer->stream && paquete->buffer->size > 0) {
+        free(paquete->buffer);
+        free(paquete);
+        return NULL;
+    }
+
+    recibido = recv(socket_cliente, paquete->buffer->stream, paquete->buffer->size, MSG_WAITALL);
+    if (recibido <= 0) { // 0 = cliente cerró, -1 = error
+        free(paquete->buffer->stream);
+        free(paquete->buffer);
+        free(paquete);
+        return NULL;
+    }
 
     return paquete;
 }
@@ -68,6 +89,7 @@ int recibirIntPaquete(t_paquete* paquete) {
     memcpy(&valor, paquete->buffer->stream, sizeof(int));
     return valor;
 }
+
 
 char* recibirStringDePaquete(t_paquete* paquete) {
     uint32_t longitud;
@@ -81,15 +103,19 @@ char* recibirStringDePaquete(t_paquete* paquete) {
 
     str[longitud] = '\0';
 
-    return str;
+    return str; 
 }
 
+// Version con offset
 char* recibirStringDePaqueteConOffset(t_paquete* paquete, int* offset) {
+    if (!paquete) return NULL;
     uint32_t longitud;
     memcpy(&longitud, paquete->buffer->stream + *offset, sizeof(uint32_t));
     *offset += sizeof(uint32_t);
 
     char* str = malloc(longitud + 1);
+    if (!str) return NULL;
+
     memcpy(str, paquete->buffer->stream + *offset, longitud);
     *offset += longitud;
 
@@ -97,13 +123,24 @@ char* recibirStringDePaqueteConOffset(t_paquete* paquete, int* offset) {
     return str;
 }
 
+int recibirIntDePaqueteconOffset(t_paquete* paquete, int* offset) {
+    int valor;
+    memcpy(&valor, paquete->buffer->stream + *offset, sizeof(int));
+    *offset += sizeof(int);
+    return valor;
+}
+
+
+
 void enviarOpcode(opcode codigo, int socket) {
     send(socket, &codigo, sizeof(opcode), 0);
 }
 
 opcode recibirOpcode( int socket) {
     opcode codigo;
-    recv(socket, &codigo, sizeof(opcode), MSG_WAITALL);
+    ssize_t recibido = recv(socket, &codigo, sizeof(opcode), MSG_WAITALL);
+    if (recibido <= 0) { // 0 = cliente cerró, -1 = error
+        return -1; // devuelve valor inválido
+    }
     return codigo;
-    
 }

@@ -7,11 +7,12 @@ void iniciarConexion(char* path, int prioridad){ //Iniciar conexion con cliente 
     log_info(logger," ## Conexión al Master exitosa. IP: <%s>, Puerto: <%d>", configQ->IPMaster,configQ->puertoMaster);
     
     t_paquete* paquete = crearPaquete();
+    enviarHandshake(socketMaster,QUERY_CONTROL);
+    enviarOpcode(INICIAR_QUERY_CONTROL,socketMaster);
+    
     agregarStringAPaquete(paquete,path);
     agregarIntAPaquete(paquete,prioridad);
 
-    enviarHandshake(socketMaster,QUERY_CONTROL);
-    enviarOpcode(INICIAR_QUERY_CONTROL,socketMaster);
     enviarPaquete(paquete,socketMaster);
     log_info(logger, " ## Solicitud de ejecución de Query: <%s>, prioridad: <%d>", path, prioridad);
 
