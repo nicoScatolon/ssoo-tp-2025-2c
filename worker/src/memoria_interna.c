@@ -1,0 +1,1 @@
+#include <memoria_interna.h>
