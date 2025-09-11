@@ -1,3 +1,4 @@
+
 #ifndef CONEXIONES_H
 #define CONEXIONES_H
 #include "globals.h"
@@ -13,7 +14,8 @@ uint32_t generarIdWorker();
 uint32_t generarIdQuery();
 void *escucharQueryControl(void* socketServidorVoid);
 void comprobacionModulo(modulo modulo_origen, modulo esperado, char *modulo, void*(*operacion)(void*), int socket_cliente);
-void * operarQueryControl(void* socketClienteVoid);
-
+void * operarQueryControl(void* socketClienteVoid);void eliminarQueryControl(queryControl* queryC);
+void eliminarWorker(worker* workerEliminar);
+void eliminarQuery(query * queryEliminar);
 void establecerConexiones();
 #endif

@@ -7,13 +7,14 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include "utils/listas.h"
 
 // ✅ SOLO DECLARACIONES con extern - NO definiciones
 extern pthread_mutex_t mutex_id_queryControl;
 extern pthread_mutex_t mutex_id_worker;
 extern pthread_mutex_t mutex_grado;
 extern pthread_mutex_t mutex_cantidadQueriesControl;
-extern pthread_mutex_t mutex_lista_workers;
+// extern pthread_mutex_t mutex_lista_workers;
 extern uint32_t siguienteIdQueryControl;
 extern uint32_t siguienteIdWorker;
 extern uint32_t gradoMultiprogramacion;
@@ -22,11 +23,12 @@ extern uint32_t cantidadQueriesControl;
 extern t_log* logger;
 extern configMaster* configM;
 
-extern t_list* READY;
-extern t_list* EXECUTE;
-extern t_list* EXIT;
-extern t_list* workers;
-extern t_list* queriesControl;
+
+extern t_list_mutex listaReady;
+extern t_list_mutex listaExecute;
+extern t_list_mutex listaExit;
+extern t_list_mutex listaWorkers;
+extern t_list_mutex listaQueriesControl;
 
 // ✅ Enums y structs (estos SÍ van en .h)
 typedef enum {

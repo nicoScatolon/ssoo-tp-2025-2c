@@ -7,32 +7,38 @@
 
 
 void agregarQueryControl(char* path,int socketCliente, int prioridad){
+
     queryControl *nuevaQueryControl = malloc(sizeof(queryControl));
     nuevaQueryControl->path = strdup(path);
     nuevaQueryControl->socket = socketCliente;
     nuevaQueryControl->prioridad = prioridad;
     nuevaQueryControl->queryControlID = generarIdQueryControl(); 
     pthread_mutex_init(&nuevaQueryControl->mutex,NULL);
-    list_add(queriesControl,nuevaQueryControl);
+
+    listaAdd(nuevaQueryControl,&listaQueriesControl);
+
     pthread_mutex_lock(&mutex_cantidadQueriesControl);
     cantidadQueriesControl++;
     pthread_mutex_unlock(&mutex_cantidadQueriesControl);
+
     log_info(logger, "## Se conecta un Query Control para ejecutar la Query <PATH_QUERY> <%s> con prioridad <PRIORIDAD> <%d> - Id asignado: <QUERY_ID> <%d> . Nivel multiprogramación <CANTIDAD> <%d>",path,prioridad,nuevaQueryControl->queryControlID,cantidadQueriesControl);
     agregarQuery(path,prioridad,nuevaQueryControl->queryControlID);
 }
 void agregarWorker(int socketCliente){
+
     worker *nuevoWorker = malloc(sizeof(worker));
     nuevoWorker->pathActual = strdup("");
     nuevoWorker->socket = socketCliente;
     nuevoWorker->ocupado = false;
     nuevoWorker->workerID = generarIdWorker();
     pthread_mutex_init(&nuevoWorker->mutex,NULL);
-    pthread_mutex_lock(&mutex_lista_workers);
-    list_add(workers,nuevoWorker);
-    pthread_mutex_unlock(&mutex_lista_workers);
+
+    listaAdd(nuevoWorker,&listaWorkers);
+
     pthread_mutex_lock(&mutex_grado);
     gradoMultiprogramacion++;
     pthread_mutex_unlock(&mutex_grado);
+
     log_info(logger,"Conexión de Worker: ## Se conecta el Worker <WORKER_ID> <%d> - Cantidad total de Workers: <CANTIDAD> <%d> ",nuevoWorker->workerID,gradoMultiprogramacion);
 
 }
@@ -45,10 +51,28 @@ void agregarQuery(char* path,int prioridad,int id){
     nuevaQuery->qcb->queryID = id;
     nuevaQuery->qcb->PC = 0;
     pthread_mutex_init(&nuevaQuery->mutex,NULL);
-    list_add(READY,nuevaQuery);
+
+    listaAdd(nuevaQuery,&listaReady);
+    
     log_debug(logger,"Se encolo query ID <%d> en READY",nuevaQuery->qcb->queryID);
 }
 
+void eliminarQueryControl(queryControl* queryC){
+    pthread_mutex_destroy(&queryC->mutex);
+    free(queryC->path);
+    free(queryC);
+}
+void eliminarWorker(worker* workerEliminar){
+    pthread_mutex_destroy(&workerEliminar->mutex);
+    free(workerEliminar->pathActual);
+    free(workerEliminar);
+}
+void eliminarQuery(query * queryEliminar){
+    pthread_mutex_destroy(&queryEliminar->mutex);
+    free(queryEliminar->path);
+    free(queryEliminar->qcb);
+    free(queryEliminar);
+}
 uint32_t generarIdQueryControl() {
     pthread_mutex_lock(&mutex_id_queryControl);
     uint32_t id = siguienteIdQueryControl++;
@@ -61,7 +85,6 @@ uint32_t generarIdWorker() {
     pthread_mutex_unlock(&mutex_id_worker);
     return id;
 }
-
 void establecerConexiones(){
     char* puertoQueryControl = string_itoa(configM->puertoEscucha);
     int socketQueryControl= iniciarServidor(puertoQueryControl,logger,"MASTER");
@@ -71,8 +94,6 @@ void establecerConexiones(){
     pthread_create(&hiloQueryControl,NULL,escucharQueryControl,(void*)(intptr_t)socketQueryControl);
     pthread_detach(hiloQueryControl);
 }
-
-
 
 void *escucharQueryControl(void* socketServidorVoid){
     int socketServidor = (intptr_t) socketServidorVoid;
@@ -127,25 +148,20 @@ void * operarQueryControl(void* socketClienteVoid){
             }
 
             int offset = 0;
-            log_debug(logger,"antes de recibir el string");
-            
             char* path = recibirStringDePaqueteConOffset(paquete, &offset);
             if (!path) {
                 log_error(logger, "Error desempaquetando path");
                 eliminarPaquete(paquete);
                 break;
             }
-
-            log_debug(logger,"despues de recibir el string, valor: %s",path);
             int prioridad = recibirIntDePaqueteconOffset(paquete, &offset);
-            
-            log_debug(logger,"prioridad %d, path %s ",prioridad,path);
-
             agregarQueryControl(path,socketCliente,prioridad);
-            
             free(path);
             eliminarPaquete(paquete);
             break;
+        }
+        case DESCONEXION_QUERY_CONTROL:{
+            
         }
         default:
             log_warning(logger, "Opcode desconocido: %d", codigo);
