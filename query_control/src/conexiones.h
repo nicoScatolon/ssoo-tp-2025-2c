@@ -8,6 +8,8 @@
 
 void iniciarConexion(char* path, int prioridad);
 void esperarRespuesta();
+
 extern configQuery *configQ;
 extern t_log* logger;
+
 #endif

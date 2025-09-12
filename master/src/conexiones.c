@@ -1,9 +1,8 @@
 #include "utils/config.h"
 #include "utils/logs.h"
-#include "Masterones.h"
-#include "utils/Masteres.h"
 #include "utils/paquete.h"
 #include "globals.h"
+#include "conexiones.h"
 
 
 void agregarQueryControl(char* path,int socketCliente, int prioridad){
@@ -79,12 +78,7 @@ uint32_t generarIdQueryControl() {
     pthread_mutex_unlock(&mutex_id_queryControl);
     return id;
 }
-uint32_t generarIdWorker() {
-    pthread_mutex_lock(&mutex_id_worker);
-    uint32_t id = siguienteIdWorker++;
-    pthread_mutex_unlock(&mutex_id_worker);
-    return id;
-}
+
 void establecerConexiones(){
     char* puertoQueryControl = string_itoa(configM->puertoEscuchaQueryControl);
     char* puertoWorker = string_itoa(configM->puertoEscuchaWorker);

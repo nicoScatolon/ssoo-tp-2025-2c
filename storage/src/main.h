@@ -5,8 +5,7 @@
 #include "conexiones.h"
 #include "utils/logs.h"
 
-int main(int argc,char* argv[]);
+
+int main(int argc, char*argv[]);
 
 #endif
-
-

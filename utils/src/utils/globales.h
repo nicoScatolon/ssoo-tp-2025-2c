@@ -12,6 +12,17 @@ typedef enum
     DESALOJO_QUERY_PLANIFICADOR,
     DESALOJO_QUERY_DESCONEXION,
     NUEVA_QUERY,
+    //Instrucciones Storage:
+    CREATE_FILE,
+    TRUNCAR_ARCHIVO,
+    TAG_FILE,
+    COMMIT_TAG,
+    WRITE_BLOCK,
+    READ_BLOCK,
+    REMOVE_TAG,
+    
+    RESPUESTA_OK,
+    RESPUESTA_ERROR
 }opcode;
 
 typedef enum{

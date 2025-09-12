@@ -6,7 +6,6 @@
 #include "utils/logs.h"
 
 
-
 void iniciarConfiguracionMaster(char* nombreConfig, configMaster*configM);
 
 #endif

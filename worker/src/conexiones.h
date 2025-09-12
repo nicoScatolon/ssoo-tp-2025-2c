@@ -2,10 +2,14 @@
 #define WORKER_CONEXIONES_H
 
 #include "utils/sockets.h"
+#include "utils/logs.h"
 #include "utils/paquete.h"
-#include "commons/log.h"
 #include "globals.h"
-
-int conexionConMaster(configWorker* configW, t_log* logger);
+extern configWorker * configW;
+void conexionConMaster(int idQuery);
+void esperarRespuesta();
+void escucharMaster();
+void escucharStorage();
+void conexionConStorage();
 
 #endif

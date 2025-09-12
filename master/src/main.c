@@ -7,7 +7,7 @@ int main(int argc, char* argv[]) {
         printf("No se pasaron los parametros necesarios, se necesita el nombre del archivo de configuracion\n");
         return EXIT_FAILURE;
     }
-    char* nombreConfig = argv[1]; //no se si es el 0 o el 1
+    char* nombreConfig = argv[1]; 
     configM = malloc(sizeof(configMaster));
     iniciarConfiguracionMaster(nombreConfig, configM);
     inicializarListas();

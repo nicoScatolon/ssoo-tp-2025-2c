@@ -27,6 +27,7 @@ void esperarRespuesta(){
         if (recibido <= 0) {
             log_warning(logger, "Cliente desconectado en socket %d", socketMaster);
             close(socketMaster);
+            //finalizarQueryControl();
             break;
         }
         switch(codigo){
@@ -37,7 +38,7 @@ void esperarRespuesta(){
                 log_info(logger,"## Query finalizada - <Motivo> <%s>",motivo);
                 free(motivo);
                 eliminarPaquete(paquete);
-                //finalizarQueryControl();
+                finalizarQueryControl();
                 break;
             }
             case LECTURA_QUERY_CONTROL:{
