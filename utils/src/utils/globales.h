@@ -11,7 +11,7 @@ typedef enum
     FINALIZACION_QUERY,
     DESALOJO_QUERY_PLANIFICADOR,
     DESALOJO_QUERY_DESCONEXION,
-    ENVIAR_QUERY
+    NUEVA_QUERY,
 }opcode;
 
 typedef enum{

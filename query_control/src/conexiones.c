@@ -1,8 +1,8 @@
 #include "conexiones.h"
-
-int iniciarConexion(char* path, int prioridad){ //Iniciar conexion con cliente (Master)
+int socketMaster;
+void iniciarConexion(char* path, int prioridad){ //Iniciar conexion con cliente (Master)
     char* puertoMaster = string_itoa(configQ->puertoMaster);
-    int socketMaster = crearConexion(configQ->IPMaster,puertoMaster,logger);
+    socketMaster = crearConexion(configQ->IPMaster,puertoMaster,logger);
     comprobarSocket(socketMaster,"QueryControl","Master",logger);
     log_info(logger," ## Conexión al Master exitosa. IP: <%s>, Puerto: <%d>", configQ->IPMaster,configQ->puertoMaster);
     
@@ -18,36 +18,29 @@ int iniciarConexion(char* path, int prioridad){ //Iniciar conexion con cliente (
 
     eliminarPaquete(paquete);
     free(puertoMaster);
-    return socketMaster;
 }
 
-void* esperarRespuesta(void* socketClienteVoid){
-    int socketMaster = (intptr_t) socketClienteVoid;
-    opcode codigo = recibirOpcode(socketMaster);
-    if (codigo < 0) {
-        log_warning(logger, "Cliente desconectado en socket %d", socketMaster);
-        close(socketMaster);
-        return NULL;
-        }
+void esperarRespuesta(){
     while(1){
-        opcode codigo = recibirOpcode(socketMaster);
-        if (codigo < 0) {
+        opcode codigo;
+        int recibido = recv(socketMaster,&codigo,sizeof(opcode),MSG_WAITALL);
+        if (recibido <= 0) {
             log_warning(logger, "Cliente desconectado en socket %d", socketMaster);
             close(socketMaster);
-            return NULL;
+            break;
         }
         switch(codigo){
-            case FINALIZAR_QUERY_CONTROL:{
+            case FINALIZACION_QUERY:{
                 t_paquete* paquete = recibirPaquete(socketMaster);
                 int offset = 0;
                 char * motivo = recibirStringDePaqueteConOffset(paquete,&offset);
                 log_info(logger,"## Query finalizada - <Motivo> <%s>",motivo);
                 free(motivo);
-                //finalizarQueryControl();
                 eliminarPaquete(paquete);
+                //finalizarQueryControl();
                 break;
             }
-            case INFORMACION_QUERY_CONTROL:{
+            case LECTURA_QUERY_CONTROL:{
                 log_debug(logger,"Lectura en queryControl");
                 t_paquete* paquete = recibirPaquete(socketMaster);
                 int offset = 0;
@@ -63,9 +56,12 @@ void* esperarRespuesta(void* socketClienteVoid){
             }
             default:
                 log_warning(logger, " ## Respuesta desconocida de Master (opcode=%d)", codigo);
-                return NULL;
                 break;
         }
     }
-    return NULL;
+}
+
+void finalizarQueryControl(){
+    close(socketMaster);
+    log_destroy(logger);
 }

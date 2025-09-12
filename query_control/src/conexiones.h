@@ -6,8 +6,8 @@
 #include "utils/config.h"
 #include "utils/globales.h"
 
-int iniciarConexion(char* path, int prioridad);
-void* esperarRespuesta(void* socketMasterVoid);
+void iniciarConexion(char* path, int prioridad);
+void esperarRespuesta();
 extern configQuery *configQ;
 extern t_log* logger;
 #endif

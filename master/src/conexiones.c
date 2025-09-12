@@ -1,7 +1,7 @@
 #include "utils/config.h"
 #include "utils/logs.h"
-#include "conexiones.h"
-#include "utils/globales.h"
+#include "Masterones.h"
+#include "utils/Masteres.h"
 #include "utils/paquete.h"
 #include "globals.h"
 
@@ -24,13 +24,13 @@ void agregarQueryControl(char* path,int socketCliente, int prioridad){
     log_info(logger, "## Se conecta un Query Control para ejecutar la Query <PATH_QUERY> <%s> con prioridad <PRIORIDAD> <%d> - Id asignado: <QUERY_ID> <%d> . Nivel multiprogramación <CANTIDAD> <%d>",path,prioridad,nuevaQueryControl->queryControlID,cantidadQueriesControl);
     agregarQuery(path,prioridad,nuevaQueryControl->queryControlID);
 }
-void agregarWorker(int socketCliente){
+void agregarWorker(int socketCliente,int idWorker){
 
     worker *nuevoWorker = malloc(sizeof(worker));
     nuevoWorker->pathActual = strdup("");
     nuevoWorker->socket = socketCliente;
     nuevoWorker->ocupado = false;
-    nuevoWorker->workerID = generarIdWorker();
+    nuevoWorker->workerID = idWorker;
     pthread_mutex_init(&nuevoWorker->mutex,NULL);
 
     listaAdd(nuevoWorker,&listaWorkers);
@@ -86,13 +86,23 @@ uint32_t generarIdWorker() {
     return id;
 }
 void establecerConexiones(){
-    char* puertoQueryControl = string_itoa(configM->puertoEscucha);
-    int socketQueryControl= iniciarServidor(puertoQueryControl,logger,"MASTER");
+    char* puertoQueryControl = string_itoa(configM->puertoEscuchaQueryControl);
+    char* puertoWorker = string_itoa(configM->puertoEscuchaWorker);
+    
+    int socketQueryControl = iniciarServidor(puertoQueryControl,logger,"MASTER_QUERYCONTROL");
+    int socketWorker = iniciarServidor(puertoWorker,logger,"MASTER_WORKER");
+    //int socketWorker= iniciarServidor(puertoWorker,logger,"MASTER");
+    free(puertoWorker);
     free(puertoQueryControl);
+
     
     pthread_t hiloQueryControl;
+    pthread_t hiloWorker;
     pthread_create(&hiloQueryControl,NULL,escucharQueryControl,(void*)(intptr_t)socketQueryControl);
+    pthread_create(&hiloWorker,NULL,escucharWorker,(void*)(intptr_t)socketWorker);
+
     pthread_detach(hiloQueryControl);
+    pthread_detach(hiloWorker);
 }
 
 void *escucharQueryControl(void* socketServidorVoid){
@@ -105,6 +115,19 @@ void *escucharQueryControl(void* socketServidorVoid){
         modulo moduloOrigen;
         recv(socketCliente,&moduloOrigen,sizeof(modulo),0);
         comprobacionModulo(moduloOrigen,QUERY_CONTROL,"QUERYCONTROL",operarQueryControl,socketCliente);
+    }
+    return NULL;
+}
+void *escucharWorker(void* socketServidorVoid){
+    int socketServidor = (intptr_t) socketServidorVoid;
+    log_debug(logger,"Servidor MASTER_WORKER escuchando conexiones");
+    while (1)
+    {
+        int socketCliente = esperarCliente(socketServidor,logger);
+        printf("socketCliente %d",socketCliente);
+        modulo moduloOrigen;
+        recv(socketCliente,&moduloOrigen,sizeof(modulo),0);
+        comprobacionModulo(moduloOrigen,WORKER,"WORKER",operarWorker,socketCliente);
     }
     return NULL;
 }
@@ -171,4 +194,33 @@ void * operarQueryControl(void* socketClienteVoid){
     }
     close(socketCliente);
     return NULL;
+}
+void *operarWorker(void*socketClienteVoid){
+    int socketCliente = (intptr_t) socketClienteVoid;
+    while(1){
+        opcode codigo = recibirOpcode(socketCliente);
+            if (codigo < 0) {
+            log_warning(logger, "Cliente desconectado en socket %d", socketCliente);
+            close(socketCliente);
+            return NULL;
+        }
+    switch (codigo)
+    {
+    case INICIAR_WORKER:{
+        t_paquete* paquete = recibirPaquete(socketCliente);
+        if (!paquete) {
+                log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
+                break;
+            }
+            int offset = 0;
+            int idWorker = recibirIntDePaqueteconOffset(paquete,&offset);
+            agregarWorker(socketCliente,idWorker);
+            eliminarPaquete(paquete);
+    }
+        break;
+    
+    default:
+        break;
+    }
+    }
 }

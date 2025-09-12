@@ -13,18 +13,15 @@ int main(int argc, char* argv[]) {
     }
 
     char* archivoConfig = argv[1];
-    char* workerID = argv[2];
+    int workerId = atoi(argv[2]);
 
     configW = malloc(sizeof(config));
     iniciarConfiguracionWorker(archivoConfig,configW);
 
     logger = iniciar_logger("worker", configW->logLevel);
     
-    log_info(logger, "## Iniciando Worker...");
-
-    int socketMaster = conexionConMaster();
-
-    escucharMaster(socketMaster);
+    conexionConMaster();
+    escucharMaster();
 
     log_info(logger, "## Finalizando Worker.");
     return EXIT_SUCCESS;

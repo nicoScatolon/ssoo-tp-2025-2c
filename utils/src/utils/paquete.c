@@ -139,8 +139,11 @@ void enviarOpcode(opcode codigo, int socket) {
 opcode recibirOpcode(int socket) {
     opcode codigo;
     ssize_t recibido = recv(socket, &codigo, sizeof(opcode), MSG_WAITALL);
-    if (recibido <= 0) { // 0 = cliente cerró, -1 = error
-        return -1; // devuelve valor inválido
+    if (recibido <= 0) {
+        int err = errno;
+        printf(stderr,"recv socket %d devolvió %zd errno=%d (%s)\n",
+                socket, recibido, err, strerror(err));
+        return -1;
     }
     return codigo;
 }

@@ -7,7 +7,8 @@
 
 typedef struct 
 {
-    uint32_t puertoEscucha;
+    uint32_t puertoEscuchaQueryControl;
+    uint32_t puertoEscuchaWorker;
     char* algoritmoPlanificacion;
     uint32_t tiempoAging;
     t_log_level logLevel;

@@ -18,9 +18,7 @@ int main(int argc,char*argv[]){
     configQ = malloc(sizeof(configQuery));
     iniciarConfiguracionQueryControl(nombreConfiguracion,configQ);
     logger = iniciar_logger("queryControl",configQ->logLevel);
-    int socketMaster = iniciarConexion(path,prioridad);
-    pthread_t hiloRespuesta;
-    pthread_create(&hiloRespuesta,NULL,esperarRespuesta,&socketMaster);
-    pthread_join(hiloRespuesta, NULL);
+    iniciarConexion(path,prioridad);
+    esperarRespuesta();
     //liberarQuery(logger,config);
 }

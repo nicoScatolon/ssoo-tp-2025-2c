@@ -8,6 +8,8 @@
 #include <sys/socket.h>
 #include <sys/time.h> //PRUEBO
 #include "utils/globales.h"
+#include <errno.h>
+#include <stdio.h>
 
 
 
