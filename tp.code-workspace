@@ -27,6 +27,7 @@
       "*.h": "c"
     },
     "C_Cpp.autoAddFileAssociations": false,
-    "C_Cpp.errorSquiggles": "enabled"
+    "C_Cpp.errorSquiggles": "enabled",
+    "C_Cpp.codeAnalysis.clangTidy.enabled": true
   }
 }
