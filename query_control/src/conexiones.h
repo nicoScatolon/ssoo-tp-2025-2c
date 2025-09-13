@@ -8,6 +8,7 @@
 
 void iniciarConexion(char* path, int prioridad);
 void esperarRespuesta();
+void finalizarQueryControl();
 
 extern configQuery *configQ;
 extern t_log* logger;
