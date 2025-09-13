@@ -5,6 +5,7 @@
 #include "conexiones.h"
 
 
+
 void agregarQueryControl(char* path,int socketCliente, int prioridad){
 
     queryControl *nuevaQueryControl = malloc(sizeof(queryControl));
@@ -30,9 +31,11 @@ void agregarWorker(int socketCliente,int idWorker){
     nuevoWorker->socket = socketCliente;
     nuevoWorker->ocupado = false;
     nuevoWorker->workerID = idWorker;
+    nuevoWorker->idActual = -1;
     pthread_mutex_init(&nuevoWorker->mutex,NULL);
 
     listaAdd(nuevoWorker,&listaWorkers);
+    despertar_planificador();
 
     pthread_mutex_lock(&mutex_grado);
     gradoMultiprogramacion++;
@@ -52,19 +55,39 @@ void agregarQuery(char* path,int prioridad,int id){
     pthread_mutex_init(&nuevaQuery->mutex,NULL);
 
     listaAdd(nuevaQuery,&listaReady);
-    
+    despertar_planificador();
     log_debug(logger,"Se encolo query ID <%d> en READY",nuevaQuery->qcb->queryID);
 }
 
 void eliminarQueryControl(queryControl* queryC){
+
+    int posicion = obtenerPosicionQCPorId(queryC->queryControlID);
+    pthread_mutex_lock(&listaQueriesControl.mutex);
+    list_remove(listaQueriesControl.lista,posicion);
+    pthread_mutex_unlock(&listaQueriesControl.mutex);
+
     pthread_mutex_destroy(&queryC->mutex);
     free(queryC->path);
     free(queryC);
+
+    pthread_mutex_lock(&mutex_cantidadQueriesControl);
+    cantidadQueriesControl--;
+    pthread_mutex_unlock(&mutex_cantidadQueriesControl);
 }
 void eliminarWorker(worker* workerEliminar){
+    int posicion = obtenerPosicionWPorId(workerEliminar->workerID);
+
+    pthread_mutex_lock(&listaWorkers.mutex);
+    list_remove(listaWorkers.lista,posicion);
+    pthread_mutex_unlock(&listaWorkers.mutex);
+
     pthread_mutex_destroy(&workerEliminar->mutex);
     free(workerEliminar->pathActual);
     free(workerEliminar);
+
+    pthread_mutex_lock(&mutex_grado);
+    gradoMultiprogramacion--;
+    pthread_mutex_unlock(&mutex_grado);
 }
 void eliminarQuery(query * queryEliminar){
     pthread_mutex_destroy(&queryEliminar->mutex);
@@ -172,9 +195,11 @@ void * operarQueryControl(void* socketClienteVoid){
                 break;
             }
             int prioridad = recibirIntDePaqueteconOffset(paquete, &offset);
+
             agregarQueryControl(path,socketCliente,prioridad);
             free(path);
             eliminarPaquete(paquete);
+
             break;
         }
         case DESCONEXION_QUERY_CONTROL:{
@@ -210,11 +235,66 @@ void *operarWorker(void*socketClienteVoid){
             int idWorker = recibirIntDePaqueteconOffset(paquete,&offset);
             agregarWorker(socketCliente,idWorker);
             eliminarPaquete(paquete);
+            break;
     }
-        break;
+    case LECTURA_QUERY_CONTROL:{
+        t_paquete* paqueteReceptor = recibirPaquete(socketCliente);
+        if (!paqueteReceptor){
+                log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
+                break;
+        }
+            int offset = 0;
+            int idQuery = recibirIntDePaqueteconOffset(paqueteReceptor,&offset);
+            char * file = recibirStringDePaqueteConOffset(paqueteReceptor,&offset);
+            char * tag = recibirStringDePaqueteConOffset(paqueteReceptor,&offset);
+            char * contenido = recibirStringDePaqueteConOffset(paqueteReceptor,&offset);
+            queryControl*queryC = buscarQueryControlPorId(idQuery);
+            worker* workerA = buscarWorkerPorId(idQuery);
+            t_paquete* paqueteEnviar = crearPaquete();
+
+            agregarStringAPaquete(paqueteEnviar,file);
+            agregarStringAPaquete(paqueteEnviar,tag);
+            agregarStringAPaquete(paqueteEnviar,contenido);
+            enviarPaquete(paqueteEnviar,queryC->socket);
+            log_info(logger,"## Se envía un mensaje de lectura de la Query <%d> en el Worker <%d> al Query Control",idQuery,workerA->workerID);
+            
+            free(queryC);
+            free(workerA);
+            free(file);
+            free(tag);
+            free(contenido);
+            eliminarPaquete(paqueteReceptor);
+            eliminarPaquete(paqueteEnviar);
+
+            break;
+    }
+    case FINALIZACION_QUERY:{
+        t_paquete * paqueteReceptor = recibirPaquete(socketCliente);
+          if (!paqueteReceptor){
+                log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
+                break;
+        }
+            int offset = 0;
+            int idQuery = recibirIntDePaqueteconOffset(paqueteReceptor,&offset);
+            char * motivo = recibirStringDePaqueteConOffset(paqueteReceptor,&offset);
+            queryControl* queryC = buscarQueryControlPorId(idQuery);
+            worker* workerA = buscarWorkerPorId(idQuery);
+            liberarWorker(workerA);
+            t_paquete* paqueteEnviar = crearPaquete();
+            agregarStringAPaquete(paqueteEnviar,motivo);
+            enviarPaquete(paqueteEnviar,queryC->socket);
+
+            free(motivo);
+            eliminarPaquete(paqueteReceptor);
+            eliminarPaquete(paqueteEnviar);
+            eliminarQueryControl(queryC);
+            free(workerA);
+            break;
+    }
     
     default:
         break;
     }
     }
 }
+

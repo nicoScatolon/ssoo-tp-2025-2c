@@ -49,6 +49,7 @@ typedef struct {
     char* pathActual;
     int socket;
     int workerID;
+    int idActual;
     bool ocupado;
     pthread_mutex_t mutex;
 } worker;

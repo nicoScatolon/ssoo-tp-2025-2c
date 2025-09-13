@@ -4,6 +4,7 @@
 #include "globals.h"
 #include "utils/sockets.h"
 #include "utils/globales.h"
+#include "planificadores.h"
 
 
 void agregarQueryControl(char* path,int socketCliente, int prioridad);

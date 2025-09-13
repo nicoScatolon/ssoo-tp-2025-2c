@@ -91,11 +91,80 @@ bool hay_trabajo_para_planificar(){
     return ready_no_vacia && hay_worker_libre;
 }
 void enviarQueryAWorker(worker* workerElegido,char* path,int PC,int queryID){
+    workerElegido->pathActual = path;
+    workerElegido->idActual = queryID;
+
     t_paquete*paquete = crearPaquete();
     agregarStringAPaquete(paquete,path);
     agregarIntAPaquete(paquete,PC);
     agregarIntAPaquete(paquete,queryID);
     enviarOpcode(NUEVA_QUERY,workerElegido->socket);
     enviarPaquete(paquete,workerElegido->socket);
+
     eliminarPaquete(paquete);
+}
+
+queryControl* buscarQueryControlPorId(int idQuery){
+    pthread_mutex_lock(&listaQueriesControl.mutex);
+    for (int i = 0; i < list_size(listaQueriesControl.lista); i++)
+    {
+        queryControl * queryC = list_get(listaQueriesControl.lista,i);
+        if (queryC->queryControlID == idQuery)
+        {
+            pthread_mutex_unlock(&listaQueriesControl.mutex);
+            return queryC;
+        }
+        
+    }
+    pthread_mutex_unlock(&listaQueriesControl.mutex);
+    return NULL;
+}
+worker* buscarWorkerPorId(int idQuery){
+    pthread_mutex_lock(&listaWorkers.mutex);
+    for (int i = 0; i < list_size(listaWorkers.lista); i++)
+    {
+        worker * workerA = list_get(listaWorkers.lista,i);
+        if (workerA->idActual == idQuery)
+        {
+            pthread_mutex_unlock(&listaWorkers.mutex);
+            return workerA;
+        }
+        
+    }
+    pthread_mutex_unlock(&listaQueriesControl.mutex);
+    return NULL;
+}
+
+
+int obtenerPosicionQCPorId(int idBuscado) {
+    pthread_mutex_lock(&listaQueriesControl.mutex);
+    for (int i = 0; i < list_size(listaQueriesControl.lista); i++) {
+        queryControl* elem = (queryControl*) list_get(listaQueriesControl.lista, i);
+        if (elem->queryControlID == idBuscado) {
+            pthread_mutex_unlock(&listaQueriesControl.mutex);
+            return i;
+        }
+    }
+    pthread_mutex_unlock(&listaQueriesControl.mutex);
+    return -1; 
+}
+
+
+int obtenerPosicionWPorId(int idBuscado) {
+    pthread_mutex_lock(&listaWorkers.mutex);
+    for (int i = 0; i < list_size(listaWorkers.lista); i++) {
+        worker* elem = (worker*) list_get(listaWorkers.lista, i);
+        if (elem->idActual == idBuscado) {
+            pthread_mutex_unlock(&listaWorkers.mutex);
+            return i;
+        }
+    }
+    pthread_mutex_unlock(&listaWorkers.mutex);
+    return -1; 
+}
+
+void liberarWorker(worker* workerA){
+    workerA->ocupado= false;
+    workerA->idActual=-1;
+    workerA->pathActual = "";
 }
