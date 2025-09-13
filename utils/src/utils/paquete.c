@@ -141,7 +141,7 @@ opcode recibirOpcode(int socket) {
     ssize_t recibido = recv(socket, &codigo, sizeof(opcode), MSG_WAITALL);
     if (recibido <= 0) {
         int err = errno;
-        printf(stderr,"recv socket %d devolvió %zd errno=%d (%s)\n",
+        printf("recv socket %d devolvió %zd errno=%d (%s)\n",
                 socket, recibido, err, strerror(err));
         return -1;
     }
