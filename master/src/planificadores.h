@@ -7,7 +7,7 @@
 #include "utils/paquete.h"
 
 worker * obtenerWorkerLibre();
-query* obtenerQuery(t_list_mutex* lista);
+query* obtenerQuery();
 void* planificadorFIFO();
 void cambioEstado(t_list_mutex* lista, query* elemento);
 void despertar_planificador();
@@ -18,4 +18,6 @@ worker* buscarWorkerPorId(int idQuery);
 int obtenerPosicionQCPorId(int idBuscado);
 int obtenerPosicionWPorId(int idBuscado);
 void liberarWorker(worker* workerA);
+query* obtenerQueryDeMenorPrioridad();
+bool hayWorkerLibre();
 #endif

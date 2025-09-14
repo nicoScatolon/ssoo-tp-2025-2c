@@ -43,7 +43,7 @@ void* planificadorFIFO() {
             continue;
         }
 
-        query* queryElegida = obtenerQuery(&listaReady);
+        query* queryElegida = obtenerQuery();
         if (queryElegida == NULL) {
             log_warning(logger,"La query es nula");
             continue;
@@ -55,8 +55,8 @@ void* planificadorFIFO() {
     }
 }
 
-query* obtenerQuery(t_list_mutex* lista){
-    return (query*) listRemove(lista);
+query* obtenerQuery(){
+    return (query*) listRemove(&listaReady);
 }
 
 void cambioEstado(t_list_mutex* lista, query* elemento){
@@ -167,4 +167,91 @@ void liberarWorker(worker* workerA){
     workerA->ocupado= false;
     workerA->idActual=-1;
     workerA->pathActual = "";
+}
+
+void* Aging(void* arg) {
+    while (1) {
+        usleep(configM->tiempoAging * 1000); // si está en ms
+
+        pthread_mutex_lock(&listaReady.mutex);
+        for (int i = 0; i < list_size(listaReady.lista); i++) {
+            query* q = list_get(listaReady.lista, i);
+            if (q->qcb->prioridad > 0) {
+                q->qcb->prioridad -= 1;
+            }
+        }
+
+        pthread_mutex_unlock(&listaReady.mutex);
+    }
+    return NULL;
+}
+void* planificadorPrioridad() {
+
+    while(1) {
+
+        pthread_mutex_lock(&mutex_cv_planif);
+        while (!hay_trabajo_para_planificar()) {
+            pthread_cond_wait(&cv_planif, &mutex_cv_planif);
+        }
+        pthread_mutex_unlock(&mutex_cv_planif);
+        if (!hayWorkerLibre())
+        {
+            //Deberia despertar el hilo que evalua el desalojo
+            
+        }
+        
+        worker* workerElegido = obtenerWorkerLibre();
+        if (workerElegido == NULL) {
+            log_warning(logger,"El worker es nulo");
+            continue;
+        }
+
+        query* queryElegida = obtenerQueryDeMenorPrioridad();
+        if (queryElegida == NULL) {
+            log_warning(logger,"La query es nula");
+            continue;
+        }
+
+        cambioEstado(&listaExecute,queryElegida);
+        enviarQueryAWorker(workerElegido, queryElegida->path,queryElegida->qcb->PC,queryElegida->qcb->queryID);
+    }
+}
+
+query* obtenerQueryDeMenorPrioridad() {
+
+    if (esListaVacia(&listaReady)) {;
+        return NULL; 
+    }
+    pthread_mutex_lock(&listaReady.mutex);
+
+    int indiceMejor = 0;
+    query* mejor = list_get(listaReady.lista, 0);
+
+
+    for (int i = 1; i < list_size(listaReady.lista); i++) {
+        query* q = list_get(listaReady.lista, i);
+        if (q->qcb->prioridad < mejor->qcb->prioridad) {
+            mejor = q;
+            indiceMejor = i;
+        }
+    }
+
+    query* seleccionada = list_remove(listaReady.lista, indiceMejor);
+    pthread_mutex_unlock(&listaReady.mutex);
+    return seleccionada; 
+}
+
+bool hayWorkerLibre(){
+    pthread_mutex_lock(&listaWorkers.mutex);
+    for (int i = 0; i < list_size(listaWorkers.lista); i++)
+    {
+        worker* w = list_get(listaWorkers.lista,i);
+        if (!w->ocupado)
+        {
+            pthread_mutex_unlock(&listaWorkers.mutex);
+            return true;
+        }
+    }
+    pthread_mutex_unlock(&listaWorkers.mutex);
+    return false;
 }

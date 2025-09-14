@@ -258,8 +258,7 @@ void *operarWorker(void*socketClienteVoid){
             enviarPaquete(paqueteEnviar,queryC->socket);
             log_info(logger,"## Se envía un mensaje de lectura de la Query <%d> en el Worker <%d> al Query Control",idQuery,workerA->workerID);
             
-            free(queryC);
-            free(workerA);
+
             free(file);
             free(tag);
             free(contenido);
@@ -288,7 +287,6 @@ void *operarWorker(void*socketClienteVoid){
             eliminarPaquete(paqueteReceptor);
             eliminarPaquete(paqueteEnviar);
             eliminarQueryControl(queryC);
-            free(workerA);
             break;
     }
     
