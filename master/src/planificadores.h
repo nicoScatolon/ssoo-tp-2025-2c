@@ -7,11 +7,10 @@
 #include "utils/paquete.h"
 
 // ------------------- Planificadores (hilos) -------------------
-void* planificadorFIFO(void* _);
-void* planificadorPrioridad(void* _);
-void* hiloDesalojo(void* _);     // si usás preempción por prioridad
-void* Aging(void* _);            // hilo de aging
-
+void* planificadorFIFO();
+void* planificadorPrioridad();
+void* evaluarDesalojo();     
+void* aging();            
 // ------------------- Predicados / Sync -------------------
 bool hayWorkerLibre(void);
 bool hay_trabajo_para_planificar(void);
@@ -22,14 +21,16 @@ worker* obtenerWorkerLibre(void);           // marca ocupado=true
 query*  obtenerQuery(void);                 // saca 1ra de READY (FIFO)
 void    cambioEstado(t_list_mutex* lista, query* elemento);
 query*  obtenerQueryDeMenorPrioridad(void); // menor número = mayor prioridad
+int solicitarDesalojoYObtenerPC(worker* w);
 
 // ------------------- I/O con Worker -------------------
 void enviarQueryAWorker(worker* workerElegido, char* path, int PC, int queryID);
 
 // ------------------- Búsquedas utilitarias -------------------
 queryControl* buscarQueryControlPorId(int idQuery);
-worker*       buscarWorkerPorId(int idQuery);
+worker* buscarWorkerPorQueryId(int idQuery);
 int           obtenerPosicionQCPorId(int idBuscado);
 int           obtenerPosicionWPorId(int idBuscado);
 void          liberarWorker(worker* w);
+
 #endif

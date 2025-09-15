@@ -17,35 +17,30 @@ void inicializarListas() {
     listaQueriesControl.lista = list_create();
 }
 
-void iniciarPlanificacion(void) {
-    pthread_t th;
-
+void iniciarPlanificacion() {
     if (strcmp(configM->algoritmoPlanificacion, "FIFO") == 0) {
-        pthread_create(&th, NULL, planificadorFIFO, NULL);
-        pthread_detach(th);
+        pthread_t hiloPlanificadorFIFO;
+        pthread_create(&hiloPlanificadorFIFO, NULL, planificadorFIFO, NULL);
+        pthread_detach(hiloPlanificadorFIFO);
 
     } else if (strcmp(configM->algoritmoPlanificacion, "PRIORIDADES") == 0) {
-        pthread_create(&th, NULL, planificadorPrioridad, NULL);
-        pthread_detach(th);
+        pthread_t hiloPlanificadorPrioridares,hiloDesalojo;
+        pthread_create(&hiloPlanificadorPrioridares, NULL, planificadorPrioridad, NULL);
+        pthread_detach(hiloPlanificadorPrioridares);
 
         // Aging (si corresponde)
         if (configM->tiempoAging > 0) {
-            pthread_t th_aging;
-            pthread_create(&th_aging, NULL, Aging, NULL);
-            pthread_detach(th_aging);
+            pthread_t hiloAging;
+            pthread_create(&hiloAging, NULL, aging, NULL);
+            pthread_detach(hiloAging);
         }
 
-        pthread_t th_desalojo;
-        pthread_create(&th_desalojo, NULL, hiloDesalojo, NULL);
-        pthread_detach(th_desalojo);
+
+        pthread_create(&hiloDesalojo, NULL, evaluarDesalojo, NULL);
+        pthread_detach(hiloDesalojo);
 
     } else {
         log_warning(logger, "ALGORITMO_PLANIFICACION desconocido: %s. Uso FIFO.", configM->algoritmoPlanificacion);
-        pthread_create(&th, NULL, planificadorFIFO, NULL);
-        pthread_detach(th);
+        exit (EXIT_FAILURE);
     }
-
-    // Por si ya había READY/Workers antes de lanzar los hilos
-    // NO CREO QUIZAS BORRO ESA LINEA
-    despertar_planificador();
 }

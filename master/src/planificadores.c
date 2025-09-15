@@ -57,11 +57,8 @@ query* obtenerQueryDeMenorPrioridad() {
         return NULL; 
     }
     pthread_mutex_lock(&listaReady.mutex);
-
     int indiceMejor = 0;
     query* mejor = list_get(listaReady.lista, 0);
-
-
     for (int i = 1; i < list_size(listaReady.lista); i++) {
         query* q = list_get(listaReady.lista, i);
         if (q->qcb->prioridad < mejor->qcb->prioridad) {
@@ -69,7 +66,6 @@ query* obtenerQueryDeMenorPrioridad() {
             indiceMejor = i;
         }
     }
-
     query* seleccionada = list_remove(listaReady.lista, indiceMejor);
     pthread_mutex_unlock(&listaReady.mutex);
     return seleccionada; 
@@ -77,10 +73,11 @@ query* obtenerQueryDeMenorPrioridad() {
 
 // ------------------- I/O con Worker -------------------
 void enviarQueryAWorker(worker* workerElegido,char* path,int PC,int queryID){
-    pthread_mutex_lock(&w->mutex);
+
+    pthread_mutex_lock(&workerElegido->mutex);
     workerElegido->pathActual = path;
     workerElegido->idActual = queryID;
-    pthread_mutex_unlock(&w->mutex);
+    pthread_mutex_unlock(&workerElegido->mutex);
 
     t_paquete*paquete = crearPaquete();
     agregarStringAPaquete(paquete,path);
@@ -91,12 +88,12 @@ void enviarQueryAWorker(worker* workerElegido,char* path,int PC,int queryID){
 
     eliminarPaquete(paquete);
 
-    log_info(logger, "## Se envía la Query %d al Worker %d", queryID, w->workerID);
+    log_info(logger, "## Se envía la Query %d al Worker %d", queryID, workerElegido->workerID);
 }
 // Pide desalojo al worker y obtiene el PC devuelto
-static int solicitarDesalojoYObtenerPC(worker* w) {
+int solicitarDesalojoYObtenerPC(worker* w) {
     // Aviso al Worker
-    enviarOpcode(DESALOJO_WORKER, w->socket);
+    enviarOpcode(DESALOJO_QUERY_PLANIFICADOR, w->socket);
 
     // Espero respuesta con el PC (ajustá a tu protocolo real)
     t_paquete* p = recibirPaquete(w->socket);
@@ -108,8 +105,7 @@ static int solicitarDesalojoYObtenerPC(worker* w) {
 }
 
 // ------------------- Planificadores -------------------
-void* planificadorFIFO(void* _) {
-    (void)_;
+void* planificadorFIFO() {
 
     while(1) {
 
@@ -127,25 +123,18 @@ void* planificadorFIFO(void* _) {
 
         query* queryElegida = obtenerQuery();
         if (queryElegida == NULL) {
-            pthread_mutex_lock(&workerElegido->mutex);
-            workerElegido->ocupado = false;
-            pthread_mutex_unlock(&workerElegido->mutex);
-            despertar_planificador();
+            log_warning(logger,"El worker es nulo");
             continue;
         }
 
-
         cambioEstado(&listaExecute,queryElegida);
         enviarQueryAWorker(workerElegido, queryElegida->path,queryElegida->qcb->PC,queryElegida->qcb->queryID);
-
     }
     return NULL; 
 }
 
-void* planificadorPrioridad(void* _) {
-    (void)_;
-    for (;;) {
-        // Espera hasta que haya al menos 1 READY y 1 worker libre
+void* planificadorPrioridad() {
+    while(1){
         pthread_mutex_lock(&mutex_cv_planif);
         while (!hay_trabajo_para_planificar()) {
             pthread_cond_wait(&cv_planif, &mutex_cv_planif);
@@ -154,8 +143,8 @@ void* planificadorPrioridad(void* _) {
 
         // Toma un worker libre (marca ocupado = true)
         worker* workerElegido = obtenerWorkerLibre();
-        if (!workerElegido) {
-            // Carrera: alguien tomó el último worker o se desconectó
+        if (workerElegido == NULL) {
+            log_warning(logger,"El worker es nulo");
             continue;
         }
 
@@ -172,30 +161,27 @@ void* planificadorPrioridad(void* _) {
 
         // Mover a EXEC y enviar al worker
         cambioEstado(&listaExecute, queryElegida);
-        enviarQueryAWorker(workerElegido,
-                           queryElegida->path,
-                           queryElegida->qcb->PC,
-                           queryElegida->qcb->queryID);
+        enviarQueryAWorker(workerElegido,queryElegida->path,queryElegida->qcb->PC,queryElegida->qcb->queryID);
     }
     return NULL;
 }
 
 // ------------------- Desalojo -------------------
-static query* sacarDeExecutePorId(int queryID) {
-    query* q = NULL;
+query* sacarDeExecutePorId(int queryID) {
     pthread_mutex_lock(&listaExecute.mutex);
     for (int i = 0; i < list_size(listaExecute.lista); i++) {
-        query* it = list_get(listaExecute.lista, i);
-        if (it->qcb->queryID == queryID) {
-            q = list_remove(listaExecute.lista, i);
-            break;
+        query* q = list_get(listaExecute.lista, i);
+        if (q->qcb->queryID == queryID) {
+            list_remove(listaExecute.lista, i);
+            pthread_mutex_unlock(&listaExecute.mutex);
+            return q;
         }
     }
     pthread_mutex_unlock(&listaExecute.mutex);
-    return q;
+    return NULL;
 }
 
-static bool hay_desalojo_necesario(void) {
+bool hay_desalojo_necesario() {
     // 1) Debe haber algo en READY
     if (esListaVacia(&listaReady)) return false;
 
@@ -339,9 +325,8 @@ static void aplicar_desalojo(void) {
     despertar_planificador();
 }
 
-void* hiloDesalojo(void* _) {
-    (void)_;
-    for (;;) {
+void* evaluarDesalojo() {
+    while(1) {
         pthread_mutex_lock(&mutex_cv_planif);
         while (!hay_desalojo_necesario()) {
             pthread_cond_wait(&cv_planif, &mutex_cv_planif);
@@ -354,20 +339,18 @@ void* hiloDesalojo(void* _) {
 }
 
 // ------------------- Aging -------------------
-void* Aging(void* arg) {
+void* aging() {
     while (1) {
-        usleep(configM->tiempoAging * 1000); // si está en ms
-
+        usleep(configM->tiempoAging * 1000); 
         pthread_mutex_lock(&listaReady.mutex);
         for (int i = 0; i < list_size(listaReady.lista); i++) {
             query* q = list_get(listaReady.lista, i);
             int old = q->qcb->prioridad;
             if (old > 0) {
                 q->qcb->prioridad = old - 1;
-                log_info(logger, "##%d Cambio de prioridad: %d - %d", q->qcb->queryID, old, q->qcb->prioridad); 
+                log_info(logger, "## <%d> Cambio de prioridad: <%d> - <%d>", q->qcb->queryID, old, q->qcb->prioridad); 
             }
         }
-
         pthread_mutex_unlock(&listaReady.mutex);
         despertar_planificador();
     }
@@ -391,7 +374,7 @@ queryControl* buscarQueryControlPorId(int idQuery){
     return NULL;
 }
 
-worker* buscarWorkerPorId(int idQuery){
+worker* buscarWorkerPorQueryId(int idQuery){
     pthread_mutex_lock(&listaWorkers.mutex);
     for (int i = 0; i < list_size(listaWorkers.lista); i++)
     {

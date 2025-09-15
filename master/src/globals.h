@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "utils/listas.h"
-#include "planificadores.h"
+
 
 // ✅ SOLO DECLARACIONES con extern - NO definiciones
 extern pthread_mutex_t mutex_id_queryControl;
