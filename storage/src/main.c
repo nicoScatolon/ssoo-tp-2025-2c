@@ -12,7 +12,7 @@ int main(int argc, char*argv[]){
     configS = malloc(sizeof(configStorage));
     iniciarConfiguracionStorage(nombreConfig, configS);
     logger = iniciar_logger("storage", configS->logLevel);
-    //inicializarEstructuras();
+    inicializarEstructuras();
     establecerConexionesStorage();
     pthread_exit(NULL);
 }
