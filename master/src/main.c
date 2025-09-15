@@ -13,6 +13,7 @@ int main(int argc, char* argv[]) {
     inicializarListas();
     logger = iniciar_logger("master", configM->logLevel);
     establecerConexiones();
+    iniciarPlanificacion();
     pthread_exit(NULL);
     //liberarMaster(logger, configM);
 }
