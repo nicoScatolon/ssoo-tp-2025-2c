@@ -4,7 +4,6 @@
 
 t_list_mutex listaReady;
 t_list_mutex listaExecute;
-t_list_mutex listaExit;
 t_list_mutex listaWorkers;
 t_list_mutex listaQueriesControl;
 

@@ -455,3 +455,30 @@ void liberarWorker(worker* w){
         enviarQueryAWorker(workerElegido, queryElegida->path,queryElegida->qcb->PC,queryElegida->qcb->queryID);
     }
 }*/
+
+
+bool estaEnListaPorId(t_list_mutex * lista, int id) {
+    pthread_mutex_lock(&lista->mutex);
+    for (int i = 0; i < list_size(lista->lista); i++) {
+        query *elemento = list_get(lista->lista, i);
+        if (elemento->qcb->queryID == id) {
+            pthread_mutex_unlock(&lista->mutex);
+            return true;
+        }
+    }
+    pthread_mutex_unlock(&lista->mutex);
+    return false;
+}
+query* sacarDePorId(t_list_mutex* l,int queryID) {
+    pthread_mutex_lock(&l->mutex);
+    for (int i = 0; i < list_size(l->lista); i++) {
+        query* q = list_get(l->lista, i);
+        if (q->qcb->queryID == queryID) {
+            q = list_remove(l->lista, i);
+            pthread_mutex_unlock(&l->mutex);
+            return q;
+        }
+    }
+    pthread_mutex_unlock(&l->mutex);
+    return NULL;
+}

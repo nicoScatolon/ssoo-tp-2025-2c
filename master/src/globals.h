@@ -29,7 +29,6 @@ extern configMaster* configM;
 
 extern t_list_mutex listaReady;
 extern t_list_mutex listaExecute;
-extern t_list_mutex listaExit;
 extern t_list_mutex listaWorkers;
 extern t_list_mutex listaQueriesControl;
 

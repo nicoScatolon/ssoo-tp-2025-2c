@@ -26,19 +26,6 @@ worker* buscarWorkerPorSocket(int socket){
     return NULL;
 }
 
-query* sacarDeExecutePorId(int queryID) {
-    pthread_mutex_lock(&listaExecute.mutex);
-    for (int i = 0; i < list_size(listaExecute.lista); i++) {
-        query* q = list_get(listaExecute.lista, i);
-        if (q->qcb->queryID == queryID) {
-            q = list_remove(listaExecute.lista, i);
-            pthread_mutex_unlock(&listaExecute.mutex);
-            return q;
-        }
-    }
-    pthread_mutex_unlock(&listaExecute.mutex);
-    return NULL;
-}
 
 
 void agregarQueryControl(char* path,int socketCliente, int prioridad){
@@ -101,14 +88,22 @@ void eliminarQueryControl(queryControl* queryC){
     list_remove(listaQueriesControl.lista,posicion);
     pthread_mutex_unlock(&listaQueriesControl.mutex);
 
-    pthread_mutex_lock(&mutex_cantidadQueriesControl);
-    cantidadQueriesControl--;
-    pthread_mutex_unlock(&mutex_cantidadQueriesControl);
-    log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Cantidad de QueriesControl <%d>",queryC->queryControlID,queryC->prioridad,cantidadQueriesControl);
+    //log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Cantidad de QueriesControl <%d>",queryC->queryControlID,queryC->prioridad,cantidadQueriesControl);
 
     pthread_mutex_destroy(&queryC->mutex);
     free(queryC->path);
     free(queryC);
+
+}
+void reducirCantidadQueryControl(){
+    pthread_mutex_lock(&mutex_cantidadQueriesControl);
+    cantidadQueriesControl--;
+    pthread_mutex_unlock(&mutex_cantidadQueriesControl);
+}
+void reducirGradoMultiprogramacion(){
+    pthread_mutex_lock(&mutex_grado);
+    gradoMultiprogramacion--;
+    pthread_mutex_unlock(&mutex_grado);
 }
 void eliminarWorker(worker* workerEliminar){
     int posicion = obtenerPosicionWPorId(workerEliminar->workerID);
@@ -117,16 +112,14 @@ void eliminarWorker(worker* workerEliminar){
     list_remove(listaWorkers.lista,posicion);
     pthread_mutex_unlock(&listaWorkers.mutex);
 
-    pthread_mutex_lock(&mutex_grado);
-    gradoMultiprogramacion--;
-    pthread_mutex_unlock(&mutex_grado);
 
-    log_info(logger,"## Se desconecta el Worker <%d> - Se finaliza la Query <%d> - Cantidad total de Workers: <%d>",workerEliminar->workerID,workerEliminar->idActual,gradoMultiprogramacion);
+    //log_info(logger,"## Se desconecta el Worker <%d> - Se finaliza la Query <%d> - Cantidad total de Workers: <%d>",workerEliminar->workerID,workerEliminar->idActual,gradoMultiprogramacion);
 
     pthread_mutex_destroy(&workerEliminar->mutex);
     free(workerEliminar->pathActual);
     free(workerEliminar);
 }
+
 void eliminarQuery(query * queryEliminar){
     pthread_mutex_destroy(&queryEliminar->mutex);
     free(queryEliminar->path);
@@ -231,9 +224,21 @@ void * operarQueryControl(void* socketClienteVoid){
         }
         case DESCONEXION_QUERY_CONTROL:{
             queryControl * qcAEliminar = buscarQueryControlPorSocket(socketCliente);
-            eliminarQueryControl(qcAEliminar);
-            close(socketCliente);
-            break;
+            if (estaEnListaPorId(&listaReady,qcAEliminar->queryControlID))
+            {   
+                reducirCantidadQueryControl();
+                query* q = sacarDePorId(&listaReady,qcAEliminar->queryControlID);
+                log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",qcAEliminar->queryControlID,qcAEliminar->prioridad,cantidadQueriesControl);
+                eliminarQuery(q);
+                eliminarQueryControl(qcAEliminar);
+                close(socketCliente);
+
+            }
+            else if(estaEnListaPorId(&listaExecute,qcAEliminar->queryControlID)){
+                worker* workerANotificar = buscarWorkerPorQueryId(qcAEliminar->queryControlID);
+                enviarOpcode(DESALOJO_QUERY_DESCONEXION,workerANotificar->socket);
+            }
+             break;
         }
         default:
             log_warning(logger, "Opcode desconocido: %d", codigo);
@@ -241,7 +246,6 @@ void * operarQueryControl(void* socketClienteVoid){
             break;
         }
     }
-    close(socketCliente);
     return NULL;
 }
 void *operarWorker(void*socketClienteVoid){
@@ -308,31 +312,37 @@ void *operarWorker(void*socketClienteVoid){
 
         log_info(logger, "## Se terminó la Query %d en el Worker %d", idQuery, workerA->workerID);
 
-        query* q = sacarDeExecutePorId(idQuery);
-        cambioEstado(&listaExit,q);
+        query* q = sacarDePorId(&listaExecute,idQuery);
 
         liberarWorker(workerA);
         despertar_planificador();
+        reducirCantidadQueryControl();
+
         enviarOpcode(FINALIZACION_QUERY,queryC->socket);
         t_paquete* paqueteEnviar = crearPaquete();
         agregarStringAPaquete(paqueteEnviar, "Finalizacion");
         enviarPaquete(paqueteEnviar, queryC->socket);
+
+        log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",q->qcb->queryID,q->qcb->prioridad,cantidadQueriesControl);
+        close(queryC->socket);
         eliminarQueryControl(queryC);
         eliminarQuery(q);
-        
         eliminarPaquete(paqueteEnviar);
         eliminarPaquete(paqueteReceptor);
         break;
     }    
        case DESCONEXION_WORKER:{
             worker* w = buscarWorkerPorSocket(socketCliente);
+            reducirGradoMultiprogramacion();
             if (!w->ocupado)
             {
-                log_info(logger,"## Se desconecta el Worker <%d> - Cantidad total de Workers: <%d>",w->idActual,gradoMultiprogramacion);
+                
+                log_info(logger,"## Se desconecta el Worker <%d> - Cantidad total de Workers: <%d>",w->workerID,gradoMultiprogramacion);
                 eliminarWorker(w);
+                close(socketCliente);
                 break;
             }
-
+            reducirCantidadQueryControl();
             queryControl* qc = buscarQueryControlPorId(w->idActual);
             t_paquete* paquete= crearPaquete();
 
@@ -341,16 +351,31 @@ void *operarWorker(void*socketClienteVoid){
             enviarPaquete(paquete,qc->socket);
             eliminarPaquete(paquete);
 
-            query* q = sacarDeExecutePorId(qc->queryControlID);
-            log_info(logger,"## Se desconecta el Worker <%d> - Se finaliza la Query <%d> - Cantidad total de Workers: <%d>",w->idActual,q->qcb->queryID,gradoMultiprogramacion);
-            cambioEstado(&listaExit,q);
-            log_info(logger,"## Se desaloja la Query <%d> del Worker <%d>",q->qcb->queryID,w->workerID);
+            query* q = sacarDePorId(&listaExecute,qc->queryControlID);
+            log_info(logger,"## Se desconecta el Worker <%d> - Se finaliza la Query <%d> - Cantidad total de Workers: <%d>",w->workerID,q->qcb->queryID,gradoMultiprogramacion);
+            log_info(logger,"## Se desaloja la Query <%d> del Worker <%d> por desconexion de worker",q->qcb->queryID,w->workerID);
+            log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",q->qcb->queryID,q->qcb->prioridad,cantidadQueriesControl);
 
+            close(qc->socket);
+            close(socketCliente);
             eliminarWorker(w);
             eliminarQuery(q);
             eliminarQueryControl(qc);
-            close(socketCliente);
 
+            break;
+        }
+        case DESALOJO_QUERY_DESCONEXION:{
+            worker* workerA = buscarWorkerPorSocket(socketCliente);
+            query * queryAEliminar = sacarDePorId(&listaExecute,workerA->idActual);
+            queryControl * queryCAEliminar = buscarQueryControlPorId(queryAEliminar->qcb->queryID);
+            liberarWorker(workerA);
+            log_info(logger,"## Se desaloja la Query <%d> del Worker <%d> por desconexion de queryControl",queryAEliminar->qcb->queryID,workerA->workerID);
+            reducirGradoMultiprogramacion();
+            log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",queryCAEliminar->queryControlID,queryCAEliminar->prioridad,cantidadQueriesControl);
+
+            close(queryCAEliminar->socket);
+            eliminarQuery(queryAEliminar);
+            eliminarQueryControl(queryCAEliminar);
             break;
         }
     default:

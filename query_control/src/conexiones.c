@@ -66,3 +66,12 @@ void finalizarQueryControl(){
     close(socketMaster);
     log_destroy(logger);
 }
+void manejar_sigint(int sig) {
+    if (socketMaster > 0) {
+        enviarOpcode(DESCONEXION_QUERY_CONTROL, socketMaster);
+        close(socketMaster);
+    }
+    log_debug(logger, "Desconectando del Master y saliendo...");
+    log_destroy(logger);
+    exit(EXIT_SUCCESS);
+}
