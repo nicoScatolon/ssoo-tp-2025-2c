@@ -57,6 +57,14 @@ void *operarWorkers(void*socketClienteVoid){
         }
     switch (codigo)
     {
+    case HANDSHAKE_STORAGE_WORKER:{
+        t_paquete* paquete = crearPaquete();
+        agregarIntAPaquete(paquete,configSB->BLOCK_SIZE);
+        agregarIntAPaquete(paquete,configSB->FS_SIZE);
+        enviarPaquete(paquete,socketCliente);
+        eliminarPaquete(paquete);
+        break;
+    }
     case CREATE_FILE:{
         t_paquete* paquete = recibirPaquete(socketCliente);
         if (!paquete) {

@@ -17,38 +17,6 @@ void inicializarArchivo(char* nombreArchivo){
     fclose(archivo);
 }
 
-//Se carga la configuracion del superblock, si no existe lo crea con valores por defecto
-void inicializarSuperblock() {
-    char* path = configS->puntoMontaje;
-
-    char superblockPath[512];
-    snprintf(superblockPath, sizeof(superblockPath), "%s/superblock.config", path);
-
-    t_config* superblockConfig = config_create(superblockPath);
-    if (!superblockConfig) {
-        // Archivo no existe o error al abrirlo, lo creamos con valores por defecto
-        FILE* archivo = fopen(superblockPath, "w");
-        if (!archivo) {
-            log_error(logger, "No se pudo crear superblock.config: %s", strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-        fclose(archivo);
-
-        superblockConfig = config_create(superblockPath);
-        if (!superblockConfig) {
-            log_error(logger, "No se pudo inicializar superblock.config");
-            exit(EXIT_FAILURE);
-        }
-
-        // Valores por defecto
-        config_set_value(superblockConfig, "FS_SIZE", "4096");
-        config_set_value(superblockConfig, "BLOCK_SIZE", "128");
-        config_save(superblockConfig);
-    }
-
-    log_info(logger, "Superblock cargado correctamente");
-    config_destroy(superblockConfig);
-}
 
 void inicializarBitmap(){
     //Hacer
@@ -80,7 +48,7 @@ void inicializarEstructuras(){
     log_debug(logger,"Punto de montaje: %s",path);
 
     // Archivos
-    inicializarSuperblock();
+    //inicializarSuperblock(); //se debe hacer en las configs
     inicializarBitmap();
     inicializarBlocksHashIndex();
 
@@ -90,7 +58,6 @@ void inicializarEstructuras(){
 
     log_debug(logger,"Estructuras inicializadas correctamente");
 }
-
 
 
 void vaciarMemoria(){

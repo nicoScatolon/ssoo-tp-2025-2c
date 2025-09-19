@@ -7,6 +7,7 @@
 #include "utils/globales.h"
 
 extern configStorage *configS;
+extern configSuperBlock* configSB;
 extern t_log* logger;
 
 void establecerConexionesStorage();

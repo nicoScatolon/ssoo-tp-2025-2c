@@ -18,6 +18,17 @@ t_config* iniciarConfig(const char* modulo, const char* archivo) {
     return config;
 }
 
+t_config* iniciarConfigSuperBlock(char* puntoMontaje) {
+    char path[512];
+    snprintf(path, sizeof(path), "%s/superblock.config", puntoMontaje);
+    t_config* config = config_create(path);
+    if (config == NULL) {
+        printf("Error al leer el archivo de configuracion: %s\n", path);
+        exit(EXIT_FAILURE);
+    }
+    return config;
+}
+
 configMaster agregarConfiguracionMaster(t_config* config){
     configMaster configMaster;
     configMaster.puertoEscuchaQueryControl = config_get_int_value(config,"PUERTO_ESCUCHA_QUERYCONTROL");
@@ -59,6 +70,13 @@ configStorage agregarConfiguracionStorage(t_config* config){
     configStorage.retardoAccesoBloque = config_get_int_value(config,"RETARDO_ACCESO_BLOQUE");
     configStorage.logLevel =  obtenerNivelLog(config);
     return configStorage;
+}
+
+configSuperBlock agregarConfiguracionSuperBlock(t_config* config){
+    configSuperBlock configSuperBlock;
+    configSuperBlock.FS_SIZE = config_get_int_value(config,"FS_SIZE");
+    configSuperBlock.BLOCK_SIZE = config_get_int_value(config,"BLOCK_SIZE");
+    return configSuperBlock;
 }
 
 bool string_to_bool(char* str) {

@@ -9,6 +9,8 @@
 
 
 extern configStorage *configS;
+extern configSuperBlock *configSB;
+
 extern t_log* logger;
 
 void inicializarEstructuras();

@@ -2,6 +2,7 @@
 
 t_log* logger;
 configStorage* configS;
+configSuperBlock* configSB;
 
 int main(int argc, char*argv[]){
     if (argc < 2){
@@ -11,6 +12,8 @@ int main(int argc, char*argv[]){
     char* nombreConfig = argv[1]; 
     configS = malloc(sizeof(configStorage));
     iniciarConfiguracionStorage(nombreConfig, configS);
+    configSB = malloc(sizeof(configSuperBlock));
+    iniciarConfiguracionSuperBlock(configSB);
     logger = iniciar_logger("storage", configS->logLevel);
     inicializarEstructuras();
     establecerConexionesStorage();

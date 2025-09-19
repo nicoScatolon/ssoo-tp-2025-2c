@@ -13,6 +13,7 @@ typedef enum
     DESALOJO_QUERY_DESCONEXION,
     NUEVA_QUERY,
     //Instrucciones Storage:
+    HANDSHAKE_STORAGE_WORKER,
     CREATE_FILE,
     TRUNCAR_ARCHIVO,
     TAG_FILE,
