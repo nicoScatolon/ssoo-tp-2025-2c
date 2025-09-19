@@ -59,8 +59,8 @@ void *operarWorkers(void*socketClienteVoid){
     {
     case HANDSHAKE_STORAGE_WORKER:{
         t_paquete* paquete = crearPaquete();
-        agregarIntAPaquete(paquete,configSB->BLOCK_SIZE);
         agregarIntAPaquete(paquete,configSB->FS_SIZE);
+        agregarIntAPaquete(paquete,configSB->BLOCK_SIZE);
         enviarPaquete(paquete,socketCliente);
         eliminarPaquete(paquete);
         break;
