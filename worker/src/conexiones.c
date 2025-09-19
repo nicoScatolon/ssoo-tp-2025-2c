@@ -74,7 +74,7 @@ void conexionConStorage() {
     log_debug(logger," ## Conexión al Storage exitosa. IP: <%s>, Puerto: <%d>", configW->IPStorage,configW->puertoStorage);
     
     enviarHandshake(socketStorage, WORKER);
-    enviarOpcode(INICIAR_WORKER,socketStorage);
+    enviarOpcode(HANDSHAKE_STORAGE_WORKER,socketStorage);
     free(puertoStorage);
 }
 
@@ -104,6 +104,14 @@ void escucharStorage() {
                 eliminarPaquete(paquete);
                 free(motivo);
                 // Se deberia notificar al master
+                break;
+            }
+            case HANDSHAKE_STORAGE_WORKER:{
+                t_paquete* paquete = recibirPaquete(socketStorage);
+                int offset = 0;
+                configW->FS_SIZE = recibirIntDePaqueteconOffset(paquete,&offset);
+                configW->BLOCK_SIZE = recibirIntDePaqueteconOffset(paquete,&offset);
+                eliminarPaquete(paquete);
                 break;
             }
             default:

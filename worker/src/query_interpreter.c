@@ -11,6 +11,7 @@ contexto_query_t* cargarQuery(char* path, int query_id, int pc_inicial) {
     FILE* archivo = fopen(path_completo, "r");
     if (archivo == NULL) {
         log_error(logger, "No se pudo abrir el archivo de query: %s", path_completo);
+        free(path_completo);
         return NULL;
     }
     
