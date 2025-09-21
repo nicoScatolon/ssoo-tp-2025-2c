@@ -1,6 +1,6 @@
 #include "conexiones.h"
 
-void establecerConexionesStorage(){
+void establecerConexionesStorage(void){
     char* puertoEscucha = string_itoa(configS->puertoEscucha);
     int socketEscucha = iniciarServidor(puertoEscucha,logger,"STORAGE");
     free(puertoEscucha);

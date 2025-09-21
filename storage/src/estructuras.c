@@ -1,62 +1,13 @@
 #include "estructuras.h"
 
-
-
-
-void inicializarBitmap(){
-    //Hacer
-}
-
-void inicializarBlocksHashIndex(){
-    //Hacer
-}
-
-
-void inicializarDirectorio(char* nombreDirectorio) {
-    char* path = configS->puntoMontaje;
-
-    char dirPath[512];
-    snprintf(dirPath, sizeof(dirPath), "%s/%s", path, nombreDirectorio);
-
-    // mkdir devuelve 0 si creó el directorio, -1 si hubo error
-    if (mkdir(dirPath, 0777) == -1) {
-        if (errno != EEXIST) { // si el directorio ya existe, no es error
-            log_error(logger, "No se pudo crear el directorio %s: %s", nombreDirectorio, strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-    }
-}
-
-void inicializarEstructuras(){
-    char* path = configS->puntoMontaje;
-
-    log_debug(logger,"Punto de montaje: %s",path);
-
-    // Archivos
-    //inicializarSuperblock(); //se debe hacer en las configs
-    inicializarBitmap();
-    inicializarBlocksHashIndex();
-
-    // Directorios
-    inicializarDirectorio("physical_blocks");
-    inicializarDirectorio("files");
-
-    log_debug(logger,"Estructuras inicializadas correctamente");
-}
-
-
-void vaciarMemoria(){
+void vaciarMemoria(void){
 
 }
-
-
-
 
 void liberarBloqueHash(t_hash_block * bloque){
     free(bloque->hash);
     free(bloque);
 }
-
 
 bool existeHash(char * hash){
     char archivoPath[512];
@@ -81,6 +32,7 @@ bool existeHash(char * hash){
         return false;
     }
 }
+
 void escribirBloqueHash(t_hash_block *bloque) {
     char archivoPath[512];
     snprintf(archivoPath, sizeof(archivoPath), "%s/blocks_hash_index.config", configS->puntoMontaje);
@@ -98,14 +50,15 @@ void escribirBloqueHash(t_hash_block *bloque) {
     fclose(archivo);
     pthread_mutex_unlock(&mutex_hash_block);
 }
-void ocuparBloque(){
+
+void ocuparBloque(void){
     t_hash_block* bloque = malloc(sizeof(t_hash_block));
     bloque->numero= numeroBloque;
     incrementarNumeroBloque();
     bloque->hash= crypto_md5(bloque->contenido,strlen(bloque->contenido) + 1);
 }
 
-void incrementarNumeroBloque(){
+void incrementarNumeroBloque(void){
     pthread_mutex_lock(&mutex_numero_bloque);
     numeroBloque++;
     pthread_mutex_unlock(&mutex_numero_bloque);

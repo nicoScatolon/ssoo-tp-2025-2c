@@ -20,10 +20,13 @@ extern configSuperBlock *configSB;
 
 extern t_log* logger;
 
-void inicializarEstructuras();
-void vaciarMemoria();
-void escribirBloqueEnArchivo(t_hash_block *bloque);
+#include "estructuras.h"
+
+void vaciarMemoria(void);
 void liberarBloqueHash(t_hash_block * bloque);
-void incrementarNumeroBloque();
+bool existeHash(char * hash);
+void escribirBloqueHash(t_hash_block *bloque);
+void ocuparBloque(void);
+void incrementarNumeroBloque(void);
 
 #endif
