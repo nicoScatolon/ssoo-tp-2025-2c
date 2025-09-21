@@ -1,6 +1,6 @@
 #include "inicializar.h"
 
-//Inicializar archivo generico, no lo vamos a usar, pero sirven de referencias
+//Inicializar archivo generico
 void inicializarArchivo(const char *rutaBase, const char *nombre, const char *extension,char* modoApertura) {
     char archivoPath[512];
     snprintf(archivoPath, sizeof(archivoPath), "%s/%s.%s", rutaBase, nombre, extension);
@@ -18,9 +18,56 @@ void inicializarArchivo(const char *rutaBase, const char *nombre, const char *ex
     }
 }
 
-void inicializarBitmap(char* path){
-    inicializarArchivo(path,"bitmap",".bin","w+"); //provisorio
+void inicializarBitmap(char* path) {
+    // 1) Crear archivo con tu inicializador genérico
+    inicializarArchivo(path, "bitmap", "bin", "w+");
+
+    // 2) Ruta completa y cantidad de bloques
+    uint32_t cantBloques = configSB->FS_SIZE / configSB->BLOCK_SIZE;
+    size_t bytesBitmap = (cantBloques + 7) / 8;
+
+    char bitmapPath[512];
+    snprintf(bitmapPath, sizeof(bitmapPath), "%s/bitmap.bin", path);
+
+    // 3) Abrir con fopen para escribir y leer
+    FILE* archivo = fopen(bitmapPath, "r+b"); // r+b porque ya existe y queremos leer/escribir
+    if (!archivo) {
+        log_error(logger, "No se pudo abrir %s: %s", bitmapPath, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    // 4) Reservar memoria para el bitmap y inicializar en 0
+    char* buffer = calloc(bytesBitmap, 1);
+    if (!buffer) {
+        log_error(logger, "No se pudo reservar memoria para el bitmap");
+        fclose(archivo);
+        exit(EXIT_FAILURE);
+    }
+
+    // 5) Escribir buffer inicial al archivo
+    fwrite(buffer, 1, bytesBitmap, archivo);
+    fflush(archivo);
+
+    // 6) Crear bitarray sobre el buffer
+    t_bitarray* bitmap = bitarray_create_with_mode(buffer, bytesBitmap, LSB_FIRST);
+
+    // --- Aquí ya podés usar bitmap:
+    // Ej: setear el bloque 0
+    bitarray_set_bit(bitmap, 0);
+
+    // Guardar cambios
+    fseek(archivo, 0, SEEK_SET);
+    fwrite(bitmap->bitarray, 1, bytesBitmap, archivo);
+    fflush(archivo);
+
+    // 7) Liberar recursos
+    bitarray_destroy(bitmap); // libera solo la estructura, NO el buffer
+    free(buffer);
+    fclose(archivo);
+
+    log_info(logger, "Bitmap inicializado en %s (%u bloques, %zu bytes)", bitmapPath, cantBloques, bytesBitmap);
 }
+
 
 void inicializarBlocksHashIndex(char* path){
     inicializarArchivo(path,"blocks_hash_index",".config","w+"); //provisorio
@@ -65,16 +112,18 @@ void inicializarEstructuras(void){
 
     log_debug(logger,"Punto de montaje: %s",path);
 
-    // Archivos
-    //inicializarSuperblock(); //se debe hacer en las configs
-    inicializarBitmap(path);
-    inicializarBlocksHashIndex(path);
+    
 
     // Directorios
     char* pathPhysicalBlocks = inicializarDirectorio(path, "physical_blocks"); //terminado
     char* pathFiles = inicializarDirectorio(path, "files"); //hacer
 
     inicializarFileSystem(pathPhysicalBlocks);
+
+    // Archivos
+    //inicializarSuperblock(); //se debe hacer en las configs
+    inicializarBitmap(path);
+    inicializarBlocksHashIndex(path);
 
     log_debug(logger,"Estructuras inicializadas correctamente");
 
