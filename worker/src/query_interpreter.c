@@ -234,7 +234,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
             // Formato: READ <NOMBRE_FILE>:<TAG> <DIRECCIÓN BASE> <TAMAÑO>
             // parametro[0] = "READ", parametro[1] = "MATERIAS:BASE", parametro[2] = "0", parametro[3] = "8"
 
-            ejecutar_read(fileName, tagFile, atoi(instruccion->parametro[2]), atoi(instruccion->parametro[3])); 
+            ejecutar_read(fileName, tagFile, atoi(instruccion->parametro[2]), atoi(instruccion->parametro[3]), contexto); 
 
             break;
         }
@@ -279,7 +279,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         
         case END: {
             // parametro[0] = "END"
-            ejecutar_end();
+            ejecutar_end(contexto);
             log_debug(logger, "Ejecutando END");
             // implementacion
             break;
