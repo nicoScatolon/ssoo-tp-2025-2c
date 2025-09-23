@@ -1,7 +1,9 @@
 #include "conexiones.h"
 
 int socketMaster;
-int socketStorage;
+int socketStorage; //hacerlas globales
+
+
 void conexionConMaster(int ID) {
     char* puertoMaster = string_itoa(configW->puertoMaster);
     socketMaster = crearConexion(configW->IPMaster, puertoMaster, logger);
@@ -42,6 +44,11 @@ void escucharMaster() {
                 int pc = recibirIntDePaqueteconOffset(paquete,&offset);
                 log_info(logger, "Recepción de Query: ## Query <%d>: Se recibe la Query. El path de operaciones es: <%s>",idQuery,path);
 
+                contexto_query_t* contexto = cargarQuery(path, idQuery, pc);
+
+                ejecutarQuery(contexto);
+
+                liberarContextoQuery(contexto);
                 free(path);
                 eliminarPaquete(paquete);
                 break;

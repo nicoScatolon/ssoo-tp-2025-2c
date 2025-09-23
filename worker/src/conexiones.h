@@ -5,6 +5,9 @@
 #include "utils/logs.h"
 #include "utils/paquete.h"
 #include "globals.h"
+#include "query_interpreter.h"
+
+
 extern configWorker * configW;
 void conexionConMaster(int idQuery);
 void esperarRespuesta();
