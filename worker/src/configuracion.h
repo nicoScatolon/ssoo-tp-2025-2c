@@ -9,3 +9,4 @@ extern configWorker* configW;
 void iniciarConfiguracionWorker(char*nombreConfig ,configWorker* configWorker);
 
 #endif
+

@@ -1,7 +1,9 @@
 #include "conexiones.h"
 
 int socketMaster;
-int socketStorage;
+int socketStorage; //hacerlas globales
+
+
 void conexionConMaster(int ID) {
     char* puertoMaster = string_itoa(configW->puertoMaster);
     socketMaster = crearConexion(configW->IPMaster, puertoMaster, logger);
@@ -42,6 +44,11 @@ void escucharMaster() {
                 int pc = recibirIntDePaqueteconOffset(paquete,&offset);
                 log_info(logger, "Recepción de Query: ## Query <%d>: Se recibe la Query. El path de operaciones es: <%s>",idQuery,path);
 
+                contexto_query_t* contexto = cargarQuery(path, idQuery, pc);
+
+                ejecutarQuery(contexto);
+
+                liberarContextoQuery(contexto);
                 free(path);
                 eliminarPaquete(paquete);
                 break;
@@ -74,7 +81,7 @@ void conexionConStorage() {
     log_debug(logger," ## Conexión al Storage exitosa. IP: <%s>, Puerto: <%d>", configW->IPStorage,configW->puertoStorage);
     
     enviarHandshake(socketStorage, WORKER);
-    enviarOpcode(INICIAR_WORKER,socketStorage);
+    enviarOpcode(HANDSHAKE_STORAGE_WORKER,socketStorage);
     free(puertoStorage);
 }
 
@@ -104,6 +111,14 @@ void escucharStorage() {
                 eliminarPaquete(paquete);
                 free(motivo);
                 // Se deberia notificar al master
+                break;
+            }
+            case HANDSHAKE_STORAGE_WORKER:{
+                t_paquete* paquete = recibirPaquete(socketStorage);
+                int offset = 0;
+                configW->FS_SIZE = recibirIntDePaqueteconOffset(paquete,&offset);
+                configW->BLOCK_SIZE = recibirIntDePaqueteconOffset(paquete,&offset);
+                eliminarPaquete(paquete);
                 break;
             }
             default:

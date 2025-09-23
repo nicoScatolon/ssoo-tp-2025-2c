@@ -1,4 +1,4 @@
-#include <main.h>
+#include "main.h"
 
 configWorker* configW;
 t_log* logger;
