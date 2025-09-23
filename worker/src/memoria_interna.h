@@ -15,16 +15,18 @@ extern configWorker* configW;
 
 //Mutex
 pthread_mutex_t memoria_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t tabla_paginas_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // FUNCIONES
 void inicializarMemoriaInterna(void); // Hecho
+void inicializarTablaDePaginas(void); // Por hacer
 void eliminarMemoriaInterna(void); // Hecho
 
 int obtenerPaginaLibre(void); // Hecho
 void liberarPagina(int nro_pagina); // Hecho
 void reservarPagina(int nro_pagina); // Hecho
 
-// Lectura/Escritura desde la "Memoria Interna" (devuelven 0 ok, -1 error)
+// Lectura/Escritura desde la "Memoria Interna" 
 char* leerDesdeMemoriaByte(const char* file, const char* tag, int nro_pagina, int offset, void* buffer, size_t size);
 char* escribirEnMemoriaByte(const char* file, const char* tag, int nro_pagina, int offset, const void* buffer, size_t size);
 

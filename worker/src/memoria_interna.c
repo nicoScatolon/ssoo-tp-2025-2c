@@ -4,7 +4,7 @@
 void inicializarMemoriaInterna(void) {
     pthread_mutex_lock(&memoria_mutex);
 
-    if (memoria != NULL) { // ya inicializada
+    if (!memoria) { // ya inicializada
         pthread_mutex_unlock(&memoria_mutex);
         return;
     }
@@ -57,7 +57,79 @@ void inicializarMemoriaInterna(void) {
     pthread_mutex_unlock(&memoria_mutex);
 }
 
-void finalizarMemoriaInterna(void) {
+void inicializarTablaDePaginas(void) {
+    if (!tablasDePaginas){
+        tablasDePaginas = dictionary_create();
+        if (!tablasDePaginas) {
+            log_error(logger, "Error al crear el diccionario de tablas de paginas");
+            exit(EXIT_FAILURE);
+        }
+    }
+    else {
+        log_warning(logger, "El diccionario de tablas de paginas ya fue inicializado");
+    }
+}
+
+char* pidToKey(int pid) {
+    char* key = malloc(32); 
+    if (key != NULL) {
+        sprintf(key, "%d", pid);
+    }
+    return key;
+}
+
+void agregarProcesoATablaDePaginas(int pid){
+    pthread_mutex_lock(&tabla_paginas_mutex);
+
+    char* key = pidToKey(pid);
+    if (dictionary_has_key(tablasDePaginas, key)) {
+        log_warning(logger, "La tabla de paginas para el proceso %d ya existe", pid);
+        free(key);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        return;
+    }
+
+    TablaPagina* tabla = malloc(sizeof(TablaPagina)); // me genera dudas
+    if (tabla == NULL) {
+        log_error(logger, "Error al asignar memoria para la tabla de paginas del proceso %d", pid);
+        free(key);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        return;
+    }
+
+    dictionary_put(tablasDePaginas, key, tabla);
+    log_debug(logger, "Tabla de paginas creada para el proceso %d", pid);
+
+    free(key);
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+}
+
+void agregarPaginaAProceso(int pid, int nro_pagina){
+    pthread_mutex_lock(&tabla_paginas_mutex);
+
+    char* key = pidToKey(pid);
+    TablaPagina* tabla = dictionary_get(tablasDePaginas, key);
+    if (tabla == NULL) {
+        log_warning(logger, "No existe la tabla de paginas para el proceso %d", pid);
+        free(key);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        
+        agregarProcesoATablaDePaginas(pid);
+        agregarPaginaAProceso(pid, nro_pagina); 
+        return;
+    }
+
+    // Aquí deberías agregar la lógica para añadir la página a la tabla
+    // Por ejemplo, podrías reallocar el array de entradas y añadir una nueva entrada
+
+    log_debug(logger, "Página %d agregada a la tabla del proceso %d", nro_pagina, pid);
+
+    free(key);
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+}
+
+
+void eliminarMemoriaInterna(void) {
     pthread_mutex_lock(&memoria_mutex);
 
     if (bitmap) {
