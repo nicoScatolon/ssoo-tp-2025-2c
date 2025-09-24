@@ -80,7 +80,7 @@ void *operarWorkers(void*socketClienteVoid){
             eliminarPaquete(paquete);
             break;
     }
-    case TRUNCAR_ARCHIVO:{
+    case TRUNCATE_FILE:{
         t_paquete* paquete = recibirPaquete(socketCliente);
         if (!paquete) {
                 log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
@@ -127,7 +127,7 @@ void *operarWorkers(void*socketClienteVoid){
     case READ_BLOCK:{
         break;
     }
-    case REMOVE_TAG:{
+    case DELETE_TAG:{
         break;
     }
     default:

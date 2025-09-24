@@ -9,11 +9,14 @@
 #include <stdbool.h>
 #include "utils/listas.h"
 
+
 // ✅ SOLO DECLARACIONES con extern - NO definiciones
 extern pthread_mutex_t mutex_id_queryControl;
 extern pthread_mutex_t mutex_id_worker;
 extern pthread_mutex_t mutex_grado;
 extern pthread_mutex_t mutex_cantidadQueriesControl;
+extern pthread_mutex_t mutex_cv_planif;
+extern pthread_cond_t  cv_planif;
 // extern pthread_mutex_t mutex_lista_workers;
 extern uint32_t siguienteIdQueryControl;
 extern uint32_t siguienteIdWorker;
