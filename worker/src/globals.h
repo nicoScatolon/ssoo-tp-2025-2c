@@ -56,6 +56,6 @@ typedef struct {
 } TablaPagina;
 
 
-t_dictionary* tablasDePaginas = NULL;
+
 
 #endif
