@@ -1,7 +1,7 @@
 #ifndef INSTRUCCIONES_H
 #define INSTRUCCIONES_H
 
-#include "../commons/common.h"
+#include "../../utils/commons/common.h"
 #include "query_interpreter.h"
 #include "utils/globales.h"
 #include "conexiones.h"
@@ -11,8 +11,6 @@
 #include "utils/sockets.h"
 #include <stdlib.h>
 #include <string.h> 
-
-
 
 
 
