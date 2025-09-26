@@ -21,7 +21,7 @@ worker* obtenerWorkerLibre(void);           // marca ocupado=true
 query*  obtenerQuery(void);                 // saca 1ra de READY (FIFO)
 void    cambioEstado(t_list_mutex* lista, query* elemento);
 query*  obtenerQueryDeMenorPrioridad(void); // menor número = mayor prioridad
-int solicitarDesalojoYObtenerPC(worker* w);
+int     solicitarDesalojoYObtenerPC(worker* w);
 
 // ------------------- I/O con Worker -------------------
 void enviarQueryAWorker(worker* workerElegido, char* path, int PC, int queryID);

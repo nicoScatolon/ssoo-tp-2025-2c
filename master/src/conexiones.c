@@ -87,6 +87,7 @@ void agregarQuery(char* path,int prioridad,int id){
     nuevaQuery->qcb->prioridad = prioridad;
     nuevaQuery->qcb->queryID = id;
     nuevaQuery->qcb->PC = 0;
+    nuevaQuery->qcb->tiempoReady = now_ms();
     pthread_mutex_init(&nuevaQuery->mutex,NULL);
 
     listaAdd(nuevaQuery,&listaReady);

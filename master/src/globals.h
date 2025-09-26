@@ -61,6 +61,7 @@ typedef struct {
     int PC;
     int prioridad;
     int queryID;
+    uint64_t tiempoReady;
 } qcb_t;
 
 typedef struct {
