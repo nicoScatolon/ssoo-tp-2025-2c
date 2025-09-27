@@ -4,46 +4,56 @@ void vaciarMemoria(void){
 
 }
 
-void liberarBloqueHash(t_hash_block * bloque){
-    free(bloque->hash);
+void liberarBloqueHash(t_hash_block *bloque){
+    if (!bloque) return;
+    if (bloque->hash) {
+        free(bloque->hash);
+        bloque->hash = NULL;
+    }
     free(bloque);
 }
 
-bool existeHash(char * hash){
+bool existeHash(char *hash){
+    if (!hash) return false;
+
     char archivoPath[512];
     snprintf(archivoPath, sizeof(archivoPath), "%s/blocks_hash_index.config", configS->puntoMontaje);
+
     pthread_mutex_lock(&mutex_hash_block);
+
     t_config* config = config_create(archivoPath);
     if (config == NULL){
+        log_error(logger, "No se pudo abrir blocks_hash_index.config (%s)", archivoPath);
         pthread_mutex_unlock(&mutex_hash_block);
-        log_error(logger, "No se pudo abrir el archivo blocks_hash_index.config");
-        exit (EXIT_FAILURE);
-    }
-    if(config_has_property(config,hash)){
-        log_debug(logger,"El hash ya existe");
-        pthread_mutex_unlock(&mutex_hash_block);
-        config_destroy(config);
-        return true;
-    }
-    else{
-        log_debug(logger,"El hash no existe");
-        pthread_mutex_unlock(&mutex_hash_block);
-        config_destroy(config);
         return false;
     }
+
+    bool existe = config_has_property(config, hash);
+
+    if (existe) log_debug(logger, "El hash ya existe: %s", hash);
+    else       log_debug(logger, "El hash no existe: %s", hash);
+
+    config_destroy(config);
+    pthread_mutex_unlock(&mutex_hash_block);
+    return existe;
 }
 
 void escribirBloqueHash(t_hash_block *bloque) {
+    if (!bloque) return;
+    
     char archivoPath[512];
     snprintf(archivoPath, sizeof(archivoPath), "%s/blocks_hash_index.config", configS->puntoMontaje);
+    
     pthread_mutex_lock(&mutex_hash_block);
 
     FILE *archivo = fopen(archivoPath, "a+");
     if (archivo == NULL) {
         log_error(logger, "No se pudo abrir el archivo blocks_hash_index.config");
         pthread_mutex_unlock(&mutex_hash_block);
-        exit(EXIT_FAILURE);
+        liberarBloqueHash(bloque);
+        return;
     }
+
     fprintf(archivo, "%s=%04%%d\n", bloque->hash, bloque->numero);
     log_debug(logger,"Escribiendo el bloque <%d> con hash <%s> ",bloque->numero,bloque->hash);
     liberarBloqueHash(bloque);
@@ -51,11 +61,40 @@ void escribirBloqueHash(t_hash_block *bloque) {
     pthread_mutex_unlock(&mutex_hash_block);
 }
 
-void ocuparBloque(void){
+// crear/ocupar un bloque a partir de contenido: ahora recibe el contenido y su longitud.
+// Esta versión ALLOCA y rellena t_hash_block y devuelve el puntero (propiedad al caller)
+t_hash_block* ocuparBloque(const char *contenido, size_t contenido_len) {
+    if (!contenido) return NULL;
+
     t_hash_block* bloque = malloc(sizeof(t_hash_block));
-    bloque->numero= numeroBloque;
-    incrementarNumeroBloque();
-    bloque->hash= crypto_md5(bloque->contenido,strlen(bloque->contenido) + 1);
+    if (!bloque) {
+        log_error(logger, "malloc fallo en ocuparBloque");
+        return NULL;
+    }
+
+    // asignar numero actual y luego incrementar de forma thread-safe
+    pthread_mutex_lock(&mutex_numero_bloque);
+    bloque->numero = numeroBloque;
+    numeroBloque++;
+    pthread_mutex_unlock(&mutex_numero_bloque);
+
+    // duplico contenido si querés conservarlo en la estructura (opcional)
+    // bloque->contenido = strndup(contenido, contenido_len);
+    // Si preferís no duplicar, asigná NULL o apunta fuera y documentalo.
+    bloque->contenido = NULL; // <-- por ahora no alojamos el contenido dentro del struct
+
+    // crypto_md5 espera un buffer y su longitud (según commons), y devuelve char* malloc'd.
+    // Asegurate de pasar la longitud correcta; NO sumar +1 para el terminador si querés
+    // que el digest sea del contenido crudo (si querés incluir '\0' tocá eso explícitamente).
+    bloque->hash = crypto_md5(contenido, contenido_len);
+    if (!bloque->hash) {
+        log_error(logger, "crypto_md5 falló al calcular hash");
+        free(bloque);
+        return NULL;
+    }
+
+    log_debug(logger, "Ocupado bloque %d con hash %s", bloque->numero, bloque->hash);
+    return bloque;
 }
 
 void incrementarNumeroBloque(void){
@@ -68,79 +107,58 @@ void incrementarNumeroBloque(void){
 // -----------------------------------------------------------------------------
 // Funciones para el manejo del bitmap
 // -----------------------------------------------------------------------------
+int bitmapSincronizar(void) {
+    if (!bitmap_buffer) return -1;
+    if (msync(bitmap_buffer, bitmap_size_bytes, MS_SYNC) == -1) {
+        log_error(logger, "Error sincronizando bitmap a disco: %s", strerror(errno));
+        return -1;
+    }
+    return 0;
+}
+
+// liberar un bloque 
+void bitmapLiberarBloque(unsigned int index) {
+    if (!bitmap) return;
+    if ((size_t)index >= bitmap_num_bits) return;
+    bitarray_clean_bit(bitmap, (off_t)index);
+}
+
+bool bitmapBloqueOcupado(unsigned int index) {
+    if (!bitmap) return false;
+    if ((size_t)index >= bitmap_num_bits) return false;
+    return bitarray_test_bit(bitmap, (off_t)index);
+}
+
+// reservar el primer bloque libre, retorna su indice o -1 si no hay libres
+ssize_t bitmapReservarLibre(void) {
+    if (!bitmap) return -1;
+    for (off_t i = 0; i < (off_t)bitmap_num_bits; ++i) {
+        if (!bitarray_test_bit(bitmap, i)) {
+            bitarray_set_bit(bitmap, i);
+            return (ssize_t)i;
+        }
+    }
+    return -1;
+}
 
 // destruirBitmap: sincroniza y libera recursos del bitmap (llamar al terminar)
 void destruirBitmap(void) {
+    if (bitmapSincronizar() == -1) {
+        log_error(logger, "Error sincronizando bitmap al destruir");
+    }
+
     if (bitmap) {
-        bitarray_destroy(bitmap); // destruye la estructura
+        bitarray_destroy(bitmap); // destruye la estructura (no el buffer mapeado)
         bitmap = NULL;
     }
-
     if (bitmap_buffer) {
-        free(bitmap_buffer);
+        munmap(bitmap_buffer, bitmap_size_bytes);
         bitmap_buffer = NULL;
     }
-
+    if (bitmap_fd >= 0) {
+        close(bitmap_fd);
+        bitmap_fd = -1;
+    }
     bitmap_size_bytes = 0;
-    log_info(logger, "Bitmap destruido correctamente");
-}
-
-
-// bitmap_setear: setea o limpia un bit en el bitmap persistente
-// retorna 0 en exito, -1 en error
-int bitmap_setear(uint32_t index, bool ocupado, const char* path) {
-    if (!bitmap || !bitmap_buffer) {
-        log_error(logger, "bitmap_setear: bitmap no inicializado");
-        return -1;
-    }
-
-    uint32_t cantBloques = configSB->FS_SIZE / configSB->BLOCK_SIZE;
-    if (index >= cantBloques) {
-        log_error(logger, "bitmap_setear: indice %u fuera de rango (max %u)", index, cantBloques - 1);
-        return -1;
-    }
-
-    if (ocupado)
-        bitarray_set_bit(bitmap, (off_t)index);
-    else
-        bitarray_clean_bit(bitmap, (off_t)index);
-
-    // Guardar cambios en el archivo
-    char bitmapPath[512];
-    snprintf(bitmapPath, sizeof(bitmapPath), "%s/bitmap.bin", path);
-
-    FILE* archivo = fopen(bitmapPath, "r+b");
-    if (!archivo) {
-        log_error(logger, "bitmap_setear: no se pudo abrir %s: %s", bitmapPath, strerror(errno));
-        return -1;
-    }
-
-    size_t written = fwrite(bitmap->bitarray, 1, bitmap_size_bytes, archivo);
-    fflush(archivo);
-    fclose(archivo);
-
-    if (written != bitmap_size_bytes) {
-        log_error(logger, "bitmap_setear: no se pudieron escribir todos los bytes al archivo");
-        return -1;
-    }
-
-    return 0;
-}
-
-// bitmap_test: consulta un bit
-// out = true si ocupado, false si libre
-int bitmap_test(uint32_t index, bool* out) {
-    if (!bitmap || !bitmap_buffer) {
-        log_error(logger, "bitmap_test: bitmap no inicializado");
-        return -1;
-    }
-
-    uint32_t cantBloques = configSB->FS_SIZE / configSB->BLOCK_SIZE;
-    if (index >= cantBloques) {
-        log_error(logger, "bitmap_test: indice %u fuera de rango (max %u)", index, cantBloques - 1);
-        return -1;
-    }
-
-    *out = bitarray_test_bit(bitmap, (off_t)index);
-    return 0;
+    bitmap_num_bits = 0;
 }

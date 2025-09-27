@@ -18,61 +18,100 @@ void inicializarArchivo(const char *rutaBase, const char *nombre, const char *ex
     }
 }
 
-void inicializarBitmap(char* path) {
-    // 1) Crear archivo con tu inicializador genérico
-    inicializarArchivo(path, "bitmap", "bin", "w+");
-
-    // 2) Ruta completa y cantidad de bloques
-    uint32_t cantBloques = configSB->FS_SIZE / configSB->BLOCK_SIZE;
-    size_t bytesBitmap = (cantBloques + 7) / 8;
-
-    char bitmapPath[512];
-    snprintf(bitmapPath, sizeof(bitmapPath), "%s/bitmap.bin", path);
-
-    // 3) Abrir con fopen para escribir y leer
-    FILE* archivo = fopen(bitmapPath, "r+b"); // r+b porque ya existe y queremos leer/escribir
-    if (!archivo) {
-        log_error(logger, "No se pudo abrir %s: %s", bitmapPath, strerror(errno));
-        exit(EXIT_FAILURE);
+int inicializarBitmap(const char* bitmap_path) {
+    if (configSB == NULL) {
+        log_error(logger, "configSB no inicializado");
+        return -1;
     }
 
-    // 4) Reservar memoria para el bitmap y inicializar en 0
-    char* buffer = calloc(bytesBitmap, 1);
-    if (!buffer) {
-        log_error(logger, "No se pudo reservar memoria para el bitmap");
-        fclose(archivo);
-        exit(EXIT_FAILURE);
+    size_t fs_size = configSB->FS_SIZE;
+    size_t block_size = configSB->BLOCK_SIZE;
+
+    if (block_size == 0) {
+        log_error(logger, "BLOCK_SIZE inválido (0)");
+        return -1;
     }
 
-    // 5) Escribir buffer inicial al archivo
-    fwrite(buffer, 1, bytesBitmap, archivo);
-    fflush(archivo);
+    // cantidad de bloques del FS
+    size_t cant_bloques = fs_size / block_size;
+    if (cant_bloques == 0) {
+        log_error(logger, "FS demasiado pequeño (%zu bytes) o BLOCK_SIZE demasiado grande (%zu bytes)",
+                  fs_size, block_size);
+        return -1;
+    }
 
-    // 6) Crear bitarray sobre el buffer
-    t_bitarray* bitmap = bitarray_create_with_mode(buffer, bytesBitmap, LSB_FIRST);
+    // tamaño en bytes del bitmap (ceil(bits/8))
+    size_t size_bytes = (cant_bloques + 7) / 8;
 
-    // --- Aquí ya podés usar bitmap:
-    // Ej: setear el bloque 0
-    bitarray_set_bit(bitmap, 0);
+    pthread_mutex_lock(&mutex_bitmap_file);
+    // abrir/crear archivo bitmap
+    int fd = open(bitmap_path, O_RDWR | O_CREAT, 0666);
+    if (fd < 0) {
+        log_error(logger, "No se pudo abrir/crear archivo bitmap '%s': %s",
+                  bitmap_path, strerror(errno));
+        return -1;
+    }
+    /*
+    open devuelve un file descriptor (int) que es lo que usan ftruncate y mmap directamente. 
+    Con fopen tendrías que llamar a fileno() y mezclás APIs de alto y bajo nivel.
+    */
 
-    // Guardar cambios
-    fseek(archivo, 0, SEEK_SET);
-    fwrite(bitmap->bitarray, 1, bytesBitmap, archivo);
-    fflush(archivo);
+    // asegurar tamaño correcto
+    if (ftruncate(fd, (off_t)size_bytes) == -1) {
+        log_error(logger, "Error ajustando tamaño de bitmap (%zu bytes): %s",
+                  size_bytes, strerror(errno));
+        close(fd);
+        return -1;
+    }
+    pthread_mutex_unlock(&mutex_bitmap_file);
+    pthread_mutex_lock(&mutex_bitmap);
 
-    // 7) Liberar recursos
-    bitarray_destroy(bitmap); // libera solo la estructura, NO el buffer
-    free(buffer);
-    fclose(archivo);
+    // mapear archivo en memoria
+    void* mapped = mmap(NULL, size_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (mapped == MAP_FAILED) {
+        log_error(logger, "Error en mmap de '%s': %s", bitmap_path, strerror(errno));
+        close(fd);
+        return -1;
+    }
 
-    log_info(logger, "Bitmap inicializado en %s (%u bloques, %zu bytes)", bitmapPath, cantBloques, bytesBitmap);
+    // Guardar globals
+    bitmap_fd = fd;
+    bitmap_buffer = (char*)mapped;
+    bitmap_size_bytes = size_bytes;
+    bitmap_num_bits = cant_bloques;
+
+    // Crear bitarray
+    bitmap = bitarray_create_with_mode(bitmap_buffer, bitmap_size_bytes, LSB_FIRST);
+    if (!bitmap) {
+        log_error(logger, "Error creando bitarray sobre bitmap '%s'", bitmap_path);
+        munmap(bitmap_buffer, bitmap_size_bytes);
+        close(bitmap_fd);
+        bitmap_buffer = NULL;
+        bitmap_fd = -1;
+        return -1;
+    }
+    pthread_mutex_unlock(&mutex_bitmap);
+
+    log_info(logger, "Bitmap inicializado correctamente: %zu bloques (%zu bytes en archivo '%s')",
+             cant_bloques, size_bytes, bitmap_path);
+    return 0;
 }
 
 
-void inicializarBlocksHashIndex(char* path){
-    inicializarArchivo(path,"blocks_hash_index",".config","w+"); //provisorio
-}
+void inicializarBlocksHashIndex(char* path) {
+    char archivoPath[512];
+    snprintf(archivoPath, sizeof(archivoPath), "%s/blocks_hash_index.config", path);
 
+    // Si ya existe, no hacer nada
+    if (access(archivoPath, F_OK) == 0) {
+        log_debug(logger, "Archivo blocks_hash_index.config ya existe, no se sobrescribe");
+        return;
+    }
+
+    // Crear archivo vacío
+    inicializarArchivo(path, "blocks_hash_index", "config", "w");
+    log_debug(logger, "Archivo blocks_hash_index.config inicializado correctamente");
+}
 
 char* inicializarDirectorio(char* pathBase, char* nombreDirectorio){ 
     char dirPath[512];

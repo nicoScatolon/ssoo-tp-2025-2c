@@ -6,6 +6,6 @@
 
 void inicializarEstructuras(void);
 void inicializarMutex(void);
-void inicializarBitmap(char *path);
+int inicializarBitmap(const char* bitmap_path);
 
 #endif
