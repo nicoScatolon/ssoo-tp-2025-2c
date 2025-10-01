@@ -20,7 +20,7 @@ pthread_mutex_t tabla_paginas_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // FUNCIONES
 void inicializarMemoriaInterna(void); // Hecho
-void inicializarTablaDePaginas(void); // Hecho
+void inicializarDiccionarioDeTablas(void); // Hecho
 void eliminarMemoriaInterna(void); // Hecho
 
 int obtenerPaginaLibre(void); // Hecho

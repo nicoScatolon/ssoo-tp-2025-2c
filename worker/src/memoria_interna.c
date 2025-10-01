@@ -57,7 +57,7 @@ void inicializarMemoriaInterna(void) {
     pthread_mutex_unlock(&memoria_mutex);
 }
 
-void inicializarTablaDePaginas(void) {
+void inicializarDiccionarioDeTablas(void) {
     pthread_mutex_lock(&tabla_paginas_mutex);
     if (!tablasDePaginas){
         tablasDePaginas = dictionary_create();
@@ -79,7 +79,7 @@ char* pidToKey(int pid) {
     return strdup(buf);
 }
 
-void agregarProcesoATablaDePaginas(int pid){
+void agregarProcesoADiccionarioDeTablas(int pid){
     pthread_mutex_lock(&tabla_paginas_mutex);
 
     char* key = pidToKey(pid);
@@ -105,7 +105,9 @@ void agregarProcesoATablaDePaginas(int pid){
     pthread_mutex_unlock(&tabla_paginas_mutex);
 }
 
-void agregarPaginaAProceso(int pid, int nro_pagina){ //Terminar
+void pedirBloqueAStorage(){}//TODO
+
+void agregarPaginaAProceso(int pid, int nro_pagina){ //Terminar - Responsabilidad del storage
     pthread_mutex_lock(&tabla_paginas_mutex);
 
     char* key = pidToKey(pid);
@@ -115,7 +117,7 @@ void agregarPaginaAProceso(int pid, int nro_pagina){ //Terminar
         free(key);
         pthread_mutex_unlock(&tabla_paginas_mutex);
         
-        agregarProcesoATablaDePaginas(pid);
+        agregarProcesoADiccionarioDeTablas(pid);
         agregarPaginaAProceso(pid, nro_pagina); 
         return;
     }
@@ -203,6 +205,8 @@ void reservarPagina(int nro_pagina){
     }
 
     bitarray_set_bit(bitmap, nro_pagina);
+
+    //se debería agregar a la tabla de paginas del proceso
 
     pthread_mutex_unlock(&memoria_mutex);
 }

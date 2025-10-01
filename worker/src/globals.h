@@ -53,6 +53,7 @@ typedef struct {
 typedef struct {
     EntradaTablaPagina* entradas; 
     // uint32_t numPaginas;
+    // uint32_t cantidadPaginasEnUso;
 } TablaPagina;
 
 
