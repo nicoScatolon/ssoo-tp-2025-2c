@@ -63,7 +63,7 @@ void escribirBloqueHash(t_hash_block *bloque) {
 
 // crear/ocupar un bloque a partir de contenido: ahora recibe el contenido y su longitud.
 // Esta versión ALLOCA y rellena t_hash_block y devuelve el puntero (propiedad al caller)
-t_hash_block* ocuparBloque(const char *contenido, size_t contenido_len) {
+t_hash_block* ocuparBloqueHash(const char *contenido, size_t contenido_len) {
     if (!contenido) return NULL;
 
     t_hash_block* bloque = malloc(sizeof(t_hash_block));
@@ -86,7 +86,7 @@ t_hash_block* ocuparBloque(const char *contenido, size_t contenido_len) {
     // crypto_md5 espera un buffer y su longitud (según commons), y devuelve char* malloc'd.
     // Asegurate de pasar la longitud correcta; NO sumar +1 para el terminador si querés
     // que el digest sea del contenido crudo (si querés incluir '\0' tocá eso explícitamente).
-    bloque->hash = crypto_md5(contenido, contenido_len);
+    bloque->hash = crypto_md5((void*)contenido, contenido_len);
     if (!bloque->hash) {
         log_error(logger, "crypto_md5 falló al calcular hash");
         free(bloque);
@@ -117,29 +117,29 @@ int bitmapSincronizar(void) {
 }
 
 // liberar un bloque 
-void bitmapLiberarBloque(unsigned int index) {
-    if (!bitmap) return;
-    if ((size_t)index >= bitmap_num_bits) return;
-    bitarray_clean_bit(bitmap, (off_t)index);
-}
+// void bitmapLiberarBloque(unsigned int index) {
+//     if (!bitmap) return;
+//     if ((size_t)index >= bitmap_num_bits) return;
+//     bitarray_clean_bit(bitmap, (off_t)index);
+// }
 
-bool bitmapBloqueOcupado(unsigned int index) {
-    if (!bitmap) return false;
-    if ((size_t)index >= bitmap_num_bits) return false;
-    return bitarray_test_bit(bitmap, (off_t)index);
-}
+// bool bitmapBloqueOcupado(unsigned int index) {
+//     if (!bitmap) return false;
+//     if ((size_t)index >= bitmap_num_bits) return false;
+//     return bitarray_test_bit(bitmap, (off_t)index);
+// }
 
-// reservar el primer bloque libre, retorna su indice o -1 si no hay libres
-ssize_t bitmapReservarLibre(void) {
-    if (!bitmap) return -1;
-    for (off_t i = 0; i < (off_t)bitmap_num_bits; ++i) {
-        if (!bitarray_test_bit(bitmap, i)) {
-            bitarray_set_bit(bitmap, i);
-            return (ssize_t)i;
-        }
-    }
-    return -1;
-}
+// // reservar el primer bloque libre, retorna su indice o -1 si no hay libres
+// ssize_t bitmapReservarLibre(void) {
+//     if (!bitmap) return -1;
+//     for (off_t i = 0; i < (off_t)bitmap_num_bits; ++i) {
+//         if (!bitarray_test_bit(bitmap, i)) {
+//             bitarray_set_bit(bitmap, i);
+//             return (ssize_t)i;
+//         }
+//     }
+//     return -1;
+// }
 
 // destruirBitmap: sincroniza y libera recursos del bitmap (llamar al terminar)
 void destruirBitmap(void) {
@@ -161,4 +161,106 @@ void destruirBitmap(void) {
     }
     bitmap_size_bytes = 0;
     bitmap_num_bits = 0;
+}
+
+int ocuparBloqueBit(int indice_bloque) {
+    pthread_mutex_lock(&mutex_bitmap_file);
+
+    if (bitmap == NULL) {
+        log_error(logger, "Bitmap no inicializado");
+        pthread_mutex_unlock(&mutex_bitmap_file);
+        return -1;
+    }
+
+    if (indice_bloque < 0 || indice_bloque >= bitmap_num_bits) {
+        log_error(logger, "Índice de bloque inválido: %d", indice_bloque);
+        pthread_mutex_unlock(&mutex_bitmap_file);
+        return -1;
+    }
+
+    bitarray_set_bit(bitmap, indice_bloque);
+
+    // Sincronizamos cambios al archivo
+    if (msync(bitmap_buffer, bitmap_size_bytes, MS_SYNC) == -1) {
+        log_error(logger, "Error al sincronizar bitmap: %s", strerror(errno));
+        pthread_mutex_unlock(&mutex_bitmap_file);
+        return -1;
+    }
+
+    log_info(logger, "Bloque %d marcado como OCUPADO", indice_bloque);
+    pthread_mutex_unlock(&mutex_bitmap_file);
+    return 0;
+}
+
+int liberarBloque(int indice_bloque) {
+    pthread_mutex_lock(&mutex_bitmap_file);
+
+    if (bitmap == NULL) {
+        log_error(logger, "Bitmap no inicializado");
+        pthread_mutex_unlock(&mutex_bitmap_file);
+        return -1;
+    }
+
+    if (indice_bloque < 0 || indice_bloque >= bitmap_num_bits) {
+        log_error(logger, "Índice de bloque inválido: %d", indice_bloque);
+        pthread_mutex_unlock(&mutex_bitmap_file);
+        return -1;
+    }
+
+    bitarray_clean_bit(bitmap, indice_bloque);
+
+    // Sincronizamos cambios al archivo
+    if (msync(bitmap_buffer, bitmap_size_bytes, MS_SYNC) == -1) {
+        log_error(logger, "Error al sincronizar bitmap: %s", strerror(errno));
+        pthread_mutex_unlock(&mutex_bitmap_file);
+        return -1;
+    }
+
+    log_info(logger, "Bloque %d marcado como LIBRE", indice_bloque);
+    pthread_mutex_unlock(&mutex_bitmap_file);
+    return 0;
+}
+ssize_t bitmapReservarLibre(void) {
+    pthread_mutex_lock(&mutex_bitmap_file);
+
+    if (!bitmap) {
+        log_error(logger, "Bitmap no inicializado");
+        pthread_mutex_unlock(&mutex_bitmap_file);
+        return -1;
+    }
+
+    for (off_t i = 0; i < (off_t)bitmap_num_bits; ++i) {
+        if (!bitarray_test_bit(bitmap, i)) {
+            bitarray_set_bit(bitmap, i);
+
+            if (msync(bitmap_buffer, bitmap_size_bytes, MS_SYNC) == -1) {
+                log_error(logger, "Error sincronizando bitmap tras reservar bloque: %s", strerror(errno));
+            } else {
+                log_debug(logger, "Bloque %ld reservado correctamente", i);
+            }
+
+            pthread_mutex_unlock(&mutex_bitmap_file);
+            return (ssize_t)i;
+        }
+    }
+
+    log_warning(logger, "No hay bloques libres en el bitmap");
+    pthread_mutex_unlock(&mutex_bitmap_file);
+    return -1;
+}
+bool bitmapBloqueOcupado(unsigned int index) {
+    pthread_mutex_lock(&mutex_bitmap_file);
+
+    bool ocupado = false;
+
+    if (!bitmap) {
+        log_error(logger, "Bitmap no inicializado");
+    } else if ((size_t)index >= bitmap_num_bits) {
+        log_error(logger, "Índice de bloque inválido: %u", index);
+    } else {
+        ocupado = bitarray_test_bit(bitmap, (off_t)index);
+    }
+
+    pthread_mutex_unlock(&mutex_bitmap_file);
+    return ocupado;
 }

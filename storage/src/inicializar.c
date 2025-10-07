@@ -40,63 +40,62 @@ int inicializarBitmap(const char* bitmap_path) {
         return -1;
     }
 
-    // tamaño en bytes del bitmap (ceil(bits/8))
-    size_t size_bytes = (cant_bloques + 7) / 8;
+    size_t size_bytes = cant_bloques / 8;
 
     pthread_mutex_lock(&mutex_bitmap_file);
-    // abrir/crear archivo bitmap
-    int fd = open(bitmap_path, O_RDWR | O_CREAT, 0666);
-    if (fd < 0) {
-        log_error(logger, "No se pudo abrir/crear archivo bitmap '%s': %s",
-                  bitmap_path, strerror(errno));
+
+    FILE* archivo = fopen(bitmap_path, "a+");
+    if (!archivo) {
+        fprintf(stderr, "No se pudo abrir/crear '%s': %s\n", bitmap_path, strerror(errno));
+        pthread_mutex_unlock(&mutex_bitmap_file);
         return -1;
     }
-    /*
-    open devuelve un file descriptor (int) que es lo que usan ftruncate y mmap directamente. 
-    Con fopen tendrías que llamar a fileno() y mezclás APIs de alto y bajo nivel.
-    */
 
-    // asegurar tamaño correcto
+    int fd = fileno(archivo);
+    if (fd == -1) {
+        fprintf(stderr, "Error al obtener file descriptor: %s\n", strerror(errno));
+        fclose(archivo);
+        pthread_mutex_unlock(&mutex_bitmap_file);
+        return -1;
+    }
+
     if (ftruncate(fd, (off_t)size_bytes) == -1) {
-        log_error(logger, "Error ajustando tamaño de bitmap (%zu bytes): %s",
-                  size_bytes, strerror(errno));
-        close(fd);
+        fprintf(stderr, "Error ajustando tamaño del bitmap: %s\n", strerror(errno));
+        fclose(archivo);
+        pthread_mutex_unlock(&mutex_bitmap_file);
         return -1;
     }
-    pthread_mutex_unlock(&mutex_bitmap_file);
-    pthread_mutex_lock(&mutex_bitmap);
 
-    // mapear archivo en memoria
     void* mapped = mmap(NULL, size_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (mapped == MAP_FAILED) {
-        log_error(logger, "Error en mmap de '%s': %s", bitmap_path, strerror(errno));
-        close(fd);
+        fprintf(stderr, "Error al mapear '%s': %s\n", bitmap_path, strerror(errno));
+        fclose(archivo);
+        pthread_mutex_unlock(&mutex_bitmap_file);
         return -1;
     }
 
-    // Guardar globals
     bitmap_fd = fd;
     bitmap_buffer = (char*)mapped;
     bitmap_size_bytes = size_bytes;
     bitmap_num_bits = cant_bloques;
 
-    // Crear bitarray
     bitmap = bitarray_create_with_mode(bitmap_buffer, bitmap_size_bytes, LSB_FIRST);
     if (!bitmap) {
-        log_error(logger, "Error creando bitarray sobre bitmap '%s'", bitmap_path);
+        fprintf(stderr, "Error creando bitarray\n");
         munmap(bitmap_buffer, bitmap_size_bytes);
-        close(bitmap_fd);
-        bitmap_buffer = NULL;
-        bitmap_fd = -1;
+        fclose(archivo);
+        pthread_mutex_unlock(&mutex_bitmap_file);
         return -1;
     }
-    pthread_mutex_unlock(&mutex_bitmap);
+
+    fclose(archivo);
+    pthread_mutex_unlock(&mutex_bitmap_file);
 
     log_info(logger, "Bitmap inicializado correctamente: %zu bloques (%zu bytes en archivo '%s')",
              cant_bloques, size_bytes, bitmap_path);
+
     return 0;
 }
-
 
 void inicializarBlocksHashIndex(char* path) {
     char archivoPath[512];
@@ -157,10 +156,10 @@ void inicializarEstructuras(void){
     char* pathPhysicalBlocks = inicializarDirectorio(path, "physical_blocks"); //terminado
     char* pathFiles = inicializarDirectorio(path, "files"); //hacer
 
-    inicializarFileSystem(pathPhysicalBlocks);
+    //inicializarSuperblock(); //se debe hacer en las configs
 
     // Archivos
-    //inicializarSuperblock(); //se debe hacer en las configs
+    inicializarFileSystem(pathPhysicalBlocks);
     inicializarBitmap(path);
     inicializarBlocksHashIndex(path);
 

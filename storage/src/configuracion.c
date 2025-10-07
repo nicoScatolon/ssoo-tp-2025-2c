@@ -4,7 +4,6 @@ void iniciarConfiguracionStorage(char*nombreConfig ,configStorage* configS){
     *configS = agregarConfiguracionStorage(config);
 }
 
-
 void iniciarConfiguracionSuperBlock(configSuperBlock* configSB){
     t_config* config = iniciarConfigSuperBlock(configS->puntoMontaje);
     *configSB = agregarConfiguracionSuperBlock(config);

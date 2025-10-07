@@ -37,14 +37,16 @@ void vaciarMemoria(void);
 void liberarBloqueHash(t_hash_block * bloque);
 bool existeHash(char * hash);
 void escribirBloqueHash(t_hash_block *bloque);
-t_hash_block* ocuparBloque(const char *contenido, size_t contenido_len);
+t_hash_block* ocuparBloqueHash(const char *contenido, size_t contenido_len);
 void incrementarNumeroBloque(void);
 
 // Funciones para el manejo del bitmap
 int bitmapSincronizar(void);
-void bitmapLiberarBloque(unsigned int index);
-bool bitmapBloqueOcupado(unsigned int index);
+//void bitmapLiberarBloque(unsigned int index);
 ssize_t bitmapReservarLibre(void);
+int ocuparBloqueBit(int indice_bloque);
+int liberarBloque(int indice_bloque);
+bool bitmapBloqueOcupado(unsigned int index);
 void destruirBitmap(void);
 
 #endif
