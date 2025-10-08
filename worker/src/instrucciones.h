@@ -2,6 +2,7 @@
 #define INSTRUCCIONES_H
 
 #include "../../utils/commons/common.h"
+#include "memoria_interna.h"
 #include "query_interpreter.h"
 #include "utils/globales.h"
 #include "conexiones.h"

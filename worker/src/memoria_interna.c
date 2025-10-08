@@ -10,16 +10,16 @@ void inicializarMemoriaInterna(void) {
     }
 
     int tam_memoria = configW->tamMemoria;
-    int tam_pagina  = configW->BLOCK_SIZE;
-    if (tam_pagina <= 0) {
-        log_error(logger, "BLOCK_SIZE invalido: %d", tam_pagina);
+    int tam_frame  = configW->BLOCK_SIZE;
+    if (tam_frame <= 0) {
+        log_error(logger, "BLOCK_SIZE invalido: %d", tam_frame);
         pthread_mutex_unlock(&memoria_mutex);
         exit(EXIT_FAILURE);
     }
 
-    cant_paginas = tam_memoria / tam_pagina;
-    if (cant_paginas <= 0) {
-        log_error(logger, "Tam memoria insuficiente para pagina de %d bytes", tam_pagina);
+    cant_frames = tam_memoria / tam_frame;
+    if (cant_frames <= 0) {
+        log_error(logger, "Tam memoria insuficiente para pagina de %d bytes", tam_frame);
         pthread_mutex_unlock(&memoria_mutex);
         exit(EXIT_FAILURE);
     }
@@ -31,7 +31,7 @@ void inicializarMemoriaInterna(void) {
         exit(EXIT_FAILURE);
     }
 
-    int bytes_bitmap = (cant_paginas + 7) / 8; // redondeo hacia arriba
+    int bytes_bitmap = (cant_frames + 7) / 8; // redondeo hacia arriba
     void* bitmap_mem = calloc(1, bytes_bitmap);
     if (bitmap_mem == NULL) {
         log_error(logger, "Error calloc bitmap (%d bytes)", bytes_bitmap);
@@ -52,7 +52,7 @@ void inicializarMemoriaInterna(void) {
     }
 
     log_debug(logger, "Memoria interna inicializada: %d bytes, %d paginas, bitmap de %d bytes",
-              tam_memoria, cant_paginas, bytes_bitmap);
+              tam_memoria, cant_frames, bytes_bitmap);
 
     pthread_mutex_unlock(&memoria_mutex);
 }
@@ -73,39 +73,55 @@ void inicializarDiccionarioDeTablas(void) {
     pthread_mutex_unlock(&tabla_paginas_mutex);
 }
 
-char* pidToKey(int pid) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%d", pid);
-    return strdup(buf);
-}
-
-void agregarProcesoADiccionarioDeTablas(int pid){
+void agregarFiletagADiccionarioDeTablas(char* nombreFile, char* tag){ 
     pthread_mutex_lock(&tabla_paginas_mutex);
 
-    char* key = pidToKey(pid);
+    char* key = string_from_format("%s:%s", nombreFile, tag);
+    if (!key) {
+        log_error(logger, "Sin memoria para clave %s", key);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        return;
+    }
+
     if (dictionary_has_key(tablasDePaginas, key)) {
-        log_warning(logger, "La tabla de paginas para el proceso %d ya existe", pid);
+        log_warning(logger, "La tabla de paginas para el proceso %s ya existe", key);
         free(key);
         pthread_mutex_unlock(&tabla_paginas_mutex);
         return;
     }
 
-    TablaPagina* tabla = malloc(sizeof(TablaPagina)); // me genera dudas
-    if (tabla == NULL) {
-        log_error(logger, "Error al asignar memoria para la tabla de paginas del proceso %d", pid);
+     TablaPagina* tabla = calloc(1, sizeof(TablaPagina));
+    if (!tabla) {
+        log_error(logger, "Error al asignar memoria para la tabla de paginas del proceso %s", key);
         free(key);
         pthread_mutex_unlock(&tabla_paginas_mutex);
         return;
     }
 
     dictionary_put(tablasDePaginas, key, tabla);
-    log_debug(logger, "Tabla de paginas creada para el proceso %d", pid);
+    log_debug(logger, "Tabla de paginas creada para el proceso %s", key);
 
     free(key);
     pthread_mutex_unlock(&tabla_paginas_mutex);
+
+    return;
 }
 
-void pedirBloqueAStorage(){}//TODO
+int pedirPagina(const char* nombreFile, const char* tag, int direccionBase){ //Por Hacer
+    
+    
+    //ver si pagina esta en memoria, si esta devolver nro pagina
+    int nro_pagina = obtenerPaginaDeFileTag(nombreFile, tag, direccionBase);
+    if (nro_pagina != -1){
+        return nro_pagina;
+    }
+    //si no esta, pedir bloque a storage
+    //si no hay paginas libres, aplicar algoritmo de reemplazo
+    //agregar pagina a la tabla de paginas del proceso`
+    //devolver nro pagina
+    
+    return -1; //si devuelve -1 es que hubo un error
+}
 
 void agregarPaginaAProceso(int pid, int nro_pagina){ //Terminar - Responsabilidad del storage
     pthread_mutex_lock(&tabla_paginas_mutex);
@@ -152,7 +168,7 @@ void eliminarMemoriaInterna(void) {
     }
     pthread_mutex_unlock(&tabla_paginas_mutex);
 
-    cant_paginas = 0;
+    cant_frames = 0;
 
     pthread_mutex_unlock(&memoria_mutex);
 }
@@ -244,42 +260,55 @@ void escribirEnMemoriaByte(const char* nombreFile, const char* tag, int nroPagin
     pthread_mutex_unlock(&memoria_mutex);
 }
 
-void* leerDesdeMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int nroPagina){
-    pthread_mutex_lock(&memoria_mutex);
+// void* leerDesdeMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int nroPagina){
+//     pthread_mutex_lock(&memoria_mutex);
 
-    int tam_pagina = configW->BLOCK_SIZE;
-    if (nroPagina < 0 || nroPagina >= cant_paginas) {
-        log_error(logger, "Acceso inválido a memoria: página %d", nroPagina);
-        pthread_mutex_unlock(&memoria_mutex);
-        return NULL; // Valor inválido
-    }
+//     int tam_pagina = configW->BLOCK_SIZE;
+//     if (nroPagina < 0 || nroPagina >= cant_paginas) {
+//         log_error(logger, "Acceso inválido a memoria: página %d", nroPagina);
+//         pthread_mutex_unlock(&memoria_mutex);
+//         return NULL; // Valor inválido
+//     }
 
-    void* buffer = malloc(tam_pagina);
-    if (buffer == NULL) {
-        log_error(logger, "Error al asignar memoria para leer página %d", nroPagina);
-        pthread_mutex_unlock(&memoria_mutex);
-        return NULL;
-    }
+//     void* buffer = malloc(tam_pagina);
+//     if (buffer == NULL) {
+//         log_error(logger, "Error al asignar memoria para leer página %d", nroPagina);
+//         pthread_mutex_unlock(&memoria_mutex);
+//         return NULL;
+//     }
 
-    memcpy(buffer, memoria + nroPagina * tam_pagina, tam_pagina);
+//     memcpy(buffer, memoria + nroPagina * tam_pagina, tam_pagina);
 
-    pthread_mutex_unlock(&memoria_mutex);
-    return buffer;
-}
+//     pthread_mutex_unlock(&memoria_mutex);
+//     return buffer;
+// }
 
-void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int nroPagina, void* contenidoPagina, size_t size){
-    pthread_mutex_lock(&memoria_mutex);
+// void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int nroPagina, void* contenidoPagina, size_t size){
+//     pthread_mutex_lock(&memoria_mutex);
 
-    int tam_pagina = configW->BLOCK_SIZE;
-    if (nroPagina < 0 || nroPagina >= cant_paginas || size > tam_pagina) {
-        log_error(logger, "Acceso inválido a memoria: página %d, size %zu", nroPagina, size);
-        pthread_mutex_unlock(&memoria_mutex);
-        return;
-    }
+//     int tam_pagina = configW->BLOCK_SIZE;
+//     if (nroPagina < 0 || nroPagina >= cant_paginas || size > tam_pagina) {
+//         log_error(logger, "Acceso inválido a memoria: página %d, size %zu", nroPagina, size);
+//         pthread_mutex_unlock(&memoria_mutex);
+//         return;
+//     }
 
-    memcpy(memoria + nroPagina * tam_pagina, contenidoPagina, size);
+//     memcpy(memoria + nroPagina * tam_pagina, contenidoPagina, size);
 
-    pthread_mutex_unlock(&memoria_mutex);
+//     pthread_mutex_unlock(&memoria_mutex);
+// }
+
+int obtenerPaginaDeFileTag(const char* nombreFile, const char* tag, int direccionBase){
+    pthread_mutex_lock(&tabla_paginas_mutex);
+
+    // Aquí deberías implementar la lógica para buscar la página correspondiente
+    // al <FILE>:<TAG> y la dirección base. Esto puede implicar buscar en la tabla
+    // de páginas del proceso y calcular el número de página basado en la dirección base.
+
+    
+
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+    return -1; // Retornar el número de página correspondiente o -1 si no se encuentra
 }
 
 int ReemplazoLRU() {
