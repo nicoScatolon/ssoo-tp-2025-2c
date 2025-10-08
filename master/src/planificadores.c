@@ -17,13 +17,6 @@ bool hayWorkerLibre(){
 bool hay_trabajo_para_planificar(void) {
     return !esListaVacia(&listaReady) && hayWorkerLibre();
 }
-
-void despertar_planificador(){
-    pthread_mutex_lock(&mutex_cv_planif);
-    pthread_cond_signal(&cv_planif);
-    pthread_mutex_unlock(&mutex_cv_planif);
-}
-
 // ------------------- Helpers de colas/estados -------------------
 worker * obtenerWorkerLibre(){
     pthread_mutex_lock(&listaWorkers.mutex);
@@ -43,21 +36,17 @@ worker * obtenerWorkerLibre(){
     return NULL;
 }
 
-query* obtenerQuery(){
-    return (query*) listRemove(&listaReady);
-}
-
 void cambioEstado(t_list_mutex* lista, query* elemento){
     listaAdd(elemento,lista);
 }
 
-static uint64_t now_ms(void) {
+uint64_t now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec*1000ULL + ts.tv_nsec/1000000ULL;
 }
 
-static int prioridadActual(const query* query) {
+int prioridadActual(const query* query) {
     uint64_t tiempoEnREady = now_ms() - query->qcb->tiempoReady;
     int aging = (int)(tiempoEnREady / (uint64_t)configM->tiempoAging);
     int prioridad = query->qcb->prioridad - aging;
@@ -93,7 +82,6 @@ query* obtenerQueryDeMenorPrioridad() {
             menorPrioridad = queryComparada->qcb->prioridad;
         }
     }
-    //list_remove_element(listaExecute.lista, queryElegida);
     pthread_mutex_unlock(&listaExecute.mutex);
     return queryElegida;
 }
@@ -115,6 +103,8 @@ void enviarQueryAWorker(worker* workerElegido,char* path,int PC,int queryID){
     eliminarPaquete(paquete);
 
     log_info(logger, "## Se envía la Query %d al Worker %d", queryID, workerElegido->workerID);
+    pthread_cond_signal(&cv_aging);
+    pthread_cond_signal(&cv_desalojo);
 }
 // Pide desalojo al worker y obtiene el PC devuelto
 int solicitarDesalojoYObtenerPC(worker* w) {
@@ -134,7 +124,6 @@ int solicitarDesalojoYObtenerPC(worker* w) {
 void* planificadorFIFO() {
 
     while(1) {
-
         pthread_mutex_lock(&mutex_cv_planif);
         while (!hay_trabajo_para_planificar()) {
             pthread_cond_wait(&cv_planif, &mutex_cv_planif);
@@ -142,7 +131,7 @@ void* planificadorFIFO() {
         pthread_mutex_unlock(&mutex_cv_planif);
 
         worker* workerElegido = obtenerWorkerLibre();
-        query* queryElegida = obtenerQuery();
+        query* queryElegida = listRemove(&listaReady);
         if (queryElegida == NULL) {
             log_warning(logger,"Query nula");
             continue;
@@ -157,25 +146,17 @@ void* planificadorFIFO() {
 void* planificadorPrioridad() {
     while(1){
         pthread_mutex_lock(&mutex_cv_planif);
-        if (!esListaVacia(&listaReady)) {
-            if (hayWorkerLibre()){
-                worker* workerElegido = obtenerWorkerLibre();
-                query* queryElegida = obtenerQueryDeMayorPrioridad();
-                list_remove_element(listaReady.lista, queryElegida);
-                queryElegida->qcb->prioridad = prioridadActual(queryElegida);
-
-                cambioEstado(&listaExecute, queryElegida);
-                pthread_cond_wait(&cv_planif, &mutex_cv_planif);
-
-                enviarQueryAWorker(workerElegido,queryElegida->path,queryElegida->qcb->PC,queryElegida->qcb->queryID);
-            } else {      
-                evaluarDesalojo();   
-            } 
-
+        while (!hay_trabajo_para_despachar()) {
+            pthread_cond_wait(&cv_planif, &mutex_cv_planif);
         }
-        pthread_mutex_unlock(&mutex_cv_planif);
+        pthread_mutex_unlock(&mutex_cv_planif);            
+        worker* workerElegido = obtenerWorkerLibre();
+        query* queryElegida = obtenerQueryDeMayorPrioridad();
 
-        
+        listRemoveElement(&listaReady, queryElegida);
+
+        cambioEstado(&listaExecute, queryElegida);
+        enviarQueryAWorker(workerElegido,queryElegida->path,queryElegida->qcb->PC,queryElegida->qcb->queryID);
     }
     return NULL;
 }
@@ -211,9 +192,9 @@ bool hay_desalojo() {
     return queryReady->qcb->prioridad < queryExec->qcb->prioridad;
 }
 
-static void aplicar_desalojo(void) {
+void aplicar_desalojo(void) {
     query* queryReady = obtenerQueryDeMayorPrioridad();
-    list_remove_element(listaReady.lista, queryReady);
+    listRemoveElement(&listaReady, queryReady);
     queryElegida->qcb->prioridad = prioridadActual(queryReady);
 
     cambioEstado(&listaExecute, queryElegida);    
@@ -226,6 +207,7 @@ static void aplicar_desalojo(void) {
         log_warning(logger, "Fallo desalojo en Worker %d", victimaW->workerID);
         listaAdd(queryReady, &listaReady);
         nuevaQuery->qcb->tiempoReady = now_ms();
+        avisarNuevoReady();
         return;
     }
     pthread_mutex_lock(&victimaQ->mutex);
@@ -233,22 +215,25 @@ static void aplicar_desalojo(void) {
     pthread_mutex_unlock(&victimaQ->mutex);
 
     query* sacada = sacarDeExecutePorId(victimaQ->qcb->queryID);
-    if (sacada) listaAdd(sacada, &listaReady);
-
+    listaAdd(sacada, &listaReady);
+    pthread_cond_signal(&cv_planif);
     log_info(logger, "## Se desaloja la Query %d (%d) y comienza a ejecutar la Query %d (%d) en el Worker %d", victimaQ->qcb->queryID, victimaQ->qcb->prioridad, queryReady->qcb->queryID, queryReady->qcb->prioridad, victimaW->workerID);
 
     cambioEstado(&listaExecute, queryReady);
     enviarQueryAWorker(victimaW, queryReady->path, queryReady->qcb->PC, queryReady->qcb->queryID);
+}
 
-    //Por si quedaron más READY con chance de preempción
-    despertar_planificador();
+void avisarNuevoReady() {
+    pthread_cond_signal(&cv_planif);
+    pthread_cond_signal(&cv_aging);
+    pthread_cond_signal(&cv_desalojo);
 }
 
 void* evaluarDesalojo() {
     while(1) {
         pthread_mutex_lock(&mutex_cv_planif);
         while (!hay_desalojo()) {
-            pthread_cond_wait(&cv_planif, &mutex_cv_planif);
+            pthread_cond_wait(&cv_desalojo, &mutex_cv_planif);
         }
         pthread_mutex_unlock(&mutex_cv_planif);
 
@@ -258,21 +243,79 @@ void* evaluarDesalojo() {
 }
 
 // ------------------- Aging -------------------
-void* aging() {
+void* hiloAging() {
     while (1) {
-        usleep(configM->tiempoAging * 1000); 
+        // Dormir hasta que alguien avise (entra READY / cambia worker)
+        pthread_mutex_lock(&mutex_cv_planif);
+        while (!condicionAging()) {
+            pthread_cond_wait(&cv_aging, &mutex_cv_planif);
+        }
+        pthread_mutex_unlock(&mutex_cv_planif);
+
         pthread_mutex_lock(&listaReady.mutex);
         for (int i = 0; i < list_size(listaReady.lista); i++) {
             query* q = list_get(listaReady.lista, i);
-            int old = q->qcb->prioridad;
-            if (old > 0) {
-                q->qcb->prioridad = old - 1;
-                log_info(logger, "## <%d> Cambio de prioridad: <%d> - <%d>", q->qcb->queryID, old, q->qcb->prioridad); 
+            if (!q->qcb->agingActivo) {  
+                pthread_t hilo;
+                pthread_create(&hilo, NULL, hiloAgingPorQuery, q);
+                pthread_detach(hilo);
             }
         }
         pthread_mutex_unlock(&listaReady.mutex);
-        despertar_planificador();
     }
+    return NULL;
+}
+
+int ms_hasta_proximo_tick(const query* q, int tiempo_aging_ms) {
+    uint64_t tiempoEnREady = now_ms() - q->qcb->tiempoReady;
+    int resto = (int)(esperados_ms % (uint64_t)tiempo_aging_ms);
+    int falta = tiempo_aging_ms - resto;
+    return falta;
+}
+
+bool condicionAging() {
+    return !esListaVacia(&listaReady) && !hayWorkerLibre();
+}
+
+bool condicionAgingQuery(query* query) {
+    return sigueEnReady(query) && !hayWorkerLibre();
+}
+
+bool sigueEnReady(query* query) {
+    if (!query) return false;
+
+    pthread_mutex_lock(&listaReady.mutex);
+    for (int i = 0; i < list_size(listaReady.lista); i++) {
+        if (query == list_get(listaReady.lista, i)) { 
+            pthread_mutex_unlock(&listaReady.mutex);
+            return true;
+        }
+    }
+    pthread_mutex_unlock(&listaReady.mutex);
+    return false;
+}
+
+void* hiloAgingPorQuery(void* arg) {
+    query* q = (query*)arg;
+    q->qcb->agingActivo = true;
+
+    int tiempoAging = config->tiempoAging;
+    uint64_t tiempoEnREady = now_ms() - q->qcb->tiempoReady;
+
+    q->qcb->prioridad = prioridadActual(q);
+    pthread_cond_signal(&cv_desalojo);
+
+    int tiempoEspera = ms_hasta_proximo_tick(q, tiempoAging);
+    usleep(tiempoEspera * 1000);
+
+    while (condicionAgingQuery(q)) {
+        q->qcb->prioridad = (q->qcb->prioridad > 0) ? q->qcb->prioridad - 1 : 0;
+
+        pthread_cond_signal(&cv_desalojo);
+
+        usleep(tiempoAging * 1000);
+    }
+    q->qcb->agingActivo = false;
     return NULL;
 }
 
@@ -341,4 +384,5 @@ void liberarWorker(worker* w){
     w->idActual = -1;
     w->pathActual = NULL; 
     pthread_mutex_unlock(&w->mutex);
+    pthread_cond_signal(&cv_planif);
 }

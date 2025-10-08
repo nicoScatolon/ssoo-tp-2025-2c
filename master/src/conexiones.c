@@ -70,7 +70,7 @@ void agregarWorker(int socketCliente,int idWorker){
     pthread_mutex_init(&nuevoWorker->mutex,NULL);
 
     listaAdd(nuevoWorker,&listaWorkers);
-    despertar_planificador();
+    pthread_cond_signal(&cv_planif);
 
     pthread_mutex_lock(&mutex_grado);
     gradoMultiprogramacion++;
@@ -88,10 +88,11 @@ void agregarQuery(char* path,int prioridad,int id){
     nuevaQuery->qcb->queryID = id;
     nuevaQuery->qcb->PC = 0;
     nuevaQuery->qcb->tiempoReady = now_ms();
+    nuevaQuery->qcb->agingActivo = false;
     pthread_mutex_init(&nuevaQuery->mutex,NULL);
 
     listaAdd(nuevaQuery,&listaReady);
-    despertar_planificador();
+    avisarNuevoReady();
     log_debug(logger,"Se encolo query ID <%d> en READY",nuevaQuery->qcb->queryID);
 }
 

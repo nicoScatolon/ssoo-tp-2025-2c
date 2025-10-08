@@ -13,6 +13,12 @@ void listaAdd(void* elemento, t_list_mutex* l) {
     pthread_mutex_unlock(&l->mutex);
 }
 
+void listRemoveElement(t_list_mutex* l, void* elemento) {
+    pthread_mutex_lock(&l->mutex);
+    list_remove_element(l->lista, elemento);
+    pthread_mutex_unlock(&l->mutex);
+}
+
 void * listRemove(t_list_mutex* l){
     pthread_mutex_lock(&l->mutex);
     void *elemento = NULL;
@@ -22,3 +28,4 @@ void * listRemove(t_list_mutex* l){
     pthread_mutex_unlock(&l->mutex);
     return elemento;
 }
+

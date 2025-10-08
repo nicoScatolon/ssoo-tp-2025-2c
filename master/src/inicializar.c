@@ -35,7 +35,6 @@ void iniciarPlanificacion() {
             pthread_detach(hiloAging);
         }
 
-
         pthread_create(&hiloDesalojo, NULL, evaluarDesalojo, NULL);
         pthread_detach(hiloDesalojo);
 
