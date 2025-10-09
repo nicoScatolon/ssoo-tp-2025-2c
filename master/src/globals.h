@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "utils/listas.h"
+#include "semaphore.h"
 
 
 // ✅ SOLO DECLARACIONES con extern - NO definiciones

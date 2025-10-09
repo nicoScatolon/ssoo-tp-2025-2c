@@ -20,4 +20,6 @@ pthread_mutex_t mutex_cantidadQueriesControl = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_cv_planif = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cv_planif = PTHREAD_COND_INITIALIZER;
 
+sem_t sem_desalojo;
+
 
