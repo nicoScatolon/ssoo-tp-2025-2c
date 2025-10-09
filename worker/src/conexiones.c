@@ -3,6 +3,8 @@
 int socketMaster;
 int socketStorage; //hacerlas globales
 
+contexto_query_t* contexto = NULL;
+
 
 void conexionConMaster(int ID) {
     char* puertoMaster = string_itoa(configW->puertoMaster);
@@ -44,7 +46,8 @@ void escucharMaster() {
                 int pc = recibirIntDePaqueteconOffset(paquete,&offset);
                 log_info(logger, "Recepción de Query: ## Query <%d>: Se recibe la Query. El path de operaciones es: <%s>",idQuery,path);
 
-                contexto_query_t* contexto = cargarQuery(path, idQuery, pc);
+                memset(contexto, 0, sizeof(contexto_query_t));
+                contexto = cargarQuery(path, idQuery, pc);
 
                 ejecutarQuery(contexto);
 
@@ -64,6 +67,23 @@ void escucharMaster() {
                 log_info(logger,"Desalojo de Query: ## Query <%d>: Desalojada por pedido del Master",idQuery);
             
                 //ejecutar flush y enviar Id y PC actualizado (creo que conviene hacer todo esto en el query interpreter)
+                desalojarQuery(idQuery, DESALOJO_QUERY_PLANIFICADOR);
+                
+                eliminarPaquete(paquete);
+                break;
+            }
+            case DESALOJO_QUERY_DESCONEXION:{
+                t_paquete* paquete = recibirPaquete(socketMaster);
+                if(!paquete){
+                    log_error(logger, "Error recibiendo paquete de DESALOJO_QUERY_DESCONEXION");
+                    break;
+                }
+                int offset = 0;
+                int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
+                log_info(logger,"Desalojo de Query: ## Query <%d>: Desalojada por desconexión del cliente",idQuery);
+            
+                //ejecutar flush y enviar Id y PC actualizado (creo que conviene hacer todo esto en el query interpreter)
+                desalojarQuery(idQuery, DESALOJO_QUERY_DESCONEXION);
                 
                 eliminarPaquete(paquete);
                 break;

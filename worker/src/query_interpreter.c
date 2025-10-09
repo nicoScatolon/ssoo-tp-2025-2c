@@ -356,3 +356,21 @@ void liberarContextoQuery(contexto_query_t* contexto) {
 
     free(contexto);
 }
+
+
+
+void desalojarQuery(int idQuery, opcode motivo) {
+    int pc = contexto->pc;
+
+
+    // ejecutar_flush(); revisar esta funcion
+
+    enviarOpcode(motivo, socketMaster/*socket master*/);
+    t_paquete* paquete = crearPaquete();
+    agregarIntAPaquete(paquete, idQuery);
+    agregarIntAPaquete(paquete, pc);
+    enviarPaquete(paquete, socketMaster/*socket master*/);
+    eliminarPaquete(paquete);
+
+    return;
+}

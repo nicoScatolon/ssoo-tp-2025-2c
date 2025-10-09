@@ -110,8 +110,6 @@ void ejecutar_flush(char* fileName, char* tag){
     }
 
     if(modificadas){
-        enviarOpcode(FLUSH_FILE, socketStorage/*socket storage*/);    
-
         t_paquete* paquete = crearPaquete();
         agregarStringAPaquete(paquete, fileName);
         agregarStringAPaquete(paquete, tag); 
@@ -128,10 +126,10 @@ void ejecutar_flush(char* fileName, char* tag){
                 tabla->entradas[i].bitModificado = false; //reseteo el bit modificado
             }
         }
+        enviarOpcode(FLUSH_FILE, socketStorage/*socket storage*/);  
         enviarPaquete(paquete, socketStorage/*socket storage*/);
         eliminarPaquete(paquete);
         tabla->hayPaginasModificadas = false;
-
     }
     else{
         log_debug(logger, "No hay páginas modificadas para hacer FLUSH en %s:%s", fileName, tag);

@@ -16,6 +16,8 @@ extern t_log* logger;
 extern int socketMaster;
 extern int socketStorage;
 
+extern contexto_query_t* contexto;
+
 
 typedef enum {
     CREATE,
