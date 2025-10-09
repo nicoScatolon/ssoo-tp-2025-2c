@@ -17,9 +17,6 @@ extern pthread_mutex_t mutex_grado;
 extern pthread_mutex_t mutex_cantidadQueriesControl;
 extern pthread_mutex_t mutex_cv_planif;
 extern pthread_cond_t  cv_planif;
-extern pthread_cond_t  cv_aging;
-extern pthread_cond_t  cv_desalojo;
-
 // extern pthread_mutex_t mutex_lista_workers;
 extern uint32_t siguienteIdQueryControl;
 extern uint32_t siguienteIdWorker;
@@ -64,8 +61,6 @@ typedef struct {
     int PC;
     int prioridad;
     int queryID;
-    uint64_t tiempoReady;
-    int agingActivo;
 } qcb_t;
 
 typedef struct {
