@@ -73,7 +73,9 @@ void inicializarDiccionarioDeTablas(void) {
     pthread_mutex_unlock(&tabla_paginas_mutex);
 }
 
-void agregarFiletagADiccionarioDeTablas(char* nombreFile, char* tag){ 
+
+
+void agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag){ 
     pthread_mutex_lock(&tabla_paginas_mutex);
 
     char* key = string_from_format("%s:%s", nombreFile, tag);
@@ -107,45 +109,27 @@ void agregarFiletagADiccionarioDeTablas(char* nombreFile, char* tag){
     return;
 }
 
-int pedirPagina(const char* nombreFile, const char* tag, int direccionBase){ //Por Hacer
-    
-    
-    //ver si pagina esta en memoria, si esta devolver nro pagina
-    int nro_pagina = obtenerPaginaDeFileTag(nombreFile, tag, direccionBase);
-    if (nro_pagina != -1){
-        return nro_pagina;
-    }
-    //si no esta, pedir bloque a storage
-    //si no hay paginas libres, aplicar algoritmo de reemplazo
-    //agregar pagina a la tabla de paginas del proceso`
-    //devolver nro pagina
-    
-    return -1; //si devuelve -1 es que hubo un error
-}
-
-void agregarPaginaAProceso(int pid, int nro_pagina){ //Terminar - Responsabilidad del storage
+TablaDePaginas* obtenerTablaPorFileYTag(const char* nombreFile, const char* tag){
     pthread_mutex_lock(&tabla_paginas_mutex);
 
-    char* key = pidToKey(pid);
-    TablaPagina* tabla = dictionary_get(tablasDePaginas, key);
-    if (tabla == NULL) {
-        log_warning(logger, "No existe la tabla de paginas para el proceso %d", pid);
-        free(key);
+    char* key = string_from_format("%s:%s", nombreFile, tag);
+    if (!key) {
+        log_error(logger, "Sin memoria para crear la clave file:tag");
         pthread_mutex_unlock(&tabla_paginas_mutex);
-        
-        agregarProcesoADiccionarioDeTablas(pid);
-        agregarPaginaAProceso(pid, nro_pagina); 
-        return;
+        return NULL;
     }
 
-    // Aquí deberías agregar la lógica para añadir la página a la tabla
-    // Por ejemplo, podrías reallocar el array de entradas y añadir una nueva entrada
-
-    log_debug(logger, "Página %d agregada a la tabla del proceso %d", nro_pagina, pid);
+    TablaDePaginas* tabla = dictionary_get(tablasDePaginas, key);
+    if (!tabla) {
+        log_warning(logger, "No se encontró tabla de páginas para %s", key);
+    }
 
     free(key);
     pthread_mutex_unlock(&tabla_paginas_mutex);
+    return tabla;
 }
+
+
 
 
 void eliminarMemoriaInterna(void) {
@@ -173,143 +157,117 @@ void eliminarMemoriaInterna(void) {
     pthread_mutex_unlock(&memoria_mutex);
 }
 
-int obtenerPaginaLibre(void){
+int obtenerMarcoLibre(void){
     pthread_mutex_lock(&memoria_mutex);
 
-    for (int i = 0; i < cant_paginas; i++) {
-        if (!bitarray_test_bit(bitmap, i)) { // Página libre
-            bitarray_set_bit(bitmap, i); // Marcar como usada
-            pthread_mutex_unlock(&memoria_mutex);
-            return i; // Retornar número de página libre
-        }
-    }
+    // for (int i = 0; i < cant_paginas; i++) {
+    //     if (!bitarray_test_bit(bitmap, i)) { // Página libre
+    //         bitarray_set_bit(bitmap, i); // Marcar como usada
+    //         pthread_mutex_unlock(&memoria_mutex);
+    //         return i; // Retornar número de página libre
+    //     }
+    // }
 
     pthread_mutex_unlock(&memoria_mutex);
     return -1; // No hay páginas libres
 }
 
-void liberarPagina(int nro_pagina){
+void liberarMarco(int nro_marco){
     pthread_mutex_lock(&memoria_mutex);
-    if (nro_pagina < 0 || nro_pagina >= cant_paginas) {
-        log_error(logger, "Número de página inválido: %d", nro_pagina);
-        pthread_mutex_unlock(&memoria_mutex);
-        return;
-    }
-    
-    bitarray_clean_bit(bitmap, nro_pagina);
 
-    int offset = nro_pagina * configW->BLOCK_SIZE;
-    memset(&memoria[offset], 0, configW->BLOCK_SIZE);
 
     pthread_mutex_unlock(&memoria_mutex);
 }
 
-void reservarPagina(int nro_pagina){
+void reservarMarco(int nro_marco){
     pthread_mutex_lock(&memoria_mutex);
 
-    if (nro_pagina < 0 || nro_pagina >= cant_paginas) {
-        log_error(logger, "Número de página inválido: %d", nro_pagina);
-        pthread_mutex_unlock(&memoria_mutex);
-        return;
-    }
 
-    if (bitarray_test_bit(bitmap, nro_pagina))
-    {
-        log_warning(logger, "Página %d ya está reservada", nro_pagina);
-        pthread_mutex_unlock(&memoria_mutex);
-        return;
-    }
-
-    bitarray_set_bit(bitmap, nro_pagina);
-
-    //se debería agregar a la tabla de paginas del proceso
 
     pthread_mutex_unlock(&memoria_mutex);
 }
 
 
-// Lectura/Escritura desde la "Memoria Interna"
-char leerDesdeMemoriaByte(const char* nombreFile, const char* tag, int nroPagina, int offset){
+// Lectura/Escritura en "Memoria Interna"
+char* leerContenidoDesdeOffset(const char* nombreFile, const char* tag, int numeroMarco, int size, int offset){
     pthread_mutex_lock(&memoria_mutex);
 
-    int tam_pagina = configW->BLOCK_SIZE;
-    if (nroPagina < 0 || nroPagina >= cant_paginas || offset < 0 || offset >= tam_pagina) {
-        log_error(logger, "Acceso inválido a memoria: página %d, offset %d", nroPagina, offset);
-        pthread_mutex_unlock(&memoria_mutex);
-        return -1; // Valor inválido
-    }
 
-    char valor = memoria[nroPagina * tam_pagina + offset];
+    pthread_mutex_unlock(&memoria_mutex);}
 
-    pthread_mutex_unlock(&memoria_mutex);
-    return valor;
-}
-
-void escribirEnMemoriaByte(const char* nombreFile, const char* tag, int nroPagina, int offset, char valor){
+void escribirContenidoDesdeOffset(const char* nombreFile, const char* tag, int numeroMarco, int offset, int size, char* contenido){
     pthread_mutex_lock(&memoria_mutex);
 
-    int tam_pagina = configW->BLOCK_SIZE;
-    if (nroPagina < 0 || nroPagina >= cant_paginas || offset < 0 || offset >= tam_pagina) {
-        log_error(logger, "Acceso inválido a memoria: página %d, offset %d", nroPagina, offset);
-        pthread_mutex_unlock(&memoria_mutex);
-        return;
-    }
-
-    memoria[nroPagina * tam_pagina + offset] = valor;
 
     pthread_mutex_unlock(&memoria_mutex);
 }
 
-// void* leerDesdeMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int nroPagina){
-//     pthread_mutex_lock(&memoria_mutex);
+void* leerDesdeMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco){
+    // pthread_mutex_lock(&memoria_mutex);
 
-//     int tam_pagina = configW->BLOCK_SIZE;
-//     if (nroPagina < 0 || nroPagina >= cant_paginas) {
-//         log_error(logger, "Acceso inválido a memoria: página %d", nroPagina);
-//         pthread_mutex_unlock(&memoria_mutex);
-//         return NULL; // Valor inválido
-//     }
+    // int tam_pagina = configW->BLOCK_SIZE;
+    // if (nroPagina < 0 || nroPagina >= cant_paginas) {
+    //     log_error(logger, "Acceso inválido a memoria: página %d", nroPagina);
+    //     pthread_mutex_unlock(&memoria_mutex);
+    //     return NULL; // Valor inválido
+    // }
 
-//     void* buffer = malloc(tam_pagina);
-//     if (buffer == NULL) {
-//         log_error(logger, "Error al asignar memoria para leer página %d", nroPagina);
-//         pthread_mutex_unlock(&memoria_mutex);
-//         return NULL;
-//     }
+    // void* buffer = malloc(tam_pagina);
+    // if (buffer == NULL) {
+    //     log_error(logger, "Error al asignar memoria para leer página %d", nroPagina);
+    //     pthread_mutex_unlock(&memoria_mutex);
+    //     return NULL;
+    // }
 
-//     memcpy(buffer, memoria + nroPagina * tam_pagina, tam_pagina);
+    // memcpy(buffer, memoria + nroPagina * tam_pagina, tam_pagina);
 
-//     pthread_mutex_unlock(&memoria_mutex);
-//     return buffer;
-// }
+    // pthread_mutex_unlock(&memoria_mutex);
+    // return buffer;
+}
 
-// void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int nroPagina, void* contenidoPagina, size_t size){
-//     pthread_mutex_lock(&memoria_mutex);
+void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco, char* contenidoPagina, int size){
+    // pthread_mutex_lock(&memoria_mutex);
 
-//     int tam_pagina = configW->BLOCK_SIZE;
-//     if (nroPagina < 0 || nroPagina >= cant_paginas || size > tam_pagina) {
-//         log_error(logger, "Acceso inválido a memoria: página %d, size %zu", nroPagina, size);
-//         pthread_mutex_unlock(&memoria_mutex);
-//         return;
-//     }
+    // int tam_pagina = configW->BLOCK_SIZE;
+    // if (nroPagina < 0 || nroPagina >= cant_paginas || size > tam_pagina) {
+    //     log_error(logger, "Acceso inválido a memoria: página %d, size %zu", nroPagina, size);
+    //     pthread_mutex_unlock(&memoria_mutex);
+    //     return;
+    // }
 
-//     memcpy(memoria + nroPagina * tam_pagina, contenidoPagina, size);
+    // memcpy(memoria + nroPagina * tam_pagina, contenidoPagina, size);
 
-//     pthread_mutex_unlock(&memoria_mutex);
-// }
+    // pthread_mutex_unlock(&memoria_mutex);
+}
 
-int obtenerPaginaDeFileTag(const char* nombreFile, const char* tag, int direccionBase){
+int obtenerNumeroPaginaDeFileTag(const char* nombreFile, const char* tag, int direccionBase){
     pthread_mutex_lock(&tabla_paginas_mutex);
 
+    // Puede llamar a obtenerTablaPorFileYTag(nombreFile, tag) para obtener la tabla de páginas de ese file:tag
+
     // Aquí deberías implementar la lógica para buscar la página correspondiente
-    // al <FILE>:<TAG> y la dirección base. Esto puede implicar buscar en la tabla
-    // de páginas del proceso y calcular el número de página basado en la dirección base.
+    // al <FILE>:<TAG> y la dirección base. Esto implica buscar en la tabla de páginas del proceso y calcular el número de página basado en la dirección base.
 
     
 
     pthread_mutex_unlock(&tabla_paginas_mutex);
     return -1; // Retornar el número de página correspondiente o -1 si no se encuentra
 }
+
+int pedirMarco(const char* nombreFile, const char* tag, int numeroPagina){
+    // pthread_mutex_lock(&tabla_paginas_mutex);
+
+    // Aquí deberías implementar la lógica para pedir una página al Storage
+    // y actualizar la tabla de páginas del proceso correspondiente.
+
+    // pthread_mutex_unlock(&tabla_paginas_mutex);
+    return -1; // Retornar el número de página asignada o -1 en caso de error
+}
+
+
+
+
+
 
 int ReemplazoLRU() {
     // Implementación del algoritmo de reemplazo LRU

@@ -6,6 +6,7 @@
 
 #include "utils/config.h"
 #include "utils/logs.h"
+#include "configuracion.h"
 // #include <commons/collections/list.h>
 // #include <pthread.h>
 
@@ -52,15 +53,17 @@ typedef struct {
 } EntradaDeTabla;
 
 typedef struct {
-    EntradaDeTabla *entradas;       // array indexado por número de página virtual (PV)
-    int                 capacidadEntradas; // cuantos slots están reservados (p. ej. 16, 32)
+    EntradaDeTabla  *entradas;                   // array indexado por número de página virtual (PV)
+    int                 capacidadEntradas;      // cuantos slots están reservados (p. ej. 16, 32)
     int                 cantidadEntradasUsadas; // opcional (para métricas)
-    int                 paginasPresentes; // cantidad de entradas con bitPresencia == true
-    bool                hayPaginasModificadas; // true si existe al menos una página con bitModificado==true
-    char               *claveProceso;    // strdup("file:tag") — útil para logs
+    int                 paginasPresentes;       // cantidad de entradas con bitPresencia == true
+    bool                hayPaginasModificadas;  // true si existe al menos una página con bitModificado==true
+    char               *keyProceso;           // strdup("file:tag") — útil para logs
 } TablaDePaginas;
 
 
+int calcularPaginaDesdeDireccionBase(int direccionBase);
+int calcularOffsetDesdeDireccionBase(int direccionBase);
 
 
 #endif

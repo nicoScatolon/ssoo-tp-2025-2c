@@ -62,7 +62,9 @@ void escucharMaster() {
                 int offset = 0;
                 int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
                 log_info(logger,"Desalojo de Query: ## Query <%d>: Desalojada por pedido del Master",idQuery);
-                //enviarId y PC actualizado
+            
+                //ejecutar flush y enviar Id y PC actualizado (creo que conviene hacer todo esto en el query interpreter)
+                
                 eliminarPaquete(paquete);
                 break;
             }

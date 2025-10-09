@@ -225,7 +225,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
             // Formato: WRITE <NOMBRE_FILE>:<TAG> <DIRECCIÓN BASE> <CONTENIDO>
             // parametro[0] = "WRITE", parametro[1] = "MATERIAS:BASE", parametro[2] = "0", parametro[3] = "SISTEMAS_OPERATIVOS"
 
-            ejecutar_write(fileName, tagFile, atoi(instruccion->parametro[2]), instruccion->parametro[3]);
+            ejecutar_write(fileName, tagFile, atoi(instruccion->parametro[2]), instruccion->parametro[3], contexto);
             
             break;
         }
@@ -255,7 +255,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case COMMIT: {
             // Formato: COMMIT <NOMBRE_FILE>:<TAG>
             // parametro[0] = "COMMIT", parametro[1] = "MATERIAS:BASE"
-
+            ejecutar_flush(fileName, tagFile);
             ejecutar_commit(fileName, tagFile);
 
             break;
@@ -264,7 +264,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case FLUSH: {
             // Formato: FLUSH <NOMBRE_FILE>:<TAG>
             // parametro[0] = "FLUSH", parametro[1] = "MATERIAS:BASE"
-            ejecutar_flush();
+            ejecutar_flush(fileName, tagFile);
 
             break;
         }

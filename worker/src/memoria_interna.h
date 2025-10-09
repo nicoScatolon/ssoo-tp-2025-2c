@@ -10,7 +10,7 @@
 char* memoria = NULL;        // memoria principal
 t_bitarray* bitmap = NULL;   // bitmap para páginas
 int cant_frames = 0;
-t_dictionary* tablasDePaginas = NULL; //la key es <FILE><TAG>
+t_dictionary* tablasDePaginas = NULL; //la key es <FILE>:<TAG>
 
 extern configWorker* configW;
 
@@ -23,27 +23,25 @@ void inicializarMemoriaInterna(void); // Hecho
 void inicializarDiccionarioDeTablas(void); // Hecho
 void eliminarMemoriaInterna(void); // Hecho
 
-void agregarFiletagADiccionarioDeTablas(char* nombreFile, char* tag); // Hecho
+void agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag); // Hecho
+TablaDePaginas* obtenerTablaPorFileYTag(const char* nombreFile, const char* tag);
 
-int obtenerPaginaLibre(void); // Hecho
-void liberarPagina(int nro_pagina); // Hecho
-void reservarPagina(int nro_pagina); // Hecho
-void agregarPaginaAProceso(const char* nombreFile, const char* tag, int nro_pagina); //-------Por Terminar-------
+int obtenerMarcoLibre(void);
+void liberarPagina(int nro_pagina);
+void reservarPagina(int nro_pagina); 
 
-int obtenerPaginaDeFileTag(const char* nombreFile, const char* tag, int direccionBase); //-------Por Hacer-------
-int pedirPagina(const char* nombreFile, const char* tag, int direccionBase); //-------Por Hacer-------
+int obtenerNumeroPaginaDeFileTag(const char* nombreFile, const char* tag, int direccionBase); //-------Por Hacer-------
 
 
 
 // Lectura/Escritura desde la "Memoria Interna" 
-char leerDesdeMemoriaByte(const char* nombreFile, const char* tag, int nroPagina, int offset); //Hecho
-void escribirEnMemoriaByte(const char* nombreFile, const char* tag, int nroPagina, int offset, char valor); //Hecho
+char* leerContenidoDesdeOffset(const char* nombreFile, const char* tag, int numeroMarco, int size, int offset); 
+void escribirContenidoDesdeOffset(const char* nombreFile, const char* tag, int numeroMarco, int offset, int size, char* contenido); 
 
-void* leerDesdeMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int nroPagina); //Hecho
-void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int nroPagina, void* contenidoPagina, size_t size); //Hecho
+void* leerDesdeMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco); //Hecho
+void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco, char* contenidoPagina, int size);
 
-// Para el COMMIT
-void* ObtenerTodasLasPaginasModificadas(); //-------Por Hacer-------
+int pedirMarco(const char* nombreFile, const char* tag, int numeroPagina);
 
 // Algoritmos de reemplazo (devuelven la página reemplazada)
 int ReemplazoLRU(); //Por Hacer         puede usar obtenerPaginaLibre(), reservarPagina(), liberarPagina(), agregarPaginaAProceso()
