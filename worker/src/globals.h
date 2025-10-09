@@ -43,18 +43,22 @@ typedef struct {
 } contexto_query_t;
 
 typedef struct {
-    uint32_t numeroPagina;
-    t_temporal ultimoAcceso;
-    bool bitModificado;
-    bool bitUso;
-    bool bitPresencia;
-} EntradaTablaPagina;
+    int         numeroFrame;
+    int         numeroPagina;
+    t_temporal  ultimoAcceso;
+    bool        bitModificado;
+    bool        bitUso;
+    bool        bitPresencia;
+} EntradaDeTabla;
 
 typedef struct {
-    EntradaTablaPagina* entradas; 
-    // uint32_t numPaginas;
-    // uint32_t cantidadPaginasEnUso;
-} TablaPagina;
+    EntradaDeTabla *entradas;       // array indexado por número de página virtual (PV)
+    int                 capacidadEntradas; // cuantos slots están reservados (p. ej. 16, 32)
+    int                 cantidadEntradasUsadas; // opcional (para métricas)
+    int                 paginasPresentes; // cantidad de entradas con bitPresencia == true
+    bool                hayPaginasModificadas; // true si existe al menos una página con bitModificado==true
+    char               *claveProceso;    // strdup("file:tag") — útil para logs
+} TablaDePaginas;
 
 
 

@@ -90,7 +90,7 @@ void agregarFiletagADiccionarioDeTablas(char* nombreFile, char* tag){
         return;
     }
 
-     TablaPagina* tabla = calloc(1, sizeof(TablaPagina));
+     TablaDePaginas* tabla = calloc(1, sizeof(TablaDePaginas));
     if (!tabla) {
         log_error(logger, "Error al asignar memoria para la tabla de paginas del proceso %s", key);
         free(key);
