@@ -9,5 +9,6 @@ extern t_log* logger;
 
 //firmas de funciones aqui
 void iniciarConfiguracionStorage(char*nombreConfig ,configStorage* configS);
+void iniciarConfiguracionSuperBlock(configSuperBlock* configSB);
 
 #endif

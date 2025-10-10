@@ -1,6 +1,6 @@
 #include "conexiones.h"
 
-void establecerConexionesStorage(){
+void establecerConexionesStorage(void){
     char* puertoEscucha = string_itoa(configS->puertoEscucha);
     int socketEscucha = iniciarServidor(puertoEscucha,logger,"STORAGE");
     free(puertoEscucha);
@@ -57,6 +57,14 @@ void *operarWorkers(void*socketClienteVoid){
         }
     switch (codigo)
     {
+    case HANDSHAKE_STORAGE_WORKER:{
+        t_paquete* paquete = crearPaquete();
+        agregarIntAPaquete(paquete,configSB->FS_SIZE);
+        agregarIntAPaquete(paquete,configSB->BLOCK_SIZE);
+        enviarPaquete(paquete,socketCliente);
+        eliminarPaquete(paquete);
+        break;
+    }
     case CREATE_FILE:{
         t_paquete* paquete = recibirPaquete(socketCliente);
         if (!paquete) {
@@ -110,7 +118,7 @@ void *operarWorkers(void*socketClienteVoid){
             eliminarPaquete(paquete);
             break;
     }
-    case COMMIT_TAG:{
+    case COMMIT_FILE:{ //antes COMMIT_TAG
         break;
     }
     case WRITE_BLOCK:{
@@ -119,7 +127,7 @@ void *operarWorkers(void*socketClienteVoid){
     case READ_BLOCK:{
         break;
     }
-    case DELETE_TAG:{
+    case DELETE_FILE:{//antes DELETE_TAG
         break;
     }
     default:

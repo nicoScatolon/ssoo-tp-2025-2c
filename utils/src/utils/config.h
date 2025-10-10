@@ -43,12 +43,20 @@ typedef struct{
     t_log_level logLevel;
 } configStorage;
 
+typedef struct{
+    uint32_t FS_SIZE;
+    uint32_t BLOCK_SIZE;
+} configSuperBlock;
+
 t_config* iniciarConfig(const char* modulo, const char* archivo);
+t_config* iniciarConfigSuperBlock(char* puntoMontaje);
 configMaster agregarConfiguracionMaster(t_config* config);
 configQuery agregarConfiguracionQuery(t_config* config);
 configWorker agregarConfiguracionWorker(t_config* config);
 configStorage agregarConfiguracionStorage(t_config*config);
+configSuperBlock agregarConfiguracionSuperBlock(t_config* config);
 bool string_to_bool(char* str);
 t_log_level obtenerNivelLog(t_config* config);
-void checkNULL(t_config* config) ;
+void checkNULL(t_config* config);
+
 #endif
