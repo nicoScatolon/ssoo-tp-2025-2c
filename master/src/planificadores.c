@@ -90,30 +90,15 @@ void enviarQueryAWorker(worker* workerElegido,char* path,int PC,int queryID){
 
     log_info(logger, "## Se envía la Query %d al Worker %d", queryID, workerElegido->workerID);
 }
-// Pide desalojo al worker y obtiene el PC devuelto
-int solicitarDesalojoYObtenerPC(worker* w) {
-    // Aviso al Worker
-    enviarOpcode(DESALOJO_QUERY_PLANIFICADOR, w->socket);
 
-    // Espero respuesta con el PC (ajustá a tu protocolo real)
-    t_paquete* p = recibirPaquete(w->socket);
-    if (!p) return -1;
-    int offset = 0;
-    int pc = recibirIntDePaqueteconOffset(p, &offset);
-    eliminarPaquete(p);
-    return pc;
-}
 
 // ------------------- Planificadores -------------------
 void* planificadorFIFO() {
 
     while(1) {
 
-        pthread_mutex_lock(&mutex_cv_planif);
-        while (!hay_trabajo_para_planificar()) {
-            pthread_cond_wait(&cv_planif, &mutex_cv_planif);
-        }
-        pthread_mutex_unlock(&mutex_cv_planif);
+        sem_wait(&sem_ready);
+        sem_wait(&sem_workers_libres);
         
         worker* workerElegido = obtenerWorkerLibre();
         if (workerElegido == NULL) {
@@ -180,182 +165,69 @@ query* sacarDeExecutePorId(int queryID) {
     pthread_mutex_unlock(&listaExecute.mutex);
     return NULL;
 }
+void* evaluarDesalojo(){
+    while(1){
+    sem_wait(&sem_desalojo);
+    query* queryReady = obtenerQueryMayorPrioridad();
+    query* queryExec = obtenerQueryMenorPrioridad();
 
-bool hay_desalojo_necesario() {
-    // 1) Debe haber algo en READY
-    if (esListaVacia(&listaReady)) return false;
-
-    // 2) No debe haber workers libres
-    if (hayWorkerLibre()) return false;
-
-    // 3) Mejor READY (número de prioridad más chico)
-    int pr_ready = 0;
-    pthread_mutex_lock(&listaReady.mutex);
-    query* best = NULL;
-    for (int i = 0; i < list_size(listaReady.lista); i++) {
-        query* q = list_get(listaReady.lista, i);
-        if (!best || q->qcb->prioridad < best->qcb->prioridad) best = q;
-    }
-    if (!best) { pthread_mutex_unlock(&listaReady.mutex); return false; }
-    pr_ready = best->qcb->prioridad;
-    pthread_mutex_unlock(&listaReady.mutex);
-
-    // 4) Peor en EXEC (número de prioridad más grande)
-    int pr_worst_exec = -1;
-    bool hay_exec = false;
-
-    pthread_mutex_lock(&listaWorkers.mutex);
-    pthread_mutex_lock(&listaExecute.mutex);
-    for (int i = 0; i < list_size(listaWorkers.lista); i++) {
-        worker* w = list_get(listaWorkers.lista, i);
-
-        pthread_mutex_lock(&w->mutex);
-        bool ocupado = w->ocupado;
-        int idActual = w->idActual;
-        pthread_mutex_unlock(&w->mutex);
-
-        if (!ocupado) continue;
-        // buscar su query actual en EXEC
-        for (int j = 0; j < list_size(listaExecute.lista); j++) {
-            query* q = list_get(listaExecute.lista, j);
-            if (q->qcb->queryID == w->idActual) {
-                hay_exec = true;
-                if (q->qcb->prioridad > pr_worst_exec) pr_worst_exec = q->qcb->prioridad;
-                break;
-            }
+    if (queryReady && queryExec)
+    {
+        if (queryReady->qcb->prioridad < queryExec->qcb->prioridad)
+        {
+            worker* w = buscarWorkerPorQueryId(queryExec->qcb->queryID);
+            enviarOpcode(DESALOJO_QUERY_PLANIFICADOR,w->socket);
+            log_debug(logger,"Notificando desalojo de Query <%d>",queryExec->qcb->queryID);
         }
-    }
-    pthread_mutex_unlock(&listaExecute.mutex);
-    pthread_mutex_unlock(&listaWorkers.mutex);
-
-    if (!hay_exec) return false;
-
-    // Desalojo SI y sólo SI la READY es de mayor prioridad (número menor)
-    return pr_ready < pr_worst_exec;
-}
-
-static void aplicar_desalojo(void) {
-    // 1) Elegir y RETIRAR la mejor READY (menor número = mayor prioridad)
-    int   pr_best;
-    query* best;
-
-    pthread_mutex_lock(&listaReady.mutex);
-    if (list_is_empty(listaReady.lista)) { pthread_mutex_unlock(&listaReady.mutex); return; }
-
-    int idx_best = 0;
-    best = list_get(listaReady.lista, 0);
-    for (int i = 1; i < list_size(listaReady.lista); i++) {
-        query* q = list_get(listaReady.lista, i);
-        if (q->qcb->prioridad < best->qcb->prioridad) { best = q; idx_best = i; }
-    }
-    best = list_remove(listaReady.lista, idx_best);   // ← ya la quitamos de READY bajo el mismo lock
-    pthread_mutex_unlock(&listaReady.mutex);
-
-    if (!best) return;           // defensa por carrera
-    pr_best = best->qcb->prioridad;
-
-    // 2) Encontrar la PEOR en EXEC (mayor número) y su worker
-    worker* victimaW = NULL;
-    query*  victimaQ = NULL;
-    int     pr_victima = -1;
-
-    pthread_mutex_lock(&listaWorkers.mutex);
-    pthread_mutex_lock(&listaExecute.mutex);
-    for (int i = 0; i < list_size(listaWorkers.lista); i++) {
-        worker* w = list_get(listaWorkers.lista, i);
-
-        pthread_mutex_lock(&w->mutex);
-        bool ocupado = w->ocupado;
-        int idActual = w->idActual;
-        pthread_mutex_unlock(&w->mutex);
-
-        if (!ocupado) continue;
-        for (int j = 0; j < list_size(listaExecute.lista); j++) {
-            query* q = list_get(listaExecute.lista, j);
-            if (q->qcb->queryID == w->idActual) {
-                if (q->qcb->prioridad > pr_victima) { 
-                    pr_victima = q->qcb->prioridad; 
-                    victimaW = w; 
-                    victimaQ = q; 
-                }
-                break;
-            }
-        }
-    }
-    pthread_mutex_unlock(&listaExecute.mutex);
-    pthread_mutex_unlock(&listaWorkers.mutex);
-
-    if (!victimaW || !victimaQ) {
-        // No hay ejecutando: devolvemos 'best' a READY
-        listaAdd(best, &listaReady);
-        return;
-    }
-
-    // 3) Verificar condición de desalojo (estricta: menor número = mayor prioridad)
-    if (!(pr_best < victimaQ->qcb->prioridad)) {
-        // No corresponde: devolvemos 'best' a READY (al final)
-        listaAdd(best, &listaReady);
-        return;
-    }
-
-    // 4) Pedir desalojo y actualizar PC de la víctima
-    int pc = solicitarDesalojoYObtenerPC(victimaW);
-    if (pc < 0) {
-        log_warning(logger, "Fallo desalojo en Worker %d", victimaW->workerID);
-        listaAdd(best, &listaReady);
-        return;
-    }
-    pthread_mutex_lock(&victimaQ->mutex);
-    victimaQ->qcb->PC = pc;
-    pthread_mutex_unlock(&victimaQ->mutex);
-
-    // 5) Mover víctima EXEC -> READY
-    query* sacada = sacarDeExecutePorId(victimaQ->qcb->queryID);
-    if (sacada) listaAdd(sacada, &listaReady);
-
-    // 6) Enviar 'best' a EXEC en el mismo worker
-    log_info(logger,
-        "## Se desaloja la Query %d (%d) y comienza a ejecutar la Query %d (%d) en el Worker %d",
-        victimaQ->qcb->queryID, pr_victima, best->qcb->queryID, pr_best, victimaW->workerID);
-
-    cambioEstado(&listaExecute, best);
-    enviarQueryAWorker(victimaW, best->path, best->qcb->PC, best->qcb->queryID);
-
-    // 7) Por si quedaron más READY con chance de preempción
-    despertar_planificador();
-}
-
-void* evaluarDesalojo() {
-    while(1) {
-        pthread_mutex_lock(&mutex_cv_planif);
-        while (!hay_desalojo_necesario()) {
-            pthread_cond_wait(&cv_planif, &mutex_cv_planif);
-        }
-        pthread_mutex_unlock(&mutex_cv_planif);
-
-        aplicar_desalojo();
     }
     return NULL;
 }
+}
 
+query* obtenerQueryMayorPrioridad() {
+    query* queryMayorPrioridad = NULL;
+    pthread_mutex_lock(&listaReady.mutex);
+    if (!list_is_empty(listaReady.lista)) {
+        queryMayorPrioridad = list_get(listaReady.lista, 0);
+        for (int i = 1; i < list_size(listaReady.lista); i++) {
+            query* queryActual = list_get(listaReady.lista, i);
+            if (queryActual->qcb->prioridad < queryMayorPrioridad->qcb->prioridad) {
+                queryMayorPrioridad = queryActual;
+            }
+        }
+    }
+    pthread_mutex_unlock(&listaReady.mutex);
+
+    if (queryMayorPrioridad != NULL) {
+        log_debug(logger, "Se obtuvo la query ID <%d> como la de mayor prioridad.", queryMayorPrioridad->qcb->queryID);
+    } else {
+        log_warning(logger, "La lista de Ready está vacía, no se pudo obtener ninguna query.");
+    }
+    return queryMayorPrioridad;
+}
+query* obtenerQueryMenorPrioridad() {
+    query* queryMenorPrioridad = NULL;
+    pthread_mutex_lock(&listaExecute.mutex);
+    if (!list_is_empty(listaExecute.lista)) {
+        queryMenorPrioridad = list_get(listaExecute.lista, 0);
+        for (int i = 1; i < list_size(listaExecute.lista); i++) {
+            query* queryActual = list_get(listaExecute.lista, i);
+            if (queryActual->qcb->prioridad > queryMenorPrioridad->qcb->prioridad) {
+                queryMenorPrioridad = queryActual;
+            }
+        }
+    }
+    pthread_mutex_unlock(&listaExecute.mutex);
+
+    if (queryMenorPrioridad != NULL) {
+        log_debug(logger, "Se obtuvo la query ID <%d> como la de menor prioridad en EXECUTE.", queryMenorPrioridad->qcb->queryID);
+    } else {
+        log_warning(logger, "La lista de EXECUTE está vacía, no se pudo obtener ninguna query."); // Usé log_warning, ya que puede no ser un error crítico
+    }
+    return queryMenorPrioridad;
+}
 // ------------------- Aging -------------------
-void* aging() {
-    while (1) {
-        usleep(configM->tiempoAging * 1000); 
-        pthread_mutex_lock(&listaReady.mutex);
-        for (int i = 0; i < list_size(listaReady.lista); i++) {
-            query* q = list_get(listaReady.lista, i);
-            int old = q->qcb->prioridad;
-            if (old > 0) {
-                q->qcb->prioridad = old - 1;
-                log_info(logger, "## <%d> Cambio de prioridad: <%d> - <%d>", q->qcb->queryID, old, q->qcb->prioridad); 
-            }
-        }
-        pthread_mutex_unlock(&listaReady.mutex);
-        despertar_planificador();
-    }
-    return NULL;
-}
+
 
 // ------------------- Búsquedas utilitarias -------------------
 queryControl* buscarQueryControlPorId(int idQuery){
@@ -424,34 +296,30 @@ void liberarWorker(worker* w){
     pthread_mutex_unlock(&w->mutex);
 }
 
-/*void* planificadorPrioridad() {
 
-    while(1) {
 
-        pthread_mutex_lock(&mutex_cv_planif);
-        while (!hay_trabajo_para_planificar()) {
-            pthread_cond_wait(&cv_planif, &mutex_cv_planif);
+bool estaEnListaPorId(t_list_mutex * lista, int id) {
+    pthread_mutex_lock(&lista->mutex);
+    for (int i = 0; i < list_size(lista->lista); i++) {
+        query *elemento = list_get(lista->lista, i);
+        if (elemento->qcb->queryID == id) {
+            pthread_mutex_unlock(&lista->mutex);
+            return true;
         }
-        pthread_mutex_unlock(&mutex_cv_planif);
-        if (!hayWorkerLibre())
-        {
-            //Deberia despertar el hilo que evalua el desalojo
-            
-        }
-        
-        worker* workerElegido = obtenerWorkerLibre();
-        if (workerElegido == NULL) {
-            log_warning(logger,"El worker es nulo");
-            continue;
-        }
-
-        query* queryElegida = obtenerQueryDeMenorPrioridad();
-        if (queryElegida == NULL) {
-            log_warning(logger,"La query es nula");
-            continue;
-        }
-
-        cambioEstado(&listaExecute,queryElegida);
-        enviarQueryAWorker(workerElegido, queryElegida->path,queryElegida->qcb->PC,queryElegida->qcb->queryID);
     }
-}*/
+    pthread_mutex_unlock(&lista->mutex);
+    return false;
+}
+query* sacarDePorId(t_list_mutex* l,int queryID) {
+    pthread_mutex_lock(&l->mutex);
+    for (int i = 0; i < list_size(l->lista); i++) {
+        query* q = list_get(l->lista, i);
+        if (q->qcb->queryID == queryID) {
+            q = list_remove(l->lista, i);
+            pthread_mutex_unlock(&l->mutex);
+            return q;
+        }
+    }
+    pthread_mutex_unlock(&l->mutex);
+    return NULL;
+}

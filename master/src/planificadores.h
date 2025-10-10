@@ -22,7 +22,7 @@ query*  obtenerQuery(void);                 // saca 1ra de READY (FIFO)
 void    cambioEstado(t_list_mutex* lista, query* elemento);
 query*  obtenerQueryDeMenorPrioridad(void); // menor número = mayor prioridad
 int solicitarDesalojoYObtenerPC(worker* w);
-
+query* sacarDePorId(t_list_mutex* l,int queryID);
 // ------------------- I/O con Worker -------------------
 void enviarQueryAWorker(worker* workerElegido, char* path, int PC, int queryID);
 
@@ -32,5 +32,7 @@ worker* buscarWorkerPorQueryId(int idQuery);
 int           obtenerPosicionQCPorId(int idBuscado);
 int           obtenerPosicionWPorId(int idBuscado);
 void          liberarWorker(worker* w);
-
+bool estaEnListaPorId(t_list_mutex * lista, int id);
+query* obtenerQueryMayorPrioridad();
+query* obtenerQueryMenorPrioridad();
 #endif

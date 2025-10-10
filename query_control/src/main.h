@@ -4,7 +4,7 @@
 #include "configuracion.h"
 #include "conexiones.h"
 #include "utils/logs.h"
-
+#include <signal.h>
 int main(int argc,char* argv[]);
 
 #endif

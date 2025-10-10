@@ -14,7 +14,7 @@ uint32_t generarIdQueryControl();
 
 queryControl* buscarQueryControlPorSocket(int socket);
 worker* buscarWorkerPorSocket(int socket);
-query* sacarDeExecutePorId(int queryID);
+
 
 void *escucharQueryControl(void* socketServidorVoid);
 void *escucharWorker(void* socketServidorVoid);
@@ -31,5 +31,8 @@ void eliminarQuery(query * queryEliminar);
 void agregarQueryControl(char* path,int socketCliente, int prioridad);
 void agregarWorker(int socketCliente,int idWorker);
 void agregarQuery(char* path,int prioridad,int id);
+
+void reducirCantidadQueryControl();
+void reducirGradoMultiprogramacion();
 
 #endif

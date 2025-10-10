@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "utils/listas.h"
+#include "semaphore.h"
 
 
 // ✅ SOLO DECLARACIONES con extern - NO definiciones
@@ -29,7 +30,6 @@ extern configMaster* configM;
 
 extern t_list_mutex listaReady;
 extern t_list_mutex listaExecute;
-extern t_list_mutex listaExit;
 extern t_list_mutex listaWorkers;
 extern t_list_mutex listaQueriesControl;
 

@@ -18,6 +18,7 @@ int main(int argc,char*argv[]){
     configQ = malloc(sizeof(configQuery));
     iniciarConfiguracionQueryControl(nombreConfiguracion,configQ);
     logger = iniciar_logger("queryControl",configQ->logLevel);
+    signal(SIGINT, manejar_sigint);
     iniciarConexion(path,prioridad);
     esperarRespuesta();
     //liberarQuery(logger,config);

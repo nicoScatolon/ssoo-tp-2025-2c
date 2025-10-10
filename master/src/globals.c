@@ -4,7 +4,6 @@
 
 t_list_mutex listaReady;
 t_list_mutex listaExecute;
-t_list_mutex listaExit;
 t_list_mutex listaWorkers;
 t_list_mutex listaQueriesControl;
 
@@ -20,5 +19,7 @@ pthread_mutex_t mutex_grado = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_cantidadQueriesControl = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_cv_planif = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cv_planif = PTHREAD_COND_INITIALIZER;
+
+sem_t sem_desalojo;
 
 
