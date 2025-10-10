@@ -53,6 +53,8 @@ void inicializarMemoriaInterna(void) {
 
     log_debug(logger, "Memoria interna inicializada: %d bytes, %d paginas, bitmap de %d bytes",
               tam_memoria, cant_frames, bytes_bitmap);
+    
+
 
     pthread_mutex_unlock(&memoria_mutex);
 }

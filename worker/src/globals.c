@@ -12,3 +12,4 @@ int calcularOffsetDesdeDireccionBase(int direccionBase){
     int tamBloque = configW->BLOCK_SIZE;
     return direccionBase % tamBloque;
 }
+

@@ -9,6 +9,7 @@
 #include "configuracion.h"
 // #include <commons/collections/list.h>
 // #include <pthread.h>
+#include "semaphore.h"
 
 
 extern t_log* logger;
@@ -16,7 +17,7 @@ extern t_log* logger;
 extern int socketMaster;
 extern int socketStorage;
 
-
+extern sem_t sem_hayInterrupcion;
 
 typedef enum {
     CREATE,

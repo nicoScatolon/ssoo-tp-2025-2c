@@ -4,6 +4,7 @@ configWorker* configW;
 t_log* logger;
 
 
+
 int main(int argc, char* argv[]) {
     if (argc < 3) {
         printf("No se pasaron los parametros necesarios, se necesita el nombre del archivo de configuracion\n");
@@ -21,6 +22,9 @@ int main(int argc, char* argv[]) {
     iniciarConfiguracionWorker(archivoConfig,configW);
 
     logger = iniciar_logger("worker", configW->logLevel);
+
+    inicializarCosas();
+
     
     conexionConMaster(workerId);
     conexionConStorage();

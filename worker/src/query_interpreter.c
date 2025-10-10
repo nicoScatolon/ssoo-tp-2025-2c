@@ -301,6 +301,8 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
 
 }
 
+
+
 //falta crear el hilo donde que llamara a la funcion y liberara el contexto
 void ejecutarQuery(contexto_query_t* contexto) {
     if (contexto == NULL) {
@@ -309,8 +311,10 @@ void ejecutarQuery(contexto_query_t* contexto) {
     }
     
     log_debug(logger, "Iniciando ejecución de query %d desde PC %d", contexto->query_id, contexto->pc);
+   
     
     while (contexto->pc < contexto->total_lineas) {
+        
         char* linea_actual = contexto->lineas_query[contexto->pc];
         
         instruccion_t* instruccion = parsearInstruccion(linea_actual);
@@ -326,6 +330,11 @@ void ejecutarQuery(contexto_query_t* contexto) {
         //     aplicarRetardoMemoria();
         // }
         free(linea_actual);
+
+        if(sem_trywait(&sem_hayInterrupcion) == 0){
+            return;
+        }
+        
     }
     
     log_debug(logger, "Finalizó ejecución de query %d", contexto->query_id);
