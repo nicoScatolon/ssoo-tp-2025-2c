@@ -2,8 +2,9 @@
 
 int socketMaster;
 int socketStorage; //hacerlas globales
-
 contexto_query_t* contexto = NULL;
+
+
 
 
 void conexionConMaster(int ID) {

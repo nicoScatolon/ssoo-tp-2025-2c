@@ -35,7 +35,8 @@ contexto_query_t* cargarQuery(char* path, int query_id, int pc_inicial) {
         return NULL;
     }
     
-    contexto_query_t* contexto = malloc(sizeof(contexto_query_t));
+    contexto = malloc(sizeof(contexto_query_t));
+    
     contexto->path_query = strdup(path);
     contexto->query_id = query_id;
     contexto->pc = pc_inicial;
@@ -362,8 +363,18 @@ void liberarContextoQuery(contexto_query_t* contexto) {
 void desalojarQuery(int idQuery, opcode motivo) {
     int pc = contexto->pc;
 
+    t_list* keys = dictionary_keys(tablasDePaginas);
 
-    // ejecutar_flush(); revisar esta funcion
+    for (int i = 0; i < list_size(keys); i++) {
+        char* key = list_get(keys, i);
+        char* file = obtenerNombreFile(key);
+        char* tag  = obtenerNombreTag(key);
+        ejecutar_flush(file, tag);
+        free(file);
+        free(tag);
+        free(key);
+    }
+    list_destroy(keys);
 
     enviarOpcode(motivo, socketMaster/*socket master*/);
     t_paquete* paquete = crearPaquete();

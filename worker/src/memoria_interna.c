@@ -1,4 +1,4 @@
-#include <memoria_interna.h>
+#include "memoria_interna.h"
 
 
 void inicializarMemoriaInterna(void) {

@@ -16,7 +16,6 @@ extern t_log* logger;
 extern int socketMaster;
 extern int socketStorage;
 
-extern contexto_query_t* contexto;
 
 
 typedef enum {
@@ -45,6 +44,8 @@ typedef struct {
     int total_lineas;
 } contexto_query_t;
 
+extern contexto_query_t* contexto;
+
 typedef struct {
     int         numeroFrame;
     int         numeroPagina;
@@ -66,6 +67,8 @@ typedef struct {
 
 int calcularPaginaDesdeDireccionBase(int direccionBase);
 int calcularOffsetDesdeDireccionBase(int direccionBase);
+
+
 
 
 #endif
