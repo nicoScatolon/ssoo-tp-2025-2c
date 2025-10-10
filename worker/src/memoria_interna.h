@@ -9,7 +9,8 @@
 // Variables globales
 char* memoria = NULL;        // memoria principal
 t_bitarray* bitmap = NULL;   // bitmap para páginas
-int cant_paginas = 0;
+int cant_frames = 0;
+t_dictionary* tablasDePaginas = NULL; //la key es <FILE>:<TAG>
 
 extern configWorker* configW;
 
@@ -19,22 +20,31 @@ pthread_mutex_t tabla_paginas_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // FUNCIONES
 void inicializarMemoriaInterna(void); // Hecho
-void inicializarTablaDePaginas(void); // Por hacer
+void inicializarDiccionarioDeTablas(void); // Hecho
 void eliminarMemoriaInterna(void); // Hecho
 
-int obtenerPaginaLibre(void); // Hecho
-void liberarPagina(int nro_pagina); // Hecho
-void reservarPagina(int nro_pagina); // Hecho
+void agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag); // Hecho
+TablaDePaginas* obtenerTablaPorFileYTag(const char* nombreFile, const char* tag);
+
+int obtenerMarcoLibre(void);
+void liberarPagina(int nro_pagina);
+void reservarPagina(int nro_pagina); 
+
+int obtenerNumeroPaginaDeFileTag(const char* nombreFile, const char* tag, int direccionBase); //-------Por Hacer-------
+
+
 
 // Lectura/Escritura desde la "Memoria Interna" 
-char* leerDesdeMemoriaByte(const char* file, const char* tag, int nro_pagina, int offset, void* buffer, size_t size);
-char* escribirEnMemoriaByte(const char* file, const char* tag, int nro_pagina, int offset, const void* buffer, size_t size);
+char* leerContenidoDesdeOffset(const char* nombreFile, const char* tag, int numeroMarco, int size, int offset); 
+void escribirContenidoDesdeOffset(const char* nombreFile, const char* tag, int numeroMarco, int offset, int size, char* contenido); 
 
-char* leerDesdeMemoriaPagina(const char* file, const char* tag, int nro_pagina, void* buffer, size_t size);
-char* escribirEnMemoriaPagina(const char* file, const char* tag, int nro_pagina, const void* buffer, size_t size);
+void* leerDesdeMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco); //Hecho
+void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco, char* contenidoPagina, int size);
+
+int pedirMarco(const char* nombreFile, const char* tag, int numeroPagina);
 
 // Algoritmos de reemplazo (devuelven la página reemplazada)
-int ReemplazoLRU();
-int ReemplazoCLOCKM();
+int ReemplazoLRU(); //Por Hacer         puede usar obtenerPaginaLibre(), reservarPagina(), liberarPagina(), agregarPaginaAProceso()
+int ReemplazoCLOCKM(); //Por Hacer      puede usar obtenerPaginaLibre(), reservarPagina(), liberarPagina(), agregarPaginaAProceso()
 
 #endif

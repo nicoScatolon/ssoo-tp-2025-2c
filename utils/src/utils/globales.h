@@ -36,7 +36,6 @@ typedef enum{
     STORAGE
 }modulo;
 
-extern pthread_mutex_t mutex_cv_planif;
-extern pthread_cond_t cv_planif;
-
 #endif
+//extern pthread_mutex_t mutex_cv_planif;
+//extern pthread_cond_t cv_planif;

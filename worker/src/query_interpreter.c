@@ -35,7 +35,8 @@ contexto_query_t* cargarQuery(char* path, int query_id, int pc_inicial) {
         return NULL;
     }
     
-    contexto_query_t* contexto = malloc(sizeof(contexto_query_t));
+    contexto = malloc(sizeof(contexto_query_t));
+    
     contexto->path_query = strdup(path);
     contexto->query_id = query_id;
     contexto->pc = pc_inicial;
@@ -225,7 +226,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
             // Formato: WRITE <NOMBRE_FILE>:<TAG> <DIRECCIÓN BASE> <CONTENIDO>
             // parametro[0] = "WRITE", parametro[1] = "MATERIAS:BASE", parametro[2] = "0", parametro[3] = "SISTEMAS_OPERATIVOS"
 
-            ejecutar_write(fileName, tagFile, atoi(instruccion->parametro[2]), instruccion->parametro[3]);
+            ejecutar_write(fileName, tagFile, atoi(instruccion->parametro[2]), instruccion->parametro[3], contexto);
             
             break;
         }
@@ -255,7 +256,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case COMMIT: {
             // Formato: COMMIT <NOMBRE_FILE>:<TAG>
             // parametro[0] = "COMMIT", parametro[1] = "MATERIAS:BASE"
-
+            ejecutar_flush(fileName, tagFile);
             ejecutar_commit(fileName, tagFile);
 
             break;
@@ -264,7 +265,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case FLUSH: {
             // Formato: FLUSH <NOMBRE_FILE>:<TAG>
             // parametro[0] = "FLUSH", parametro[1] = "MATERIAS:BASE"
-            ejecutar_flush();
+            ejecutar_flush(fileName, tagFile);
 
             break;
         }
@@ -300,6 +301,8 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
 
 }
 
+
+
 //falta crear el hilo donde que llamara a la funcion y liberara el contexto
 void ejecutarQuery(contexto_query_t* contexto) {
     if (contexto == NULL) {
@@ -308,8 +311,10 @@ void ejecutarQuery(contexto_query_t* contexto) {
     }
     
     log_debug(logger, "Iniciando ejecución de query %d desde PC %d", contexto->query_id, contexto->pc);
+   
     
     while (contexto->pc < contexto->total_lineas) {
+        
         char* linea_actual = contexto->lineas_query[contexto->pc];
         
         instruccion_t* instruccion = parsearInstruccion(linea_actual);
@@ -325,6 +330,11 @@ void ejecutarQuery(contexto_query_t* contexto) {
         //     aplicarRetardoMemoria();
         // }
         free(linea_actual);
+
+        if(sem_trywait(&sem_hayInterrupcion) == 0){
+            return;
+        }
+        
     }
     
     log_debug(logger, "Finalizó ejecución de query %d", contexto->query_id);
@@ -355,4 +365,32 @@ void liberarContextoQuery(contexto_query_t* contexto) {
     }
 
     free(contexto);
+}
+
+
+
+void desalojarQuery(int idQuery, opcode motivo) {
+    int pc = contexto->pc;
+
+    t_list* keys = dictionary_keys(tablasDePaginas);
+
+    for (int i = 0; i < list_size(keys); i++) {
+        char* key = list_get(keys, i);
+        char* file = obtenerNombreFile(key);
+        char* tag  = obtenerNombreTag(key);
+        ejecutar_flush(file, tag);
+        free(file);
+        free(tag);
+        free(key);
+    }
+    list_destroy(keys);
+
+    enviarOpcode(motivo, socketMaster/*socket master*/);
+    t_paquete* paquete = crearPaquete();
+    agregarIntAPaquete(paquete, idQuery);
+    agregarIntAPaquete(paquete, pc);
+    enviarPaquete(paquete, socketMaster/*socket master*/);
+    eliminarPaquete(paquete);
+
+    return;
 }
