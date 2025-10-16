@@ -6,13 +6,15 @@
 
 #include "utils/config.h"
 #include "utils/logs.h"
-#include "configuracion.h"
+// #include "configuracion.h"
 // #include <commons/collections/list.h>
 // #include <pthread.h>
 #include "semaphore.h"
 
 
+
 extern t_log* logger;
+extern configWorker* configW;
 
 extern int socketMaster;
 extern int socketStorage;
@@ -68,6 +70,7 @@ typedef struct {
 
 int calcularPaginaDesdeDireccionBase(int direccionBase);
 int calcularOffsetDesdeDireccionBase(int direccionBase);
+void inicializarCosas();
 
 
 

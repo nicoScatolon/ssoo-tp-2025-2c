@@ -1,4 +1,4 @@
-#include <globals.h>
+#include "globals.h"
 
 // Declare or extern configW if it's defined elsewhere
 extern configWorker* configW;
@@ -12,4 +12,5 @@ int calcularOffsetDesdeDireccionBase(int direccionBase){
     int tamBloque = configW->BLOCK_SIZE;
     return direccionBase % tamBloque;
 }
+
 
