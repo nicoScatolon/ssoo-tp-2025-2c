@@ -13,7 +13,7 @@ sem_t sem_hayInterrupcion;
 
 void inicializarCosas(){
     sem_init(&sem_hayInterrupcion, 0, 0); // Bloqueado inicialmente
-
+    asignarCant_paginas();
 }
 
 // void inicializarHilos(int ID){
