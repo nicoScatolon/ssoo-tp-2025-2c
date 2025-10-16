@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
     logger = iniciar_logger("worker", configW->logLevel);
 
     inicializarCosas();
-
+    // inicializarHilos(workerId);
     
     conexionConMaster(workerId);
     conexionConStorage();

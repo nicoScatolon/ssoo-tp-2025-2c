@@ -1,17 +1,14 @@
 #include "conexiones.h"
 
 int socketMaster;
-int socketStorage; //hacerlas globales
+int socketStorage;
 contexto_query_t* contexto = NULL;
-
-
-
 
 void conexionConMaster(int ID) {
     char* puertoMaster = string_itoa(configW->puertoMaster);
     socketMaster = crearConexion(configW->IPMaster, puertoMaster, logger);
     comprobarSocket(socketMaster, "Worker", "Master", logger);
-    log_debug(logger," ## Conexión al Master exitosa. IP: <%s>, Puerto: <%d>", configW->IPMaster,configW->puertoMaster);
+    log_info(logger," ## Conexión al Master exitosa. IP: <%s>, Puerto: <%d>", configW->IPMaster,configW->puertoMaster);
     
     t_paquete* paquete = crearPaquete();
     enviarHandshake(socketMaster, WORKER);
@@ -23,8 +20,17 @@ void conexionConMaster(int ID) {
     free(puertoMaster);
 }
 
+void conexionConStorage() {
+    char* puertoStorage = string_itoa(configW->puertoStorage);
+    socketStorage = crearConexion(configW->IPStorage, puertoStorage, logger);
+    comprobarSocket(socketStorage, "Worker", "Storage", logger);
+    log_info(logger," ## Conexión al Storage exitosa. IP: <%s>, Puerto: <%d>", configW->IPStorage,configW->puertoStorage);
+    
+    enviarHandshake(socketStorage, WORKER);
+    enviarOpcode(HANDSHAKE_STORAGE_WORKER,socketStorage);
+    free(puertoStorage);
+}
 
-//esto deberia estar corriendo en un hilo aparte
 void escucharMaster() {
     
     while (1) {
@@ -100,18 +106,6 @@ void escucharMaster() {
                 break;
         }
     }
-}
-
-
-void conexionConStorage() {
-    char* puertoStorage = string_itoa(configW->puertoStorage);
-    socketStorage = crearConexion(configW->IPStorage, puertoStorage, logger);
-    comprobarSocket(socketStorage, "Worker", "Storage", logger);
-    log_debug(logger," ## Conexión al Storage exitosa. IP: <%s>, Puerto: <%d>", configW->IPStorage,configW->puertoStorage);
-    
-    enviarHandshake(socketStorage, WORKER);
-    enviarOpcode(HANDSHAKE_STORAGE_WORKER,socketStorage);
-    free(puertoStorage);
 }
 
 //esto deberia estar corriendo en un hilo aparte

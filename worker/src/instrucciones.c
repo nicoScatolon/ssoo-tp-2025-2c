@@ -14,6 +14,7 @@ void ejecutar_create(char* fileName, char* tagFile){
 
 }
 
+// Esperar confirmacion de storage luego de hacer un truncate antes de ejecutar la siguiente instruccion.
 void ejecutar_truncate(char* fileName, char* tagFile, int size){
     enviarOpcode(TRUNCATE_FILE, socketStorage/*socket storage*/);
 
@@ -31,14 +32,14 @@ void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
     int numeroPagina = calcularPaginaDesdeDireccionBase(direccionBase);
     int offset = calcularOffsetDesdeDireccionBase(direccionBase);
 
-    int marco = obtenerNumeroDeMarco(fileName, tagFile, numeroPagina);
+    int marco = pedirMarco(fileName, tagFile, numeroPagina);
 
     if (marco == -1){
         log_error(logger, "Error al obtener o pedir pagina para WRITE en %s:%s direccionBase %d", fileName, tagFile, direccionBase);
         return;
     }
 
-    escribirContenidoDesdeOffset(fileName, tagFile, marco,  contenido, offset, strlen(contenido)); 
+    escribirContenidoDesdeOffset(fileName, tagFile, marco, offset, strlen(contenido), contenido);
 
     log_info(logger, "Query <%d>: Acción: <ESCRIBIR> - Dirección Física: <%d %d> - Valor: <%s>", contexto->query_id, marco, offset, contenido);
     
@@ -49,7 +50,7 @@ void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, c
     int numeroPagina = calcularPaginaDesdeDireccionBase(direccionBase);
     int offset = calcularOffsetDesdeDireccionBase(direccionBase);
 
-    int marco = obtenerNumeroDeMarco(fileName, tagFile, numeroPagina);
+    int marco = pedirMarco(fileName, tagFile, numeroPagina);
 
     if (marco == -1){
         log_error(logger, "Error al obtener o pedir pagina para READ en %s:%s direccionBase %d", fileName, tagFile, direccionBase);
