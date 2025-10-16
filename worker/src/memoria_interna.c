@@ -173,10 +173,14 @@ int obtenerMarcoLibre(void){
             return i; // Retornar número de página libre
         }
     }
-
     pthread_mutex_unlock(&memoria_mutex);
     log_debug(logger, "No hay marcos libres disponibles");
-    return -1; // No hay páginas libres
+    int marco = ejecutarAlgoritmoReemplazo();
+    if(marco < 0){
+        log_error(logger, "Error al ejecutar el algoritmo de reemplazo");
+        return -1;
+    }
+    return marco; // No hay páginas libres
 }
 
 //poner el bit del bitmap en 0
@@ -213,7 +217,34 @@ char* obtenerContenidoDelMarco(int nro_marco){
     return contenido; // caller debe free(contenido)
 }
 
-int obtenerNumeroDeMarco(const char* nombreFile, const char* tag, int numeroPagina){
+//general a usar por query_interpreter
+int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina){
+    if(obtenerMarcoDesdePagina(nombreFile, tag, numeroPagina) != -1){
+        return obtenerMarcoDesdePagina(nombreFile, tag, numeroPagina);
+    }
+    else{
+        char* contenido = traerPaginaDeStorage(nombreFile, tag, numeroPagina);
+        if(!contenido){
+            log_error(logger, "Error al traer pagina de Storage %s:%s pagina %d", nombreFile, tag, numeroPagina);
+            return -1;
+        }
+        int marcoLibre = obtenerMarcoLibre();
+        if(marcoLibre == -1){
+            log_error(logger, "Error al obtener marco libre para cargar pagina %s:%s pagina %d", nombreFile, tag, numeroPagina);
+            free(contenido);
+            return -1;
+        }
+        escribirEnMemoriaPaginaCompleta(nombreFile, tag, marcoLibre, contenido, configW->BLOCK_SIZE);
+        free(contenido);
+    }
+}
+
+//Por hacer
+void agregarContenidoAMarco(char* nombreFile, char* tag, int numeroPagina, char* contenido){
+
+}
+
+int obtenerMarcoDesdePagina(const char* nombreFile, const char* tag, int numeroPagina){
 
     TablaDePaginas* tabla =  obtenerTablaPorFileYTag(nombreFile, tag);
     pthread_mutex_lock(&tabla_paginas_mutex);
@@ -238,7 +269,7 @@ int obtenerNumeroDeMarco(const char* nombreFile, const char* tag, int numeroPagi
 }
 
 
-char* traerMarcoDeStorage(char* nombreFile, char* tag, int numeroPagina){
+char* traerPaginaDeStorage(char* nombreFile, char* tag, int numeroPagina){
 
     enviarOpcode(READ_BLOCK, socketStorage/*socket storage*/);
 
@@ -253,12 +284,14 @@ char* traerMarcoDeStorage(char* nombreFile, char* tag, int numeroPagina){
     //Me tengo que quedar bloqueado esperando la respuesta del storage
     //la respuesta va a ser un paquete con el contenido del bloque
     //cuando lo reciba, lo retorno jeje lol
+
+
     
 
     return NULL;
 }
 
-void enviarMarcoAStorage(char* nombreFile, char* tag, int numeroPagina){
+void enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
     
     char* contenido = obtenerContenidoDelMarco(obtenerNumeroDeMarco(nombreFile, tag, numeroPagina));
     if (!contenido){
@@ -277,6 +310,8 @@ void enviarMarcoAStorage(char* nombreFile, char* tag, int numeroPagina){
     free(contenido);
     log_debug(logger, "Envio a Storage del marco de %s:%s pagina %d", nombreFile, tag, numeroPagina);
 
+
+    // a charlar, ver si necesito confirmacion.
 
 }
 
@@ -328,6 +363,7 @@ void* leerDesdeMemoriaPaginaCompleta(const char* nombreFile, const char* tag, in
     // return buffer;
 }
 
+//tiene que revisar si el file:tag ya tiene la pagina en la tabla de paginas. o revisar si la pagina esta en la tabla de paginas (aunque sea ausente)
 void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco, char* contenidoPagina, int size){
     // pthread_mutex_lock(&memoria_mutex);
 
@@ -342,6 +378,9 @@ void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, in
 
     // pthread_mutex_unlock(&memoria_mutex);
 }
+
+
+
 
 //---No se si es necesario---
 // int obtenerNumeroPaginaDeFileTag(const char* nombreFile, const char* tag, int direccionBase){
@@ -360,16 +399,33 @@ void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, in
 
 
 
+int ejecutarAlgoritmoReemplazo() {
+    int paginaAReemplazar;
+    int marcoLiberado;
+    if (string_equals_ignore_case(configW->algoritmoReemplazo, "LRU")) {
+       paginaAReemplazar = ReemplazoLRU(); 
+    } else if (string_equals_ignore_case(configW->algoritmoReemplazo, "CLOCK-M")) {
+        paginaAReemplazar = ReemplazoCLOCKM();
+    } else {
+        log_error(logger, "Algoritmo de reemplazo desconocido: %s", configW->algoritmoReemplazo);
+        return -1; // Error: algoritmo desconocido
+    }
 
+    //implementar el reemplazo
+    //mandar paginaAReemplazar a storage
+    //devolver marco liberado
+
+    return marcoLiberado;
+}
 
 
 
 int ReemplazoLRU() {
     // Implementación del algoritmo de reemplazo LRU
-    return -1; // Devuelve la página reemplazada (ejemplo)
+    return -1; // Devuelve la pagina a ser reemplazada
 }
 
 int ReemplazoCLOCKM() {
     // Implementación del algoritmo de reemplazo CLOCK-M
-    return -1; // Devuelve la página reemplazada (ejemplo)
+    return -1; // Devuelve la pagina a ser reemplazada
 }
