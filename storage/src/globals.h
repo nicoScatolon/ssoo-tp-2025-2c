@@ -8,4 +8,7 @@ extern configSuperBlock* configSB;
 int numeroBloque;
 pthread_mutex_t mutex_hash_block;
 pthread_mutex_t mutex_numero_bloque;
+
+int cantidadWorkers;
+pthread_mutex_t mutex_cantidad_workers;
 #endif

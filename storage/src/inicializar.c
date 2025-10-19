@@ -1,6 +1,7 @@
 #include "inicializar.h"
 
-//Inicializar archivo generico
+char* pathBloquesFisicos;
+char* pathFiles;
 void inicializarArchivo(const char *rutaBase, const char *nombre, const char *extension,char* modoApertura) {
     char archivoPath[512];
     snprintf(archivoPath, sizeof(archivoPath), "%s/%s.%s", rutaBase, nombre, extension);
@@ -18,84 +19,6 @@ void inicializarArchivo(const char *rutaBase, const char *nombre, const char *ex
     }
 }
 
-int inicializarBitmap(const char* bitmap_path) {
-    if (configSB == NULL) {
-        log_error(logger, "configSB no inicializado");
-        return -1;
-    }
-
-    size_t fs_size = configSB->FS_SIZE;
-    size_t block_size = configSB->BLOCK_SIZE;
-
-    if (block_size == 0) {
-        log_error(logger, "BLOCK_SIZE inválido (0)");
-        return -1;
-    }
-
-    // cantidad de bloques del FS
-    size_t cant_bloques = fs_size / block_size;
-    if (cant_bloques == 0) {
-        log_error(logger, "FS demasiado pequeño (%zu bytes) o BLOCK_SIZE demasiado grande (%zu bytes)",
-                  fs_size, block_size);
-        return -1;
-    }
-
-    size_t size_bytes = cant_bloques / 8;
-
-    pthread_mutex_lock(&mutex_bitmap_file);
-
-    FILE* archivo = fopen(bitmap_path, "a+");
-    if (!archivo) {
-        fprintf(stderr, "No se pudo abrir/crear '%s': %s\n", bitmap_path, strerror(errno));
-        pthread_mutex_unlock(&mutex_bitmap_file);
-        return -1;
-    }
-
-    int fd = fileno(archivo);
-    if (fd == -1) {
-        fprintf(stderr, "Error al obtener file descriptor: %s\n", strerror(errno));
-        fclose(archivo);
-        pthread_mutex_unlock(&mutex_bitmap_file);
-        return -1;
-    }
-
-    if (ftruncate(fd, (off_t)size_bytes) == -1) {
-        fprintf(stderr, "Error ajustando tamaño del bitmap: %s\n", strerror(errno));
-        fclose(archivo);
-        pthread_mutex_unlock(&mutex_bitmap_file);
-        return -1;
-    }
-
-    void* mapped = mmap(NULL, size_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (mapped == MAP_FAILED) {
-        fprintf(stderr, "Error al mapear '%s': %s\n", bitmap_path, strerror(errno));
-        fclose(archivo);
-        pthread_mutex_unlock(&mutex_bitmap_file);
-        return -1;
-    }
-
-    bitmap_fd = fd;
-    bitmap_buffer = (char*)mapped;
-    bitmap_size_bytes = size_bytes;
-    bitmap_num_bits = cant_bloques;
-
-    bitmap = bitarray_create_with_mode(bitmap_buffer, bitmap_size_bytes, LSB_FIRST);
-    if (!bitmap) {
-        fprintf(stderr, "Error creando bitarray\n");
-        munmap(bitmap_buffer, bitmap_size_bytes);
-        fclose(archivo);
-        pthread_mutex_unlock(&mutex_bitmap_file);
-        return -1;
-    }
-
-    fclose(archivo);
-    pthread_mutex_unlock(&mutex_bitmap_file);
-
-    log_info(logger, "Bitmap inicializado correctamente: %zu bloques (%zu bytes en archivo '%s')",
-             cant_bloques, size_bytes, bitmap_path);
-
-    return 0;
-}
 
 void inicializarBlocksHashIndex(char* path) {
     char archivoPath[512];
@@ -126,13 +49,12 @@ char* inicializarDirectorio(char* pathBase, char* nombreDirectorio){
     return strdup(dirPath);
 }
 
-void inicializarFileSystem(char* pathPhysicalBlocks) {
+void inicializarBloquesFisicos(char* pathPhysicalBlocks) {
     if (configS->freshStart) {
         int cantBloques = configSB->FS_SIZE / configSB->BLOCK_SIZE;
 
         for (int i = 0; i < cantBloques; i++) {
             char nombreBloque[32];
-            // Generar: block0000, block0001, ..., block9999
             snprintf(nombreBloque, sizeof(nombreBloque), "block%04d", i);
 
             inicializarArchivo(pathPhysicalBlocks, nombreBloque, "dat", "w+");
@@ -143,29 +65,114 @@ void inicializarFileSystem(char* pathPhysicalBlocks) {
 void inicializarMutex(void){
     pthread_mutex_init(&mutex_hash_block,NULL);
     pthread_mutex_init(&mutex_numero_bloque,NULL);
+    pthread_mutex_init(&mutex_cantidad_workers,NULL);
 }
 
-void inicializarEstructuras(void){
-    char* path = configS->puntoMontaje;
 
-    log_debug(logger,"Punto de montaje: %s",path);
+void levantarFileSystem(){
+    if (configS->freshStart){
+        pathBloquesFisicos = inicializarDirectorio(configS->puntoMontaje,"physical_blocks");
+        
+        inicializarBitmap(configS->puntoMontaje);
+        inicializarBlocksHashIndex(configS->puntoMontaje);
+        inicializarBloquesFisicos(pathBloquesFisicos);
+        
+        
+        pathFiles = inicializarDirectorio(configS->puntoMontaje, "files");
+        crearFile("initial_file","BASE");
 
-    
+    }
+    else{
 
-    // Directorios
-    char* pathPhysicalBlocks = inicializarDirectorio(path, "physical_blocks"); //terminado
-    char* pathFiles = inicializarDirectorio(path, "files"); //hacer
+    }
+}
 
-    //inicializarSuperblock(); //se debe hacer en las configs
-
-    // Archivos
-    inicializarFileSystem(pathPhysicalBlocks);
-    inicializarBitmap(path);
-    inicializarBlocksHashIndex(path);
-
-    log_debug(logger,"Estructuras inicializadas correctamente");
-
+void crearFile(char* nombreFile, char* nombreTag){
+    char * path = inicializarDirectorio(pathFiles,nombreFile);
+    crearTag(path,nombreTag);
     free(path);
-    free(pathPhysicalBlocks);
-    free(pathFiles);
+}
+
+void crearTag(char* pathFile,char* nombreTag){
+    char *pathTag =  inicializarDirectorio(pathFile,nombreTag);
+    char* pathLogicalBlocks = inicializarDirectorio(pathTag,"logical_blocks");
+    crearMetaData(pathTag);
+
+    free(pathTag);
+    free(pathLogicalBlocks);
+}
+
+void crearMetaData(char*pathTag){
+    inicializarArchivo(pathTag,"metadata","config","a+");
+    inicializarMetaData(pathTag);
+    agregarBloque(pathTag,0);
+    cambiarEstadoMetaData(pathTag);
+    
+}
+
+
+void inicializarMetaData(char* pathTag) {
+    char* pathMetadata = string_from_format("%s/metadata.config", pathTag);
+
+    FILE* archivo = fopen(pathMetadata, "w+");
+    if (archivo == NULL) {
+        perror("Error al crear metadata.config");
+        free(pathMetadata);
+        return;
+    }
+
+    int tamanoInicial = 0;
+    char* estadoInicial = "WORK_IN_PROGRESS";
+    char* bloquesIniciales = "[]";
+
+    fprintf(archivo, "TAMAÑO=%d\n", tamanoInicial);
+    fprintf(archivo, "BLOCKS=%s\n", bloquesIniciales);
+    fprintf(archivo, "ESTADO=%s\n", estadoInicial);
+
+    fclose(archivo);
+    free(pathMetadata);
+}
+void cambiarEstadoMetaData(char* pathTag) {
+    char* pathMetadata = string_from_format("%s/metadata.config", pathTag);
+
+    t_config* config = config_create(pathMetadata);
+    if (config == NULL) {
+        fprintf(stderr, "Error: no se pudo abrir %s\n", pathMetadata);
+        free(pathMetadata);
+        return;
+    }
+    config_set_value(config, "ESTADO", "COMMITED");
+    config_save(config);
+    config_destroy(config);
+    free(pathMetadata);
+}
+void agregarBloque(char* pathTag, int nuevoBloque) {
+    char* pathMetadata = string_from_format("%s/metadata.config", pathTag);
+    t_config* config = config_create(pathMetadata);
+
+    char** bloquesActuales = config_get_array_value(config, "BLOQUES");
+
+    char* nuevoValor = string_new();
+    string_append(&nuevoValor, "[");
+
+    // concatenar bloques existentes
+    if (bloquesActuales != NULL) {
+        for (int i = 0; bloquesActuales[i] != NULL; i++) {
+            string_append(&nuevoValor, bloquesActuales[i]);
+            string_append(&nuevoValor, ",");
+        }
+    }
+
+    char* numStr = string_from_format("%d", nuevoBloque);
+    string_append(&nuevoValor, numStr);
+    string_append(&nuevoValor, "]");
+
+    config_set_value(config, "BLOQUES", nuevoValor);
+    config_save(config);
+
+    free(numStr);
+    free(nuevoValor);
+    free(pathMetadata);
+    config_destroy(config);
+
 }

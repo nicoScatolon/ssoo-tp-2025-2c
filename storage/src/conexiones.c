@@ -31,13 +31,11 @@ void comprobacionModulo(modulo modulo_origen, modulo esperado, char *modulo, voi
     {
         log_debug(logger, "Se conecto %s", modulo);
         pthread_t hilo_operacion;
-        //log_debug(logger,"Aca no se rompio");
         if (pthread_create(&hilo_operacion, NULL, operacion, (void*)(intptr_t)socket_cliente) != 0) {
             log_error(logger, "No se pudo crear el hilo para %d", esperado);
             close(socket_cliente);
         }
-        //log_debug(logger,"Se rompio antes del detach");
-        pthread_detach(hilo_operacion); // Operaciones de modulos
+        pthread_detach(hilo_operacion); 
     }
     else
     {
@@ -58,11 +56,17 @@ void *operarWorkers(void*socketClienteVoid){
     switch (codigo)
     {
     case HANDSHAKE_STORAGE_WORKER:{
-        t_paquete* paquete = crearPaquete();
-        agregarIntAPaquete(paquete,configSB->FS_SIZE);
-        agregarIntAPaquete(paquete,configSB->BLOCK_SIZE);
-        enviarPaquete(paquete,socketCliente);
-        eliminarPaquete(paquete);
+        t_paquete*paqueteRecibir =recibirPaquete(socketCliente);
+        int offset = 0;
+        int workerId = recibirIntDePaqueteconOffset(paqueteRecibir,&offset);
+
+        incrementarWorkers(workerId);
+        t_paquete* paqueteEnviar = crearPaquete();
+        agregarIntAPaquete(paqueteEnviar,configSB->FS_SIZE);
+        agregarIntAPaquete(paqueteEnviar,configSB->BLOCK_SIZE);
+        enviarPaquete(paqueteEnviar,socketCliente);
+        eliminarPaquete(paqueteEnviar);
+        eliminarPaquete(paqueteRecibir);
         break;
     }
     case CREATE_FILE:{
@@ -75,7 +79,7 @@ void *operarWorkers(void*socketClienteVoid){
             int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
             char* file = recibirStringDePaqueteConOffset(paquete,&offset);
             char* tag = recibirStringDePaqueteConOffset(paquete,&offset);
-            //crearFile(file,tag);
+            //crearFile(file,tag,idQuery);
             free(file);
             free(tag);
             eliminarPaquete(paquete);
@@ -107,6 +111,7 @@ void *operarWorkers(void*socketClienteVoid){
                 break;
             }
             int offset = 0;
+            int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
             char* fileOrigen = recibirStringDePaqueteConOffset(paquete,&offset);
             char* tagOrigen = recibirStringDePaqueteConOffset(paquete,&offset);
             char* fileDestino= recibirStringDePaqueteConOffset(paquete,&offset);
@@ -121,19 +126,78 @@ void *operarWorkers(void*socketClienteVoid){
             break;
     }
     case COMMIT_FILE:{ //antes COMMIT_TAG
+        t_paquete* paquete = recibirPaquete(socketCliente);
+        int offset = 0;
+        int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
+        char * file = recibirStringDePaqueteConOffset(paquete,&offset);
+        char * tag = recibirStringDePaqueteConOffset(paquete,&offset);
+
+        eliminarPaquete(paquete);
+        free(file);
+        free(tag);
         break;
     }
     case WRITE_BLOCK:{
+        t_paquete* paquete = recibirPaquete(socketCliente);
+        int offset = 0;
+        int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
+        char * file = recibirStringDePaqueteConOffset(paquete,&offset);
+        char * tag = recibirStringDePaqueteConOffset(paquete,&offset);
+
+
+        eliminarPaquete(paquete);
+        free(file);
+        free(tag);
         break;
     }
     case READ_BLOCK:{
+        t_paquete* paquete = recibirPaquete(socketCliente);
+        int offset = 0;
+        int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
+        char * file = recibirStringDePaqueteConOffset(paquete,&offset);
+        char * tag = recibirStringDePaqueteConOffset(paquete,&offset);
+
+        eliminarPaquete(paquete);
+        free(file);
+        free(tag);
         break;
     }
     case DELETE_FILE:{//antes DELETE_TAG
+        t_paquete* paquete = recibirPaquete(socketCliente);
+        int offset = 0;
+        int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
+        char * file = recibirStringDePaqueteConOffset(paquete,&offset);
+        char * tag = recibirStringDePaqueteConOffset(paquete,&offset);
+        
+        eliminarPaquete(paquete);
+        free(file);
+        free(tag);
+        break;
+    }
+    case DESCONEXION_WORKER:{
+        t_paquete *paquete = recibirPaquete(socketCliente);
+        int offset = 0;
+        int workerId = recibirIntDePaqueteconOffset(paquete,&offset);
+        decrementarWorkers(workerId);
+        close(socketCliente);
         break;
     }
     default:
         break;
     }
     }
+}
+
+void incrementarWorkers(int workerId){
+    pthread_mutex_lock(&mutex_cantidad_workers);
+    cantidadWorkers++;
+    log_info(logger," ##Se conecta el Worker <%d> - Cantidad de Workers: <%d>",workerId,cantidadWorkers);
+    pthread_mutex_unlock(&mutex_cantidad_workers);
+}
+
+void decrementarWorkers(int workerId){
+    pthread_mutex_lock(&mutex_cantidad_workers);
+    cantidadWorkers--;
+    log_info(logger,"##Se desconecta el Worker <%d> - Cantidad de Workers: <%d>",workerId,cantidadWorkers);
+    pthread_mutex_unlock(&mutex_cantidad_workers);
 }
