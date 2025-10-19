@@ -1,7 +1,9 @@
 #include "conexiones.h"
 
 int socketMaster;
+int socketMasterDesalojo;
 int socketStorage;
+
 contexto_query_t* contexto = NULL;
 
 void conexionConMaster(int ID) {
@@ -19,6 +21,15 @@ void conexionConMaster(int ID) {
     eliminarPaquete(paquete);
     free(puertoMaster);
 }
+void conexionConMasterDesalojo() {
+    char* puertoMasterDesalojo = string_itoa(configW->puertoMasterDesalojo);
+    socketMasterDesalojo = crearConexion(configW->IPMaster, puertoMasterDesalojo, logger);
+    comprobarSocket(socketMasterDesalojo, "Worker", "Master_Desalojo", logger);
+    log_debug(logger," ## Conexión al Master_Desalojo exitosa. IP: <%s>, Puerto: <%d>", configW->IPMaster,configW->puertoMasterDesalojo);
+    
+    enviarHandshake(socketMasterDesalojo, WORKER);
+    free(puertoMasterDesalojo);
+}
 
 void conexionConStorage() {
     char* puertoStorage = string_itoa(configW->puertoStorage);
@@ -32,8 +43,7 @@ void conexionConStorage() {
 }
 
 void escucharMaster() {
-    
-    while (1) {
+        while(1){
         opcode codigo;
         int recibido = recv(socketMaster,&codigo,sizeof(opcode),MSG_WAITALL);
         if (recibido <= 0) {
@@ -41,7 +51,6 @@ void escucharMaster() {
             close(socketMaster);
             return;
         }
-
         switch (codigo) {
             case NUEVA_QUERY: { // NUEVO opcode
                 t_paquete* paquete = recibirPaquete(socketMaster);
@@ -67,9 +76,26 @@ void escucharMaster() {
                 eliminarPaquete(paquete);
                 break;
             }
+            default:
+                log_warning(logger, "Opcode desconocido recibido del Master: %d", codigo);
+                break;
+        }
+    }
+}
+void* escucharDesalojo() {
+    while (1) {
+        opcode codigo;
+        int recibido = recv(socketMasterDesalojo,&codigo,sizeof(opcode),MSG_WAITALL);
+        if (recibido <= 0) {
+            log_warning(logger, "## Desconexión del MasterDesalojo en socket <%d>", socketMasterDesalojo);
+            close(socketMasterDesalojo);
+            pthread_exit(NULL);
+        }
+
+        switch (codigo) {
             case DESALOJO_QUERY_PLANIFICADOR:{
                 sem_post(&sem_hayInterrupcion); 
-                t_paquete* paquete = recibirPaquete(socketMaster);
+                t_paquete* paquete = recibirPaquete(socketMasterDesalojo);
                 if(!paquete){
                     log_error(logger, "Error recibiendo paquete de DESALOJO_QUERY_PLANIFICADOR");
                     break;
@@ -86,7 +112,7 @@ void escucharMaster() {
             }
             case DESALOJO_QUERY_DESCONEXION:{
                 sem_post(&sem_hayInterrupcion); 
-                t_paquete* paquete = recibirPaquete(socketMaster);
+                t_paquete* paquete = recibirPaquete(socketMasterDesalojo);
                 if(!paquete){
                     log_error(logger, "Error recibiendo paquete de DESALOJO_QUERY_DESCONEXION");
                     break;
@@ -102,24 +128,23 @@ void escucharMaster() {
                 break;
             }
             default:
-                log_warning(logger, "Opcode desconocido recibido del Master: %d", codigo);
+                log_warning(logger, "Opcode desconocido recibido del MasterDesalojo: %d", codigo);
                 break;
         }
     }
+    return NULL;
 }
 
-//esto deberia estar corriendo en un hilo aparte
 void escucharStorage() {
-    while (1) {
         opcode codigo;
         int recibido = recv(socketStorage,&codigo,sizeof(opcode),MSG_WAITALL);
         if (recibido <= 0) {
             log_warning(logger, "## Desconexión del Storage en socket <%d>", socketStorage);
-            close(socketMaster);
+            close(socketStorage);
             return;
         }
         switch (codigo) {
-            case RESPUESTA_OK: { // NUEVO opcode
+            case RESPUESTA_OK: { 
                 log_debug(logger,"Se ejecuto la instruccion correctamente");
                 break;
             }
@@ -131,9 +156,8 @@ void escucharStorage() {
                 }
                 int offset = 0;
                 char * motivo = recibirStringDePaqueteConOffset(paquete,&offset);
-                log_error(logger,"Error en la query, MOTIVO <%s>",motivo);
+                log_debug(logger,"Error en la query, MOTIVO <%s>",motivo);
                 
-                //Enviar a master que hubo un error en la query
                 enviarOpcode(FINALIZACION_QUERY,socketMaster);
                 t_paquete* paquete2 = crearPaquete();
                 if(!paquete2){
@@ -165,4 +189,3 @@ void escucharStorage() {
                 break;
         }
     }
-}

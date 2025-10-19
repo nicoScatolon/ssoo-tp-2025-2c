@@ -7,31 +7,13 @@ void iniciarConfiguracionWorker(char*nombreConfig ,configWorker* configWorker){
 
 sem_t sem_hayInterrupcion;
 
-// void inicializarCosas(){
-//     sem_init(&sem_hayInterrupcion, 1, 1);
-// }
+
 
 void inicializarCosas(){
-    sem_init(&sem_hayInterrupcion, 0, 0); // Bloqueado inicialmente
+    pthread_t hilo_desalojo;
+    pthread_create(&hilo_desalojo,NULL,escucharDesalojo,NULL);
+    pthread_detach(hilo_desalojo);
+    sem_init(&sem_hayInterrupcion, 0, 0); 
     asignarCant_paginas();
 }
 
-// void inicializarHilos(int ID){
-//     pthread_t hilo_master, hilo_storage;
-    
-//     if (pthread_create(&hilo_master, NULL, escucharMaster, NULL) != 0) {
-//         log_error(logger, "Error al crear hilo de escucha del Master");
-//         return EXIT_FAILURE;
-//     }
-    
-//     if (pthread_create(&hilo_storage, NULL, escucharStorage, NULL) != 0) {
-//         log_error(logger, "Error al crear hilo de escucha del Storage");
-//         return EXIT_FAILURE;
-//     }
-
-//     log_info(logger, "Worker %d iniciado correctamente", ID);
-
-//     // Esperar a los hilos
-//     pthread_detach(hilo_master);
-//     pthread_detach(hilo_storage);
-// }

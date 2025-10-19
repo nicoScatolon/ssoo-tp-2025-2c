@@ -9,7 +9,7 @@ void ejecutar_create(char* fileName, char* tagFile){
     agregarStringAPaquete(paquete, tagFile);
     
     enviarPaquete(paquete, socketStorage/*socket storage*/);
-
+    escucharStorage();
     eliminarPaquete(paquete);
 
 }
@@ -24,6 +24,7 @@ void ejecutar_truncate(char* fileName, char* tagFile, int size){
     agregarIntAPaquete(paquete, size); 
 
     enviarPaquete(paquete, socketStorage/*socket storage*/);
+    escucharStorage();
     eliminarPaquete(paquete);
 
 }

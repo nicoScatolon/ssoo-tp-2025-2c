@@ -23,6 +23,7 @@ typedef struct{
 typedef struct{
     char* IPMaster;
     uint32_t puertoMaster;
+    uint32_t puertoMasterDesalojo;
     char* IPStorage;
     uint32_t puertoStorage;
     uint32_t tamMemoria;

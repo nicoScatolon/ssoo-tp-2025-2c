@@ -39,6 +39,7 @@ void esperarRespuesta(){
                 free(motivo);
                 eliminarPaquete(paquete);
                 finalizarQueryControl();
+                exit(EXIT_FAILURE);
                 break;
             }
             case LECTURA_QUERY_CONTROL:{
