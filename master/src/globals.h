@@ -51,6 +51,7 @@ typedef struct {
 typedef struct {
     char* pathActual;
     int socket;
+    int socketDesalojo;
     int workerID;
     int idActual;
     bool ocupado;

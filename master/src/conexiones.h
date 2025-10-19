@@ -18,6 +18,7 @@ worker* buscarWorkerPorSocket(int socket);
 
 void *escucharQueryControl(void* socketServidorVoid);
 void *escucharWorker(void* socketServidorVoid);
+void* escucharWorkerDesalojo(void* socketServidorVoid);
 void * operarQueryControl(void* socketClienteVoid);
 void * operarWorker(void*socketClienteVoid);
 
@@ -34,5 +35,7 @@ void agregarQuery(char* path,int prioridad,int id);
 
 void reducirCantidadQueryControl();
 void reducirGradoMultiprogramacion();
+
+worker* buscarWorkerPorId(int idBuscado);
 
 #endif

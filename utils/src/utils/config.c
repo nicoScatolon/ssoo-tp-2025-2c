@@ -33,6 +33,7 @@ configMaster agregarConfiguracionMaster(t_config* config){
     configMaster configMaster;
     configMaster.puertoEscuchaQueryControl = config_get_int_value(config,"PUERTO_ESCUCHA_QUERYCONTROL");
     configMaster.puertoEscuchaWorker = config_get_int_value(config,"PUERTO_ESCUCHA_WORKER");
+    configMaster.puertoEscuchaDesalojo = config_get_int_value(config,"PUERTO_ESCUCHA_DESALOJO");
     configMaster.algoritmoPlanificacion = config_get_string_value(config,"ALGORITMO_PLANIFICACION");
     configMaster.tiempoAging=config_get_int_value(config,"TIEMPO_AGING");
     configMaster.logLevel= obtenerNivelLog(config);

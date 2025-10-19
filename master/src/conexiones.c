@@ -51,6 +51,7 @@ void agregarWorker(int socketCliente,int idWorker){
     worker *nuevoWorker = malloc(sizeof(worker));
     nuevoWorker->pathActual = NULL;
     nuevoWorker->socket = socketCliente;
+    nuevoWorker->socketDesalojo = -1;
     nuevoWorker->ocupado = false;
     nuevoWorker->workerID = idWorker;
     nuevoWorker->idActual = -1;
@@ -195,7 +196,6 @@ void* escucharWorkerDesalojo(void* socketServidorVoid) {
         recv(socketCliente, &moduloOrigen, sizeof(modulo), 0);
         
         if (moduloOrigen == WORKER) {
-            // Recibir ID del worker para asociar el socket
             t_paquete* paquete = recibirPaquete(socketCliente);
             int offset = 0;
             int workerID = recibirIntDePaqueteconOffset(paquete, &offset);
@@ -207,7 +207,7 @@ void* escucharWorkerDesalojo(void* socketServidorVoid) {
                 pthread_mutex_lock(&w->mutex);
                 w->socketDesalojo = socketCliente; 
                 pthread_mutex_unlock(&w->mutex);
-                log_info(logger, "Socket de desalojos asociado al Worker %d", workerID);
+                log_debug(logger, "Socket de desalojos asociado al Worker %d", workerID);
             } else {
                 log_error(logger, "No se encontró Worker con ID %d", workerID);
                 close(socketCliente);
@@ -444,4 +444,13 @@ void *operarWorker(void*socketClienteVoid){
         break;
     }
     }
+}
+worker* buscarWorkerPorId(int idBuscado) {
+    for (int i = 0; i < list_size(listaWorkers.lista); i++) {
+        worker* w = list_get(listaWorkers.lista, i);
+        if (w->workerID == idBuscado) {
+            return w;
+        }
+    }
+    return NULL; // No se encontró
 }
