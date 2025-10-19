@@ -72,6 +72,7 @@ void *operarWorkers(void*socketClienteVoid){
                 break;
             }
             int offset = 0;
+            int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
             char* file = recibirStringDePaqueteConOffset(paquete,&offset);
             char* tag = recibirStringDePaqueteConOffset(paquete,&offset);
             //crearFile(file,tag);
@@ -87,6 +88,7 @@ void *operarWorkers(void*socketClienteVoid){
                 break;
             }
             int offset = 0;
+            int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
             char* file = recibirStringDePaqueteConOffset(paquete,&offset);
             char* tag = recibirStringDePaqueteConOffset(paquete,&offset);
             int nuevoTamanio = recibirIntDePaqueteconOffset(paquete,&offset);
