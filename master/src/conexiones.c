@@ -136,20 +136,25 @@ uint32_t generarIdQueryControl() {
 void establecerConexiones(){
     char* puertoQueryControl = string_itoa(configM->puertoEscuchaQueryControl);
     char* puertoWorker = string_itoa(configM->puertoEscuchaWorker);
-    
+    char* puertoDesalojo = string_itoa(configM->puertoEscuchaDesalojo);
+
     int socketQueryControl = iniciarServidor(puertoQueryControl,logger,"MASTER_QUERYCONTROL");
     int socketWorker = iniciarServidor(puertoWorker,logger,"MASTER_WORKER");
+    int socketDesalojo = iniciarServidor(puertoDesalojo,logger,"MASTER_WORKER_DESALOJO");
 
     free(puertoWorker);
     free(puertoQueryControl);
+    free(puertoDesalojo);
 
-    pthread_t hiloQueryControl,hiloWorker;
+    pthread_t hiloQueryControl,hiloWorker,hiloDesalojo;
 
     pthread_create(&hiloQueryControl,NULL,escucharQueryControl,(void*)(intptr_t)socketQueryControl);
     pthread_create(&hiloWorker,NULL,escucharWorker,(void*)(intptr_t)socketWorker);
+    pthread_create(&hiloDesalojo,NULL,escucharWorkerDesalojo,(void*)(intptr_t)socketDesalojo);
 
     pthread_detach(hiloQueryControl);
     pthread_detach(hiloWorker);
+    pthread_detach(hiloDesalojo);
 }
 
 void *escucharQueryControl(void* socketServidorVoid){
@@ -175,6 +180,42 @@ void *escucharWorker(void* socketServidorVoid){
         modulo moduloOrigen;
         recv(socketCliente,&moduloOrigen,sizeof(modulo),0);
         comprobacionModulo(moduloOrigen,WORKER,"WORKER",operarWorker,socketCliente);
+    }
+    return NULL;
+}
+void* escucharWorkerDesalojo(void* socketServidorVoid) {
+    int socketServidor = (intptr_t)socketServidorVoid;
+    log_debug(logger, "Servidor MASTER_DESALOJO escuchando conexiones");
+    
+    while (1) {
+        int socketCliente = esperarCliente(socketServidor, logger);
+        log_debug(logger, "Worker conectado al servidor de desalojos en socket %d", socketCliente);
+        
+        modulo moduloOrigen;
+        recv(socketCliente, &moduloOrigen, sizeof(modulo), 0);
+        
+        if (moduloOrigen == WORKER) {
+            // Recibir ID del worker para asociar el socket
+            t_paquete* paquete = recibirPaquete(socketCliente);
+            int offset = 0;
+            int workerID = recibirIntDePaqueteconOffset(paquete, &offset);
+            eliminarPaquete(paquete);
+            
+            // Buscar el worker y asignarle este socket de desalojos
+            worker* w = buscarWorkerPorId(workerID);
+            if (w) {
+                pthread_mutex_lock(&w->mutex);
+                w->socketDesalojo = socketCliente; 
+                pthread_mutex_unlock(&w->mutex);
+                log_info(logger, "Socket de desalojos asociado al Worker %d", workerID);
+            } else {
+                log_error(logger, "No se encontró Worker con ID %d", workerID);
+                close(socketCliente);
+            }
+        } else {
+            log_warning(logger, "Módulo incorrecto conectado al servidor de desalojos");
+            close(socketCliente);
+        }
     }
     return NULL;
 }
