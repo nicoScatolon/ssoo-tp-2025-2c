@@ -313,7 +313,8 @@ void enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
 
 
 // Lectura en "Memoria Interna"
-char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroMarco, int offset, int size){
+char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, int offset, int size){
+    
     pthread_mutex_lock(&memoria_mutex);
 
     char* contenido = obtenerContenidoDelMarco(numeroMarco);
@@ -321,10 +322,24 @@ char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroMarco, int
         pthread_mutex_unlock(&memoria_mutex);
         return NULL;
     }
-    
-
     pthread_mutex_unlock(&memoria_mutex);
-    return NULL;
+
+    pthread_mutex_lock(&tabla_paginas_mutex);
+    TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFile, tag);
+    if(!tabla){
+        log_error(logger, "Error al obtener tabla de paginas para %s:%s", nombreFile, tag);
+        free(contenido);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        return NULL;
+    }
+
+    EntradaDeTabla* entrada = &tabla->entradas[numeroPagina];
+    actualizar_acceso_pagina(entrada);
+
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+
+    
+    return contenido;
 }
 
 //Escritura en "Memoria Interna"
@@ -334,6 +349,7 @@ void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina,
         exit(EXIT_FAILURE);
         return;
     }
+    
     TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFile, tag);
     if(tabla->keyProceso != (string_from_format("%s:%s", nombreFile, tag))){
         log_error(logger, "EL Marco %d NO pertenece al FILE:TAG %s:%s", numeroMarco, nombreFile, tag);
@@ -344,10 +360,11 @@ void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina,
     pthread_mutex_unlock(&memoria_mutex);
 
     pthread_mutex_lock(&tabla_paginas_mutex);
+
     tabla->hayPaginasModificadas = true;
     EntradaDeTabla* entrada = &tabla->entradas[numeroPagina];
     entrada->bitModificado = true;
-    entrada->ultimoAcceso = temporal_create();
+    entrada->ultimoAcceso = obtener_tiempo_actual();
 
     pthread_mutex_unlock(&tabla_paginas_mutex);
 
@@ -463,15 +480,218 @@ int ejecutarAlgoritmoReemplazo() {
     return marcoLiberado;
 }
 
+int64_t obtener_tiempo_actual() {
+    t_temporal* temp = temporal_create();
+    int64_t tiempo = temporal_gettime(temp);
+    temporal_destroy(temp);
+    return tiempo;
+}
+
+void inicializar_entrada(EntradaDeTabla* entrada, int numeroPagina) {
+    entrada->numeroPagina = numeroPagina;
+    entrada->numeroFrame = -1;  // Sin frame asignado aún
+    entrada->ultimoAcceso = obtener_tiempo_actual();  // Timestamp de creación
+    entrada->bitModificado = false;
+    entrada->bitUso = false;
+    entrada->bitPresencia = false;
+}
+
+// Al ACCEDER a una página (lectura o escritura)
+void actualizar_acceso_pagina(EntradaDeTabla* entrada) {
+    entrada->ultimoAcceso = obtener_tiempo_actual();  // Actualizar timestamp
+    entrada->bitUso = true;  // Opcional según tu implementación
+}
+
+// Al MODIFICAR una página (escritura)
+void modificar_pagina(EntradaDeTabla* entrada) {
+    entrada->ultimoAcceso = obtener_tiempo_actual();  // Actualizar timestamp
+    entrada->bitModificado = true;
+}
+
 
 char* ReemplazoLRU(EntradaDeTabla** entradaAReemplazar) {
-    char* key = NULL;
-    // Implementación del algoritmo de reemplazo LRU
-    return key; // Devuelve la pagina a ser reemplazada
+    char* keyProceso = NULL;
+    EntradaDeTabla* entradaMenorTiempo = NULL;
+    int64_t menorTiempo = INT64_MAX;  // Empezamos con el valor maximo posible
+
+    pthread_mutex_lock(&tabla_paginas_mutex);
+    
+    t_list* keys = dictionary_keys(tablasDePaginas);
+    
+    for(int i = 0; i < list_size(keys); i++) {
+        char* currentKey = list_get(keys, i);
+        TablaDePaginas* tabla = dictionary_get(tablasDePaginas, currentKey);
+        
+        for(int j = 0; j < tabla->capacidadEntradas; j++) {
+            EntradaDeTabla* entrada = &(tabla->entradas[j]);
+            
+            // Solo considerar páginas que están presentes en memoria
+            if(entrada->bitPresencia) {
+                // Comparación directa de timestamps
+                if(entrada->ultimoAcceso < menorTiempo) {
+                    menorTiempo = entrada->ultimoAcceso;
+                    entradaMenorTiempo = entrada;
+                    keyProceso = currentKey;
+                }
+            }
+        }
+    }
+    
+    list_destroy(keys);
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+    
+    // Asignar la entrada encontrada al puntero de salida
+    if(entradaAReemplazar != NULL) {
+        *entradaAReemplazar = entradaMenorTiempo;
+    }
+    
+    return keyProceso;
 }
 
 char* ReemplazoCLOCKM(EntradaDeTabla** entradaAReemplazar) {
-    char* key = NULL;   
-    // Implementación del algoritmo de reemplazo CLOCK-M
-    return key; // Devuelve la pagina a ser reemplazada
+    char* key = NULL;
+    EntradaDeTabla* entradaVictima = NULL;
+    bool encontrado = false;
+
+    pthread_mutex_lock(&tabla_paginas_mutex);
+    
+    t_list* keys = dictionary_keys(tablasDePaginas);
+    int totalProcesos = list_size(keys);
+    
+    if(totalProcesos == 0) {
+        list_destroy(keys);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        return NULL;
+    }
+    
+    // Inicializar puntero si es la primera vez
+    if(punteroClockMod.keyProceso == NULL) {
+        punteroClockMod.keyProceso = strdup(list_get(keys, 0));
+        punteroClockMod.indicePagina = 0;
+    }
+    
+    // PASO 1: Buscar (0,0) - bitUso=false, bitModificado=false
+    encontrado = buscar_victima_clock(keys, &entradaVictima, &key, false, false, false);
+    
+    if(!encontrado) {
+        // PASO 2: Buscar (0,1) - bitUso=false, bitModificado=true
+        //         Durante la búsqueda, poner bitUso=false en todas las páginas que no coincidan
+        encontrado = buscar_victima_clock(keys, &entradaVictima, &key, false, true, true);
+        
+        if(!encontrado) {
+            // PASO 3: Volver a buscar (0,0) porque pusimos todos los bitUso en false
+            encontrado = buscar_victima_clock(keys, &entradaVictima, &key, false, false, false);
+        }
+    }
+    
+    list_destroy(keys);
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+    
+    // Asignar la entrada encontrada al puntero de salida
+    if(entradaAReemplazar != NULL) {
+        *entradaAReemplazar = entradaVictima;
+    }
+    
+    return key; // Devuelve la key del proceso cuya página será reemplazada
+}
+
+
+void limpiar_puntero_clockM() {
+    if(punteroClockMod.keyProceso != NULL) {
+        free(punteroClockMod.keyProceso);
+        punteroClockMod.keyProceso = NULL;
+    }
+}
+
+bool buscar_victima_clock(t_list* keys, EntradaDeTabla** victima, char** keyOut, 
+                          bool buscarBitUso, bool buscarBitMod, bool limpiarBitUso) {
+    int totalProcesos = list_size(keys);
+    int procesoActual = encontrar_indice_proceso(keys, punteroClockMod.keyProceso);
+    int paginaActual = punteroClockMod.indicePagina;
+    
+    int paginasRevisadas = 0;
+    int totalPaginasEnMemoria = contar_paginas_presentes(keys);
+    
+    if(totalPaginasEnMemoria == 0) {
+        return false;
+    }
+    
+    while(paginasRevisadas < totalPaginasEnMemoria) {
+        char* currentKey = list_get(keys, procesoActual);
+        TablaDePaginas* tabla = dictionary_get(tablasDePaginas, currentKey);
+        
+        for(int j = paginaActual; j < tabla->capacidadEntradas; j++) {
+            EntradaDeTabla* entrada = &(tabla->entradas[j]);
+            
+            if(entrada->bitPresencia) {
+                paginasRevisadas++;
+                
+                // Verificar si cumple el criterio buscado
+                if(entrada->bitUso == buscarBitUso && 
+                   entrada->bitModificado == buscarBitMod) {
+                    // ¡Encontramos la víctima!
+                    *victima = entrada;
+                    *keyOut = currentKey;
+                    
+                    // Avanzar el puntero para la próxima vez
+                    punteroClockMod.indicePagina = j + 1;
+                    
+                    if(punteroClockMod.indicePagina >= tabla->capacidadEntradas) {
+                        // Si llegamos al final de esta tabla, pasar al siguiente proceso
+                        procesoActual = (procesoActual + 1) % totalProcesos;
+                        punteroClockMod.indicePagina = 0;
+                        
+                        if(punteroClockMod.keyProceso != NULL) {
+                            free(punteroClockMod.keyProceso);
+                        }
+                        punteroClockMod.keyProceso = strdup(list_get(keys, procesoActual));
+                    } else {
+                        if(punteroClockMod.keyProceso != NULL) {
+                            free(punteroClockMod.keyProceso);
+                        }
+                        punteroClockMod.keyProceso = strdup(currentKey);
+                    }
+                    
+                    return true;
+                }
+                
+                // Si debemos limpiar el bit de uso y no encontramos víctima
+                if(limpiarBitUso) {
+                    entrada->bitUso = false;
+                }
+            }
+        }
+        
+        // Avanzar al siguiente proceso
+        procesoActual = (procesoActual + 1) % totalProcesos;
+        paginaActual = 0;
+        
+        // Actualizar el puntero del reloj
+        if(punteroClockMod.keyProceso != NULL) {
+            free(punteroClockMod.keyProceso);
+        }
+        punteroClockMod.keyProceso = strdup(list_get(keys, procesoActual));
+        punteroClockMod.indicePagina = 0;
+    }
+    
+    return false;
+}
+
+int encontrar_indice_proceso(t_list* keys, char* keyBuscada) {
+    for(int i = 0; i < list_size(keys); i++) {
+        if(strcmp(list_get(keys, i), keyBuscada) == 0) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+int contar_paginas_presentes(t_list* keys) {
+    int count = 0;
+    for(int i = 0; i < list_size(keys); i++) {
+        char* currentKey = list_get(keys, i);
+        TablaDePaginas* tabla = dictionary_get(tablasDePaginas, currentKey);
+        count += tabla->paginasPresentes;
+    }
+    return count;
 }

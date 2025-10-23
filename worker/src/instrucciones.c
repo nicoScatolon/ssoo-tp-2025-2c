@@ -58,7 +58,7 @@ void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, c
         return;
     }
 
-    char* contenidoLeido = leerContenidoDesdeOffset(fileName, tagFile, marco, offset, size);
+    char* contenidoLeido = leerContenidoDesdeOffset(fileName, tagFile, numeroPagina, marco, offset, size);
 
     enviarOpcode(READ_BLOCK, socketMaster/*socket master*/);
     t_paquete* paquete = crearPaquete();
