@@ -115,7 +115,7 @@ void agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag){
     return;
 }
 
-TablaDePaginas* obtenerTablaPorFileYTag(const char* nombreFile, const char* tag){
+TablaDePaginas* obtenerTablaPorFileYTag(char* nombreFile, char* tag){
 
     char* key = string_from_format("%s:%s", nombreFile, tag);
     if (!key) {
@@ -235,16 +235,13 @@ int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina){
             return -1;
         }
         escribirEnMemoriaPaginaCompleta(nombreFile, tag, marcoLibre, contenido, configW->BLOCK_SIZE);
+        return marcoLibre;
         free(contenido);
+
     }
 }
 
-//Por hacer
-void agregarContenidoAMarco(char* nombreFile, char* tag, int numeroPagina, char* contenido){
-
-}
-
-int obtenerMarcoDesdePagina(const char* nombreFile, const char* tag, int numeroPagina){
+int obtenerMarcoDesdePagina(char* nombreFile, char* tag, int numeroPagina){
 
     TablaDePaginas* tabla =  obtenerTablaPorFileYTag(nombreFile, tag);
     pthread_mutex_lock(&tabla_paginas_mutex);
@@ -286,8 +283,6 @@ char* traerPaginaDeStorage(char* nombreFile, char* tag, int numeroPagina){
     //cuando lo reciba, lo retorno jeje lol
 
 
-    
-
     return NULL;
 }
 
@@ -311,14 +306,14 @@ void enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
     log_debug(logger, "Envio a Storage del marco de %s:%s pagina %d", nombreFile, tag, numeroPagina);
 
 
-    // a charlar, ver si necesito confirmacion.
+    //  Implemenar esperar confirmacion de storage
 
 }
 
 
 
 // Lectura en "Memoria Interna"
-char* leerContenidoDesdeOffset(const char* nombreFile, const char* tag, int numeroMarco, int offset, int size){
+char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroMarco, int offset, int size){
     pthread_mutex_lock(&memoria_mutex);
 
     char* contenido = obtenerContenidoDelMarco(numeroMarco);
@@ -333,12 +328,37 @@ char* leerContenidoDesdeOffset(const char* nombreFile, const char* tag, int nume
 }
 
 //Escritura en "Memoria Interna"
-void escribirContenidoDesdeOffset(const char* nombreFile, const char* tag, int numeroMarco, char* contenido, int offset, int size){
+void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, char* contenido, int offset, int size){
+    if(offset + size > configW->BLOCK_SIZE){
+        log_error(logger, "Error de escritura: offset %d + size %d excede el tamaño de la página %d", offset, size, configW->BLOCK_SIZE);
+        exit(EXIT_FAILURE);
+        return;
+    }
+    TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFile, tag);
+    if(tabla->keyProceso != (string_from_format("%s:%s", nombreFile, tag))){
+        log_error(logger, "EL Marco %d NO pertenece al FILE:TAG %s:%s", numeroMarco, nombreFile, tag);
+        return;
+    }
     pthread_mutex_lock(&memoria_mutex);
-
-
+    memcpy(memoria + (numeroMarco * configW->BLOCK_SIZE) + offset, contenido, size);
     pthread_mutex_unlock(&memoria_mutex);
+
+    pthread_mutex_lock(&tabla_paginas_mutex);
+    tabla->hayPaginasModificadas = true;
+    EntradaDeTabla* entrada = &tabla->entradas[numeroPagina];
+    entrada->bitModificado = true;
+    entrada->ultimoAcceso = temporal_create();
+
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+
+    
 }
+
+//Por hacer
+void agregarContenidoAMarco(char* nombreFile, char* tag, int numeroPagina, char* contenido){
+    
+}
+
 
 void* leerDesdeMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco){
     // pthread_mutex_lock(&memoria_mutex);
@@ -398,34 +418,60 @@ void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, in
 // }
 
 
-
+//Devuelve el marco liberado, donde se llame debe encargarse de ocupar el marco liberado
 int ejecutarAlgoritmoReemplazo() {
-    int paginaAReemplazar;
-    int marcoLiberado;
+    EntradaDeTabla* paginaAReemplazar = NULL;
+    char* key = NULL; //file:Tag
+    int marcoLiberado = -1;
     if (string_equals_ignore_case(configW->algoritmoReemplazo, "LRU")) {
-       paginaAReemplazar = ReemplazoLRU(); 
+       key = ReemplazoLRU(&paginaAReemplazar); 
     } else if (string_equals_ignore_case(configW->algoritmoReemplazo, "CLOCK-M")) {
-        paginaAReemplazar = ReemplazoCLOCKM();
+        key = ReemplazoCLOCKM(&paginaAReemplazar);
     } else {
         log_error(logger, "Algoritmo de reemplazo desconocido: %s", configW->algoritmoReemplazo);
-        return -1; // Error: algoritmo desconocido
+        return marcoLiberado; // Error: algoritmo desconocido
+    }
+    if (!paginaAReemplazar) {
+        log_error(logger, "Error: paginaAReemplazar es NULL");
+        free(key);
+        return marcoLiberado;
     }
 
-    //implementar el reemplazo
-    //mandar paginaAReemplazar a storage
-    //devolver marco liberado
+    char *fileName = NULL, *tagFile = NULL;
+    
+    if (!ObtenerNombreFileYTag(key, &fileName, &tagFile)) {
+        log_error(logger, "Error al obtener <FILE>:<TAG> en ejecutarAlgoritmoReemplazo. key: %s", key);
+        if (key) free(key);
+        return marcoLiberado;
+    }
+    
+    marcoLiberado = paginaAReemplazar->numeroFrame;
+    
+    enviarPaginaAStorage(fileName, tagFile, paginaAReemplazar->numeroPagina);
+
+    //implementar confirmacion de storage
+
+    liberarMarco(marcoLiberado);
+
+
+    free(fileName);
+    free(tagFile);
+    free(paginaAReemplazar);
+    free(key);
+    log_debug(logger, "Página %s reemplazada en marco %d", key, marcoLiberado);
 
     return marcoLiberado;
 }
 
 
-
-int ReemplazoLRU() {
+char* ReemplazoLRU(EntradaDeTabla** entradaAReemplazar) {
+    char* key = NULL;
     // Implementación del algoritmo de reemplazo LRU
-    return -1; // Devuelve la pagina a ser reemplazada
+    return key; // Devuelve la pagina a ser reemplazada
 }
 
-int ReemplazoCLOCKM() {
+char* ReemplazoCLOCKM(EntradaDeTabla** entradaAReemplazar) {
+    char* key = NULL;   
     // Implementación del algoritmo de reemplazo CLOCK-M
-    return -1; // Devuelve la pagina a ser reemplazada
+    return key; // Devuelve la pagina a ser reemplazada
 }

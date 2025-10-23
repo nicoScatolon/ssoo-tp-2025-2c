@@ -28,11 +28,11 @@ void inicializarDiccionarioDeTablas(void); // Hecho
 void eliminarMemoriaInterna(void); // Hecho 
 
 void agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag); // Hecho
-TablaDePaginas* obtenerTablaPorFileYTag(const char* nombreFile, const char* tag); // Hecho
+TablaDePaginas* obtenerTablaPorFileYTag(char* nombreFile, char* tag); // Hecho
 
 int obtenerMarcoLibre(void); // Hecho
 void liberarMarco(int nro_marco); // Hecho
-int obtenerMarcoDesdePagina(const char* nombreFile, const char* tag, int numeroPagina); // Hecho
+int obtenerMarcoDesdePagina(char* nombreFile, char* tag, int numeroPagina); // Hecho
 char* obtenerContenidoDelMarco(int nro_marco); // Hecho
 int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina); // ---Falta---
  
@@ -42,8 +42,8 @@ void enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina); // Hec
 int ejecutarAlgoritmoReemplazo();
 
 // Lectura/Escritura desde la "Memoria Interna" 
-char* leerContenidoDesdeOffset(   const char* nombreFile, const char* tag, int numeroMarco, int offset, int size); //Falta
-void escribirContenidoDesdeOffset(const char* nombreFile, const char* tag, int numeroMarco, char* contenido, int offset, int size); //Falta
+char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroMarco, int offset, int size); //Falta
+void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, char* contenido, int offset, int size); //Falta
 
 void* leerDesdeMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco); //Falta
 void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco, char* contenidoPagina, int size); //Falta
@@ -53,7 +53,7 @@ void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, in
 
 
 // Algoritmos de reemplazo (devuelven la página reemplazada)
-int ReemplazoLRU(); //Por Hacer         puede usar obtenerPaginaLibre(), reservarPagina(), liberarPagina(), agregarPaginaAProceso()
-int ReemplazoCLOCKM(); //Por Hacer      puede usar obtenerPaginaLibre(), reservarPagina(), liberarPagina(), agregarPaginaAProceso()
+char* ReemplazoLRU(EntradaDeTabla**); //Por Hacer         puede usar obtenerPaginaLibre(), reservarPagina(), liberarPagina(), agregarPaginaAProceso()
+char*ReemplazoCLOCKM(EntradaDeTabla**); //Por Hacer      puede usar obtenerPaginaLibre(), reservarPagina(), liberarPagina(), agregarPaginaAProceso()
 
 #endif

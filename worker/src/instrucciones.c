@@ -40,7 +40,7 @@ void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
         return;
     }
 
-    escribirContenidoDesdeOffset(fileName, tagFile, marco,  contenido, offset, strlen(contenido)); 
+    escribirContenidoDesdeOffset(fileName, tagFile, numeroPagina, marco,  contenido, offset, strlen(contenido)); 
 
     log_info(logger, "Query <%d>: Acción: <ESCRIBIR> - Dirección Física: <%d %d> - Valor: <%s>", contexto->query_id, marco, offset, contenido);
     

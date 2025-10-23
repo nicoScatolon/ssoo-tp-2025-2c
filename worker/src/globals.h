@@ -52,7 +52,7 @@ extern contexto_query_t* contexto;
 typedef struct {
     int         numeroFrame;
     int         numeroPagina;
-    t_temporal  ultimoAcceso;
+    t_temporal*  ultimoAcceso;
     bool        bitModificado;
     bool        bitUso;
     bool        bitPresencia;
