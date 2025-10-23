@@ -6,6 +6,7 @@
 #include "utils/config.h"
 #include "utils/globales.h"
 #include "globals.h"
+#include "operaciones.h"
 
 extern configStorage *configS;
 extern configSuperBlock* configSB;

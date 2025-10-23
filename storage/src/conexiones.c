@@ -116,7 +116,11 @@ void *operarWorkers(void*socketClienteVoid){
             char* tagOrigen = recibirStringDePaqueteConOffset(paquete,&offset);
             char* fileDestino= recibirStringDePaqueteConOffset(paquete,&offset);
             char* tagDestino = recibirStringDePaqueteConOffset(paquete,&offset);
+            
             //Operaciones
+            tagFile(fileOrigen, tagOrigen, fileDestino, tagDestino, idQuery);
+    
+            enviarOpcode(RESPUESTA_OK, socketCliente);
             
             free(fileOrigen);
             free(tagOrigen);
