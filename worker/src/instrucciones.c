@@ -42,7 +42,7 @@ void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
         return;
     }
 
-    escribirContenidoDesdeOffset(fileName, tagFile, marco,  contenido, offset, strlen(contenido)); 
+    escribirContenidoDesdeOffset(fileName, tagFile, numeroPagina, marco,  contenido, offset, strlen(contenido)); 
 
     log_info(logger, "Query <%d>: Acción: <ESCRIBIR> - Dirección Física: <%d %d> - Valor: <%s>", contexto->query_id, marco, offset, contenido);
     
@@ -60,7 +60,7 @@ void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, c
         return;
     }
 
-    char* contenidoLeido = leerContenidoDesdeOffset(fileName, tagFile, marco, offset, size);
+    char* contenidoLeido = leerContenidoDesdeOffset(fileName, tagFile, numeroPagina, marco, offset, size);
 
     enviarOpcode(READ_BLOCK, socketMaster/*socket master*/);
     t_paquete* paquete = crearPaquete();

@@ -52,7 +52,7 @@ extern contexto_query_t* contexto;
 typedef struct {
     int         numeroFrame;
     int         numeroPagina;
-    t_temporal  ultimoAcceso;
+    int64_t     ultimoAcceso;
     bool        bitModificado;
     bool        bitUso;
     bool        bitPresencia;
@@ -71,8 +71,6 @@ typedef struct {
 int calcularPaginaDesdeDireccionBase(int direccionBase);
 int calcularOffsetDesdeDireccionBase(int direccionBase);
 void inicializarCosas();
-
-
 
 
 #endif

@@ -198,7 +198,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         if (!ObtenerNombreFileYTag(file_Y_tag, &fileName, &tagFile)) {
                 log_error(logger, "Error al parsear <FILE>:<TAG> en CREATE - Formato inválido: %s", file_Y_tag);
                 return;
-            } 
+        } 
     }
     
     switch (instruccion->tipo) {
