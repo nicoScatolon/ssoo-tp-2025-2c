@@ -35,4 +35,5 @@ void          liberarWorker(worker* w);
 bool estaEnListaPorId(t_list_mutex * lista, int id);
 query* obtenerQueryMayorPrioridad();
 query* obtenerQueryMenorPrioridad();
+query* obtenerQueryPorID(int idQuery);
 #endif
