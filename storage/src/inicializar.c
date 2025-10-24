@@ -297,3 +297,60 @@ void agregarBloqueMetaData(char* pathTag, int nuevoBloque) {
     free(pathMetadata);
     config_destroy(config);
 }
+
+// void agregarBloquesLogicos(char* pathTag, int tamanioArchivo) {
+//     // calculo de cantidad de bloques logicos
+//     int cantidadBloques = tamanioArchivo / configSB->BLOCK_SIZE;
+//     // creamos path al bloque fisico numero 0
+//     char *pathBloqueFisico0 = string_from_format("%s/block0000.dat", pathFiles);
+//     // Crear cada bloque logico como hardlink
+//     for (int i = 0; i < cantidadBloques; i++) {
+//         char *pathBloqueLogicos = string_from_format("%s/%s/logical_blocks/%06d.dat",pathTag,i);
+
+//         if (link(pathBloqueFisico0, pathBloqueLogicos) != 0) {
+//             log_error(logger, "Error al crear hardlink para bloque %d: %s", i, strerror(errno));
+//             exit(EXIT_FAILURE);
+//         }
+//     }
+//     log_debug(logger, "Agregando <%d> bloques logicos para el file:tag <%s>", cantidadBloques,pathTag);
+// }
+
+
+
+void agregarBloquesLogicos(char* pathTag, int tamanioArchivo) {
+
+    int cantidadBloquesNecesarios = tamanioArchivo / configSB->BLOCK_SIZE;
+    char *pathBloqueFisico0 = string_from_format("%s/block0000.dat", pathBloquesFisicos);    
+    char *pathLogicalBlocks = string_from_format("%s/logical_blocks", pathTag);
+    int bloquesExistentes = 0;
+
+    DIR* dir = opendir(pathLogicalBlocks);
+    if (dir != NULL) {
+        struct dirent* entrada;
+        while ((entrada = readdir(dir)) != NULL) {
+            if (strstr(entrada->d_name, ".dat") != NULL) {
+                bloquesExistentes++;
+            }
+        }
+        closedir(dir);
+    }
+    
+    log_debug(logger, "Bloques existentes: %d, Necesarios: %d", bloquesExistentes, cantidadBloquesNecesarios);
+    
+    for (int i = bloquesExistentes; i < cantidadBloquesNecesarios; i++) {
+        char *pathBloqueLogico = string_from_format("%s/%06d.dat", pathLogicalBlocks, i);
+        if (link(pathBloqueFisico0, pathBloqueLogico) != 0) {
+            log_error(logger, "Error al crear hardlink para bloque %d: %s", i, strerror(errno));
+            free(pathBloqueLogico);
+            free(pathLogicalBlocks);
+            free(pathBloqueFisico0);
+            exit(EXIT_FAILURE);
+        }
+        log_debug(logger, "Bloque lógico %d creado", i);
+        free(pathBloqueLogico);
+    }
+    int bloquesAgregados = cantidadBloquesNecesarios - bloquesExistentes;
+    log_debug(logger, "Agregados %d bloques lógicos nuevos para tag <%s>", bloquesAgregados, pathTag);
+    free(pathLogicalBlocks);
+    free(pathBloqueFisico0);
+}
