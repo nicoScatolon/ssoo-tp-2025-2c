@@ -4,20 +4,22 @@
 #include "utils/globales.h"
 #include "estructuras.h"
 #include "bitmap.h"
+#include "estructuras.h"
 
 void inicializarArchivo(const char *rutaBase, const char *nombre, const char *extension, char* modoApertura);
 void inicializarBlocksHashIndex(char* path);
 char* inicializarDirectorio(char* pathBase, char* nombreDirectorio);
 void inicializarBloquesFisicos(char* pathPhysicalBlocks);
 void inicializarMutex(void);
+void inicializarBloqueCero(char* pathPhysicalBlocks);
 
 void levantarFileSystem(void);
 void crearFile(char* nombreFile, char* nombreTag);
 void crearTag(char* pathFile, char* nombreTag);
 void crearMetaData(char* pathTag);
 void inicializarMetaData(char* pathTag);
-void cambiarEstadoMetaData(char* pathTag);
-void agregarBloque(char* pathTag,int nuevoBloque);
+void cambiarEstadoMetaData(char* pathTag,char* estado);
+void agregarBloqueMetaData(char* pathTag,int nuevoBloque);
 extern int cantidadWorkers;
 
 #endif

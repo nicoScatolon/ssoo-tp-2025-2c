@@ -70,19 +70,22 @@ void *operarWorkers(void*socketClienteVoid){
         break;
     }
     case CREATE_FILE:{
-        t_paquete* paquete = recibirPaquete(socketCliente);
-        if (!paquete) {
+        t_paquete* paqueteRecibir = recibirPaquete(socketCliente);
+        if (!paqueteRecibir) {
                 log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
                 break;
             }
             int offset = 0;
-            int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
-            char* file = recibirStringDePaqueteConOffset(paquete,&offset);
-            char* tag = recibirStringDePaqueteConOffset(paquete,&offset);
-            //crearFile(file,tag,idQuery);
+            int idQuery = recibirIntDePaqueteconOffset(paqueteRecibir,&offset);
+            char* file = recibirStringDePaqueteConOffset(paqueteRecibir,&offset);
+            char* tag = recibirStringDePaqueteConOffset(paqueteRecibir,&offset);
+            crearFile(file,tag);
+            aplicarRetardoOperacion();
+            log_info(logger,"##<%d> - File Creado <%s>:<%s>",idQuery,file,tag);
             free(file);
             free(tag);
-            eliminarPaquete(paquete);
+            eliminarPaquete(paqueteRecibir);
+            enviarOpcode(RESPUESTA_OK,socketCliente);
             break;
     }
     case TRUNCATE_FILE:{
@@ -112,14 +115,20 @@ void *operarWorkers(void*socketClienteVoid){
             }
             int offset = 0;
             int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
+
             char* fileOrigen = recibirStringDePaqueteConOffset(paquete,&offset);
             char* tagOrigen = recibirStringDePaqueteConOffset(paquete,&offset);
             char* fileDestino= recibirStringDePaqueteConOffset(paquete,&offset);
             char* tagDestino = recibirStringDePaqueteConOffset(paquete,&offset);
             
-            //Operaciones
-            tagFile(fileOrigen, tagOrigen, fileDestino, tagDestino, idQuery);
-    
+        
+            if(!tagFile(fileOrigen, tagOrigen, fileDestino, tagDestino, idQuery)){
+                aplicarRetardoOperacion();
+                enviarOpcode(RESPUESTA_ERROR,socketCliente);
+            }
+
+            aplicarRetardoOperacion();
+            log_info(logger,"");
             enviarOpcode(RESPUESTA_OK, socketCliente);
             
             free(fileOrigen);
@@ -127,6 +136,7 @@ void *operarWorkers(void*socketClienteVoid){
             free(fileDestino);
             free(tagDestino);
             eliminarPaquete(paquete);
+
             break;
     }
     case COMMIT_FILE:{ //antes COMMIT_TAG
@@ -135,7 +145,6 @@ void *operarWorkers(void*socketClienteVoid){
         int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
         char * file = recibirStringDePaqueteConOffset(paquete,&offset);
         char * tag = recibirStringDePaqueteConOffset(paquete,&offset);
-
         eliminarPaquete(paquete);
         free(file);
         free(tag);
@@ -158,9 +167,17 @@ void *operarWorkers(void*socketClienteVoid){
         t_paquete* paquete = recibirPaquete(socketCliente);
         int offset = 0;
         int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
+        int numeroBloque = recibirIntDePaqueteconOffset(paquete,&offset);
         char * file = recibirStringDePaqueteConOffset(paquete,&offset);
         char * tag = recibirStringDePaqueteConOffset(paquete,&offset);
-
+        
+        char* contenido = lecturaBloque(file,tag,numeroBloque);
+        aplicarRetardoOperacion();
+        if(contenido == NULL){
+            enviarOpcode(RESPUESTA_ERROR,socketCliente);
+        }
+        log_info(logger,"##<%d> - Bloque Lógico Leído <%s>:<%s> - Número de Bloque: <%d>",idQuery,file,tag,numeroBloque);
+        enviarOpcode(RESPUESTA_OK,socketCliente);
         eliminarPaquete(paquete);
         free(file);
         free(tag);

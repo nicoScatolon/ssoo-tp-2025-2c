@@ -8,8 +8,10 @@
 #include <unistd.h>
 
 char* lecturaBloque(char* file, char* tag, int numeroBloque);
-void tagFile(char* fileOrigen, char* tagOrigen, char* fileDestino, char* tagDestino, int queryId);
+bool tagFile(char* fileOrigen, char* tagOrigen, char* fileDestino, char* tagDestino, int queryId);
 bool copiarDirectorioRecursivo(const char* origen, const char* destino);
 bool copiarArchivo(const char* origen, const char* destino);
+void aplicarRetardoBloque();
+void aplicarRetardoOperacion();
 
 #endif 

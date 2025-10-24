@@ -13,8 +13,8 @@
 
 typedef struct{
     char* hash;
-    uint32_t numero;
     char* contenido;
+    uint32_t numero;
 }t_hash_block;
 
 extern configStorage *configS;
@@ -36,7 +36,7 @@ pthread_mutex_t mutex_bitmap_file = PTHREAD_MUTEX_INITIALIZER;
 void vaciarMemoria(void);
 void liberarBloqueHash(t_hash_block * bloque);
 bool existeHash(char * hash);
-void escribirBloqueHash(t_hash_block *bloque);
+void escribirHash(char* hash,int numeroBFisico);
 t_hash_block* ocuparBloqueHash(const char *contenido, size_t contenido_len);
 void incrementarNumeroBloque(void);
 

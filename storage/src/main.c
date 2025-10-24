@@ -17,7 +17,7 @@ int main(int argc, char*argv[]){
     iniciarConfiguracionSuperBlock(configSB);
 
     logger = iniciar_logger("storage", configS->logLevel);
-    inicializarEstructuras();
+    levantarFileSystem();
     establecerConexionesStorage();
     pthread_exit(NULL);
 }
