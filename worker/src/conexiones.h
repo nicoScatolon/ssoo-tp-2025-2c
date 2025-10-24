@@ -14,6 +14,7 @@ void conexionConMasterDesalojo();
 void esperarRespuesta();
 void escucharMaster();
 void escucharStorage();
+char* escucharStorageContenidoPagina();
 void conexionConStorage();
 void* escucharDesalojo();
 

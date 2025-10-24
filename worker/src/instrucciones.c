@@ -37,6 +37,8 @@ void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
 
     if (marco == -1){
         log_error(logger, "Error al obtener o pedir pagina para WRITE en %s:%s direccionBase %d", fileName, tagFile, direccionBase);
+        // Hola soy Franco! Para mi el envio de finalizacion de query hacia el Master deberia ser aca!, ya que 
+        // obtener Marco devuelve -1, entonoces aca rompe con el flujo de la ejecuccion de write.
         return;
     }
 

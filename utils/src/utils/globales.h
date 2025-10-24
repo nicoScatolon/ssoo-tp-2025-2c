@@ -15,6 +15,7 @@ typedef enum
     
     //Instrucciones Storage:
     HANDSHAKE_STORAGE_WORKER,
+    OBTENER_CONTENIDO_PAGINA,
     CREATE_FILE,
     TRUNCATE_FILE,
     TAG_FILE,
