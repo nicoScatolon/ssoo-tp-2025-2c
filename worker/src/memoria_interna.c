@@ -277,13 +277,9 @@ char* traerPaginaDeStorage(char* nombreFile, char* tag, int numeroPagina){
     enviarPaquete(paquete, socketStorage/*socket storage*/);
     eliminarPaquete(paquete);
 
-    //por implementar jeje
-    //Me tengo que quedar bloqueado esperando la respuesta del storage
-    //la respuesta va a ser un paquete con el contenido del bloque
-    //cuando lo reciba, lo retorno jeje lol
+    char* contenido = escucharStorageContenidoPagina();
 
-
-    return NULL;
+    return contenido;
 }
 
 void enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
