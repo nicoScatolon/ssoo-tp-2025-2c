@@ -24,12 +24,7 @@ void iniciarPlanificacion() {
         pthread_t hiloPlanificadorPrioridares,hiloDesalojo;
         pthread_create(&hiloPlanificadorPrioridares, NULL, planificadorPrioridad, NULL);
         pthread_detach(hiloPlanificadorPrioridares);
-        if (configM->tiempoAging > 0) {
-            pthread_t hiloAging;
-            pthread_create(&hiloAging, NULL, aging, NULL);
-            pthread_detach(hiloAging);
-        }
-
+      
         pthread_create(&hiloDesalojo, NULL, evaluarDesalojo, NULL);
         pthread_detach(hiloDesalojo);
     } else {
