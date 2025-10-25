@@ -315,8 +315,10 @@ void *operarWorker(void*socketClienteVoid){
         agregarStringAPaquete(paqueteEnviar, "Finalizacion");
         enviarPaquete(paqueteEnviar, queryC->socket);
 
-        log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",q->qcb->queryID,q->qcb->prioridad,cantidadQueriesControl);
-        
+        pthread_mutex_lock(&mutex_grado);
+        log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",q->qcb->queryID,q->qcb->prioridad,gradoMultiprogramacion);
+        pthread_mutex_unlock(&mutex_grado);  
+
         close(queryC->socket);
         eliminarQueryControl(queryC);
         eliminarQuery(q);
@@ -332,8 +334,9 @@ void *operarWorker(void*socketClienteVoid){
                 pthread_mutex_lock(&mutex_grado);
                 log_info(logger,"## Se desconecta el Worker <%d> - Cantidad total de Workers: <%d>",w->workerID,gradoMultiprogramacion);
                 pthread_mutex_unlock(&mutex_grado);
-                eliminarWorker(w);
+                close(w->socketDesalojo);
                 close(socketCliente);
+                eliminarWorker(w);
                 break;
             }
 
@@ -354,6 +357,7 @@ void *operarWorker(void*socketClienteVoid){
             log_info(logger,"## Se desaloja la Query <%d> del Worker <%d> por desconexion de worker",q->qcb->queryID,w->workerID);
 
             close(qc->socket);
+            close(w->socketDesalojo);
             close(socketCliente);
             
             eliminarWorker(w);
@@ -370,11 +374,14 @@ void *operarWorker(void*socketClienteVoid){
             liberarWorker(workerA);
             log_info(logger,"## Se desaloja la Query <%d> del Worker <%d> por desconexion de queryControl",queryAEliminar->qcb->queryID,workerA->workerID);
             disminuirGradoMultiprogramacion();
-            log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",queryCAEliminar->queryControlID,queryCAEliminar->prioridad,cantidadQueriesControl);
+            pthread_mutex_lock(&mutex_grado);
+            log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",queryCAEliminar->queryControlID,queryCAEliminar->prioridad,gradoMultiprogramacion);
+            pthread_mutex_unlock(&mutex_grado);
 
             close(queryCAEliminar->socket);
             eliminarQuery(queryAEliminar);
             eliminarQueryControl(queryCAEliminar);
+            sem_post(&sem_ready);
             break;
         }
         case DESALOJO_QUERY_PLANIFICADOR:{
@@ -390,6 +397,7 @@ void *operarWorker(void*socketClienteVoid){
             listaAdd(queryDesalojada,&listaReady);
             log_info(logger,"## Se desaloja la Query <%d> (<%d>)-del Worker <%d>Motivo:<Planificacicon>",queryDesalojada->qcb->queryID,queryDesalojada->qcb->prioridad,w->workerID);
             liberarWorker(w);
+            sem_post(&sem_ready);
             eliminarPaquete(paquete);
             break;
         }

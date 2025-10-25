@@ -14,8 +14,6 @@ void enviarQueryAWorker(worker* workerElegido,char* path,int PC,int queryID){
     enviarPaquete(paquete,workerElegido->socket);
 
     eliminarPaquete(paquete);
-
-    log_info(logger, "## Se envía la Query %d al Worker %d", queryID, workerElegido->workerID);
 }
 worker * obtenerWorkerLibre(){
     pthread_mutex_lock(&listaWorkers.mutex);
@@ -69,6 +67,9 @@ void liberarWorker(worker* w){
     w->pathActual = NULL; 
     pthread_mutex_unlock(&w->mutex);
     sem_post(&sem_workers_libres);
+    if(strcmp(configM->algoritmoPlanificacion,"PRIORIDADES") == 0){
+        sem_post(&sem_ready);
+    }
 }
 
 int obtenerPosicionWPorId(int idBuscado) {

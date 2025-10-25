@@ -18,5 +18,6 @@ int main(int argc, char* argv[]) {
     establecerConexiones();
     
     iniciarPlanificacion();
+    pthread_exit(NULL);
 
 }

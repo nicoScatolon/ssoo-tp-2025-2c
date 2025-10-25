@@ -21,7 +21,9 @@ void* planificadorFIFO() {
         }
 
         cambioEstado(&listaExecute,queryElegida);
+        log_info(logger, "## Se envía la Query <%d> (<%d>) al Worker <%d>", queryElegida->qcb->queryID,queryElegida->qcb->prioridad,workerElegido->workerID);
         enviarQueryAWorker(workerElegido, queryElegida->path,queryElegida->qcb->PC,queryElegida->qcb->queryID);
+
     }
     return NULL; 
 }
@@ -29,23 +31,25 @@ void* planificadorFIFO() {
 void* planificadorPrioridad(){
     while (1)
     {
+
         sem_wait(&sem_ready);
         if (!hayWorkerLibre())
         {
-            sem_post(&sem_ready);
             sem_post(&sem_desalojo);
+            continue;
         }
         worker* workerElegido = obtenerWorkerLibre();
         if (workerElegido == NULL) {
              log_error(logger, "ERROR: hayWorkerLibre() true pero obtenerWorkerLibre() NULL");
-            exit(EXIT_FAILURE);
+             exit(EXIT_FAILURE);
            }
-        query* queryElegida = obtenerQueryDeMenorPrioridad(); // Menor número = mayor prioridad
+        query* queryElegida = sacarQueryDeMenorPrioridad(); 
         if (queryElegida == NULL) {
             log_error(logger, "ERROR: sem_ready señalizado pero no hay query en READY");
             exit(EXIT_FAILURE);
         }
         cambioEstado(&listaExecute, queryElegida);
+        log_info(logger, "## Se envía la Query <%d> (<%d>) al Worker <%d>", queryElegida->qcb->queryID,queryElegida->qcb->prioridad,workerElegido->workerID);
         enviarQueryAWorker(workerElegido, queryElegida->path,queryElegida->qcb->PC, queryElegida->qcb->queryID);
     }
 }
@@ -68,7 +72,6 @@ void* evaluarDesalojo(){
             log_debug(logger,"Notificando desalojo de Query <%d>",queryExec->qcb->queryID);
         }
     }
-    return NULL;
 }
 }
 // ------------------- Aging -------------------
@@ -143,7 +146,7 @@ void cambioEstado(t_list_mutex* lista, query* elemento){
     listaAdd(elemento,lista);
 }
 
-query* obtenerQueryDeMenorPrioridad() {
+query* sacarQueryDeMenorPrioridad() {
     if (esListaVacia(&listaReady)) {;
         return NULL; 
     }
