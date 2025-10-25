@@ -382,6 +382,7 @@ void *operarWorker(void*socketClienteVoid){
             eliminarQuery(queryAEliminar);
             eliminarQueryControl(queryCAEliminar);
             sem_post(&sem_ready);
+            
             break;
         }
         case DESALOJO_QUERY_PLANIFICADOR:{
