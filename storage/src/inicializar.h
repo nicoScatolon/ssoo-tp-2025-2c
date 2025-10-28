@@ -12,6 +12,7 @@ char* inicializarDirectorio(char* pathBase, char* nombreDirectorio);
 void inicializarBloquesFisicos(char* pathPhysicalBlocks);
 void inicializarMutex(void);
 void inicializarBloqueCero(char* pathPhysicalBlocks);
+char* crearHash(const char* contenido);
 
 void levantarFileSystem(void);
 void crearFile(char* nombreFile, char* nombreTag);
