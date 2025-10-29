@@ -5,9 +5,8 @@
 #include "estructuras.h"
 #include "bitmap.h"
 #include "estructuras.h"
-
+#include "hash.h"
 void inicializarArchivo(const char *rutaBase, const char *nombre, const char *extension, char* modoApertura);
-void inicializarBlocksHashIndex(char* path);
 char* inicializarDirectorio(char* pathBase, char* nombreDirectorio);
 void inicializarBloquesFisicos(char* pathPhysicalBlocks);
 void inicializarMutex(void);

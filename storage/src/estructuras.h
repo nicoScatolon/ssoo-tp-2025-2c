@@ -10,7 +10,7 @@
 #include <commons/bitarray.h>
 #include <sys/mman.h>
 #include <fcntl.h>
-
+#include "globals.h"
 typedef struct{
     char* hash;
     char* contenido;
@@ -23,15 +23,7 @@ extern configSuperBlock *configSB;
 extern t_log* logger;
 
 // Variables para el manejo del bitmap
-static t_bitarray* bitmap = NULL; // bitarray de commons
-static char* bitmap_buffer = NULL; // área mapeada por mmap que contiene físicamente los bytes del bitmap.
-static size_t bitmap_size_bytes = 0; // tamaño en bytes del bitmap
 
-static size_t bitmap_num_bits = 0;     // cantidad total de bits (equal a cantidad de bloques)
-static int bitmap_fd = -1;             // fd del archivo bitmap
-
-pthread_mutex_t mutex_bitmap = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mutex_bitmap_file = PTHREAD_MUTEX_INITIALIZER;
 
 void vaciarMemoria(void);
 void liberarBloqueHash(t_hash_block * bloque);

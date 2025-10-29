@@ -8,5 +8,6 @@
 
 
 int main(int argc, char*argv[]);
+void mostrarConfiguracionStorage(configStorage* config);
 
 #endif

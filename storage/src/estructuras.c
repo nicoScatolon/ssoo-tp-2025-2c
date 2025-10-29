@@ -1,5 +1,6 @@
 #include "estructuras.h"
 
+
 void vaciarMemoria(void){
 
 }

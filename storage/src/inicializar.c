@@ -20,20 +20,20 @@ void inicializarArchivo(const char *rutaBase, const char *nombre, const char *ex
 }
 
 
-void inicializarBlocksHashIndex(char* path) {
-    char archivoPath[512];
-    snprintf(archivoPath, sizeof(archivoPath), "%s/blocks_hash_index.config", path);
+// void inicializarBlocksHashIndex(char* path) {
+//     char archivoPath[512];
+//     snprintf(archivoPath, sizeof(archivoPath), "%s/blocks_hash_index.config", path);
 
-    // Si ya existe, no hacer nada
-    if (access(archivoPath, F_OK) == 0) {
-        log_debug(logger, "Archivo blocks_hash_index.config ya existe, no se sobrescribe");
-        return;
-    }
+//     // Si ya existe, no hacer nada
+//     if (access(archivoPath, F_OK) == 0) {
+//         log_debug(logger, "Archivo blocks_hash_index.config ya existe, no se sobrescribe");
+//         return;
+//     }
 
-    // Crear archivo vacío
-    inicializarArchivo(path, "blocks_hash_index", "config", "w");
-    log_debug(logger, "Archivo blocks_hash_index.config inicializado correctamente");
-}
+//     // Crear archivo vacío
+//     inicializarArchivo(path, "blocks_hash_index", "config", "w");
+//     log_debug(logger, "Archivo blocks_hash_index.config inicializado correctamente");
+// }
 
 char* inicializarDirectorio(char* pathBase, char* nombreDirectorio){ 
     char dirPath[512];
@@ -120,9 +120,10 @@ void inicializarBloqueCero(char* pathPhysicalBlocks) {
 
 void levantarFileSystem(){
     if (configS->freshStart){
+        log_debug(logger,"Entro aca BIEN" );
         pathBloquesFisicos = inicializarDirectorio(configS->puntoMontaje,"physical_blocks");
-        
-        inicializarBitmap(configS->puntoMontaje);
+        char* pathBitMap = string_from_format("%s/bitmap.bin", configS->puntoMontaje);
+        inicializarBitmap(pathBitMap);
         inicializarBlocksHashIndex(configS->puntoMontaje);
         inicializarBloquesFisicos(pathBloquesFisicos);
         inicializarBloqueCero(pathBloquesFisicos);
@@ -139,6 +140,8 @@ void levantarFileSystem(){
 
     }
     else{
+
+        log_debug(logger,"Entro aca MAL" );
 
     }
 }
@@ -180,7 +183,7 @@ void inicializarMetaData(char* pathTag) {
     char* bloquesIniciales = "[]";
 
     fprintf(archivo, "TAMAÑO=%d\n", tamanoInicial);
-    fprintf(archivo, "BLOCKS=%s\n", bloquesIniciales);
+    fprintf(archivo, "BLOQUES=%s\n", bloquesIniciales);
     fprintf(archivo, "ESTADO=%s\n", estadoInicial);
 
     fclose(archivo);
@@ -232,24 +235,32 @@ void cambiarEstadoMetaData(char* pathTag,char* estado) {
 // }
 void agregarBloqueMetaData(char* pathTag, int nuevoBloque) {
     char* pathMetadata = string_from_format("%s/metadata.config", pathTag);
-    t_config* config = config_create(pathMetadata);
     
+    t_config* config = config_create(pathMetadata);
     if (config == NULL) {
         log_error(logger, "Error al abrir metadata en: %s", pathMetadata);
         free(pathMetadata);
         exit(EXIT_FAILURE);
     }
     
-    char** bloquesActuales = config_get_array_value(config, "BLOQUES");
-    
-    // Contar bloques existentes
+    // Obtener el string del array y parsearlo
+    char* bloquesString = config_get_string_value(config, "BLOQUES");
+    char** bloquesActuales = NULL;
     int cantidadBloques = 0;
-    if (bloquesActuales != NULL) {
-        while (bloquesActuales[cantidadBloques] != NULL) {
-            cantidadBloques++;
+    
+    if (bloquesString != NULL && strlen(bloquesString) > 0) {
+        // Usar string_get_string_as_array para parsear el string "[1,2,3]"
+        bloquesActuales = string_get_string_as_array(bloquesString);
+        
+        // Contar bloques existentes
+        if (bloquesActuales != NULL) {
+            while (bloquesActuales[cantidadBloques] != NULL) {
+                cantidadBloques++;
+            }
         }
     }
     
+    // Crear array para incluir el nuevo bloque
     int* bloques = malloc(sizeof(int) * (cantidadBloques + 1));
     
     // Copiar bloques existentes al array de enteros
@@ -275,28 +286,99 @@ void agregarBloqueMetaData(char* pathTag, int nuevoBloque) {
     // Construir el string con los bloques ordenados
     char* nuevoValor = string_new();
     string_append(&nuevoValor, "[");
-    
     for (int i = 0; i < cantidadBloques; i++) {
         char* numStr = string_from_format("%d", bloques[i]);
         string_append(&nuevoValor, numStr);
-        
-        if (i < cantidadBloques - 1) {  // Agregar coma si NO es el último
+        if (i < cantidadBloques - 1) {
             string_append(&nuevoValor, ",");
         }
         free(numStr);
     }
-    
     string_append(&nuevoValor, "]");
     
     // Guardar y limpiar
     config_set_value(config, "BLOQUES", nuevoValor);
     config_save(config);
     
+    // Liberar memoria
+    if (bloquesActuales != NULL) {
+        string_iterate_lines(bloquesActuales, (void*)free);
+        free(bloquesActuales);
+    }
     free(bloques);
     free(nuevoValor);
     free(pathMetadata);
     config_destroy(config);
+    
+    log_debug(logger, "Bloque %d agregado a metadata en %s", nuevoBloque, pathTag);
 }
+// void agregarBloqueMetaData(char* pathTag, int nuevoBloque) {
+//     char* pathMetadata = string_from_format("%s/metadata.config", pathTag);
+//     t_config* config = config_create(pathMetadata);
+    
+//     if (config == NULL) {
+//         log_error(logger, "Error al abrir metadata en: %s", pathMetadata);
+//         free(pathMetadata);
+//         exit(EXIT_FAILURE);
+//     }
+    
+//     char** bloquesActuales = config_get_array_value(config, "BLOQUES");
+    
+//     // Contar bloques existentes
+//     int cantidadBloques = 0;
+//     if (bloquesActuales != NULL) {
+//         while (bloquesActuales[cantidadBloques] != NULL) {
+//             cantidadBloques++;
+//         }
+//     }
+    
+//     int* bloques = malloc(sizeof(int) * (cantidadBloques + 1));
+    
+//     // Copiar bloques existentes al array de enteros
+//     for (int i = 0; i < cantidadBloques; i++) {
+//         bloques[i] = atoi(bloquesActuales[i]);
+//     }
+    
+//     // Agregar el nuevo bloque
+//     bloques[cantidadBloques] = nuevoBloque;
+//     cantidadBloques++;
+    
+//     // Ordenar de menor a mayor (bubble sort simple)
+//     for (int i = 0; i < cantidadBloques - 1; i++) {
+//         for (int j = 0; j < cantidadBloques - i - 1; j++) {
+//             if (bloques[j] > bloques[j + 1]) {
+//                 int temp = bloques[j];
+//                 bloques[j] = bloques[j + 1];
+//                 bloques[j + 1] = temp;
+//             }
+//         }
+//     }
+    
+//     // Construir el string con los bloques ordenados
+//     char* nuevoValor = string_new();
+//     string_append(&nuevoValor, "[");
+    
+//     for (int i = 0; i < cantidadBloques; i++) {
+//         char* numStr = string_from_format("%d", bloques[i]);
+//         string_append(&nuevoValor, numStr);
+        
+//         if (i < cantidadBloques - 1) {  // Agregar coma si NO es el último
+//             string_append(&nuevoValor, ",");
+//         }
+//         free(numStr);
+//     }
+    
+//     string_append(&nuevoValor, "]");
+    
+//     // Guardar y limpiar
+//     config_set_value(config, "BLOQUES", nuevoValor);
+//     config_save(config);
+    
+//     free(bloques);
+//     free(nuevoValor);
+//     free(pathMetadata);
+//     config_destroy(config);
+// }
 
 // void agregarBloquesLogicos(char* pathTag, int tamanioArchivo) {
 //     // calculo de cantidad de bloques logicos
