@@ -16,21 +16,8 @@ int main(int argc, char*argv[]){
     configSB = malloc(sizeof(configSuperBlock));
     iniciarConfiguracionSuperBlock(configSB);
     logger = iniciar_logger("storage", configS->logLevel);
-    mostrarConfiguracionStorage(configS);
     levantarFileSystem();
     establecerConexionesStorage();
     pthread_exit(NULL);
 }
 
-void mostrarConfiguracionStorage(configStorage* config) {
-    log_debug(logger, "========================================");
-    log_debug(logger, "=== Configuración de Storage =========");
-    log_debug(logger, "========================================");
-    log_debug(logger, "PUERTO_ESCUCHA:        %d", config->puertoEscucha);
-    log_debug(logger, "FRESH_START:           %s", config->freshStart ? "TRUE" : "FALSE");
-    log_debug(logger, "PUNTO_MONTAJE:         %s", config->puntoMontaje);
-    log_debug(logger, "RETARDO_OPERACION:     %d ms", config->retardoOperacion);
-    log_debug(logger, "RETARDO_ACCESO_BLOQUE: %d ms", config->retardoAccesoBloque);
-
-    log_debug(logger, "========================================");
-}

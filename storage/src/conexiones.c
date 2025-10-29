@@ -49,9 +49,7 @@ void *operarWorkers(void*socketClienteVoid){
     while(1){
         opcode codigo = recibirOpcode(socketCliente);
             if (codigo < 0) {
-            log_warning(logger, "Cliente desconectado en socket %d", socketCliente);
-            close(socketCliente);
-            return NULL;
+        
         }
     switch (codigo)
     {
@@ -73,14 +71,14 @@ void *operarWorkers(void*socketClienteVoid){
         t_paquete* paqueteRecibir = recibirPaquete(socketCliente);
         if (!paqueteRecibir) {
                 log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
-                break;
+                exit(EXIT_FAILURE);
             }
             int offset = 0;
             int idQuery = recibirIntDePaqueteconOffset(paqueteRecibir,&offset);
             char* file = recibirStringDePaqueteConOffset(paqueteRecibir,&offset);
             char* tag = recibirStringDePaqueteConOffset(paqueteRecibir,&offset);
-            crearFile(file,tag);
             aplicarRetardoOperacion();
+            crearFile(file,tag);
             log_info(logger,"##<%d> - File Creado <%s>:<%s>",idQuery,file,tag);
             free(file);
             free(tag);
@@ -92,7 +90,7 @@ void *operarWorkers(void*socketClienteVoid){
         t_paquete* paquete = recibirPaquete(socketCliente);
         if (!paquete) {
             log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
-            break;
+            exit(EXIT_FAILURE);
         }
         
         int offset = 0;
@@ -119,7 +117,7 @@ void *operarWorkers(void*socketClienteVoid){
         t_paquete* paquete = recibirPaquete(socketCliente);
         if (!paquete) {
                 log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
-                break;
+                exit(EXIT_FAILURE);
             }
             int offset = 0;
             int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);

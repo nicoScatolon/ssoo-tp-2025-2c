@@ -120,7 +120,6 @@ void inicializarBloqueCero(char* pathPhysicalBlocks) {
 
 void levantarFileSystem(){
     if (configS->freshStart){
-        log_debug(logger,"Entro aca BIEN" );
         pathBloquesFisicos = inicializarDirectorio(configS->puntoMontaje,"physical_blocks");
         char* pathBitMap = string_from_format("%s/bitmap.bin", configS->puntoMontaje);
         inicializarBitmap(pathBitMap);
@@ -133,16 +132,13 @@ void levantarFileSystem(){
 
         char* pathTagBase = string_from_format("%s/initial_file/BASE", pathFiles);  
         agregarBloqueMetaData(pathTagBase,0);
-        //agregarBloqueLogico();
+        agregarBloquesLogicos(pathTagBase,configSB->BLOCK_SIZE);
         cambiarEstadoMetaData(pathTagBase, "COMMITTED");
         free(pathTagBase);
 
 
     }
     else{
-
-        log_debug(logger,"Entro aca MAL" );
-
     }
 }
 
@@ -417,7 +413,7 @@ void agregarBloquesLogicos(char* pathTag, int tamanioArchivo) {
         closedir(dir);
     }
     
-    log_debug(logger, "Bloques existentes: %d, Necesarios: %d", bloquesExistentes, cantidadBloquesNecesarios);
+    //log_debug(logger, "Bloques existentes: %d, Necesarios: %d", bloquesExistentes, cantidadBloquesNecesarios);
     
     for (int i = bloquesExistentes; i < cantidadBloquesNecesarios; i++) {
         char *pathBloqueLogico = string_from_format("%s/%06d.dat", pathLogicalBlocks, i);
