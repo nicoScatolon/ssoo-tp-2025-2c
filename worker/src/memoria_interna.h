@@ -34,10 +34,14 @@ int obtenerMarcoLibre(void); // Hecho
 void liberarMarco(int nro_marco); // Hecho
 int obtenerMarcoDesdePagina(char* nombreFile, char* tag, int numeroPagina); // Hecho
 char* obtenerContenidoDelMarco(int nro_marco); // Hecho
-int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina); // ---Falta---
+int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina); // Hecho
  
+void agregarContenidoAMarco(int numeroMarco, char* contenido);
+
 char* traerPaginaDeStorage(char* nombreFile, char* tag, int numeroPagina); // ---Falta esperar storage---
 void enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina); // Hecho (a revisar)
+
+int escucharStorageConfirmacion();
 
 int ejecutarAlgoritmoReemplazo();
 
@@ -45,8 +49,8 @@ int ejecutarAlgoritmoReemplazo();
 char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, int offset, int size); //Falta
 void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, char* contenido, int offset, int size); //Falta
 
-void* leerDesdeMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco); //Falta
-void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco, char* contenidoPagina, int size); //Falta
+void escribirEnMemoriaPaginaCompleta(char* nombreFile, char* tag, int numeroPagina, int marcoLibre, char* contenidoPagina, int size); //Falta
+void* leerDesdeMemoriaPaginaCompleta(char* nombreFile, char* tag, int numeroMarco);
 
 
 // int obtenerNumeroPaginaDeFileTag(const char* nombreFile, const char* tag, int direccionBase); //---No se si es necesario---

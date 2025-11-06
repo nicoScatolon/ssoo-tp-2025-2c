@@ -34,7 +34,6 @@ void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
     int offset = calcularOffsetDesdeDireccionBase(direccionBase);
 
     int marco = obtenerNumeroDeMarco(fileName, tagFile, numeroPagina);
-
     if (marco == -1){
         log_error(logger, "Error al obtener o pedir pagina para WRITE en %s:%s direccionBase %d", fileName, tagFile, direccionBase);
         // Hola soy Franco! Para mi el envio de finalizacion de query hacia el Master deberia ser aca!, ya que 

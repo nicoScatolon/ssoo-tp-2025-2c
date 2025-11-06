@@ -135,62 +135,63 @@ void* escucharDesalojo() {
     return NULL;
 }
 
-void escucharStorage() {
-        opcode codigo;
-        int recibido = recv(socketStorage,&codigo,sizeof(opcode),MSG_WAITALL);
-        if (recibido <= 0) {
-            log_warning(logger, "## Desconexión del Storage en socket <%d>", socketStorage);
-            close(socketStorage);
-            return;
-        }
-        switch (codigo) {
-            case RESPUESTA_OK: { 
-                log_debug(logger,"Se ejecuto la instruccion correctamente");
-                break;
-            }
-            case RESPUESTA_ERROR:{
-                t_paquete* paquete = recibirPaquete(socketStorage);
-                if(!paquete){
-                    log_error(logger, "Error recibiendo paquete de RESPUESTA_ERROR");
-                    break;
-                }
-                int offset = 0;
-                char * motivo = recibirStringDePaqueteConOffset(paquete,&offset);
-                log_debug(logger,"Error en la query, MOTIVO <%s>",motivo);
-                
-                enviarOpcode(FINALIZACION_QUERY,socketMaster); // No se debería avisar acá al master, lo deberíamos hacer en el query interpreter
-                t_paquete* paquete2 = crearPaquete();
-                if(!paquete2){
-                    log_error(logger, "Error recibiendo paquete de RESPUESTA_ERROR");
-                    break;
-                }
-                agregarIntAPaquete(paquete2,contexto->query_id);
-                agregarIntAPaquete(paquete2,contexto->pc);
-                enviarPaquete(paquete2,socketMaster);
-                eliminarPaquete(paquete2);
-
-                
-                
-                eliminarPaquete(paquete);
-                free(motivo);
-                // Se deberia notificar al master
-                break;
-            }
-            case HANDSHAKE_STORAGE_WORKER:{
-                t_paquete* paquete = recibirPaquete(socketStorage);
-                int offset = 0;
-                configW->FS_SIZE = recibirIntDePaqueteconOffset(paquete,&offset);
-                configW->BLOCK_SIZE = recibirIntDePaqueteconOffset(paquete,&offset);
-                eliminarPaquete(paquete);
-                break;
-            }
-            default:
-                log_warning(logger, "Opcode desconocido recibido del Storage: %d", codigo);
-                break;
-        }
+int escucharStorage() {
+    opcode codigo;
+    int recibido = recv(socketStorage,&codigo,sizeof(opcode),MSG_WAITALL);
+    if (recibido <= 0) {
+        log_warning(logger, "## Desconexión del Storage en socket <%d>", socketStorage);
+        close(socketStorage);
+        return -1;
     }
+    switch (codigo) {
+        case RESPUESTA_OK: { 
+            log_debug(logger,"Se ejecuto la instruccion correctamente");
+            return 0; //no hay error
+            break;
+        }
+        case RESPUESTA_ERROR:{ //esta logica va a cada funcion que llame escucharStorage(), se debe loggear el error (con el tipo de error) y finalizar la query
+            t_paquete* paquete = recibirPaquete(socketStorage);
+            if(!paquete){
+                log_error(logger, "Error recibiendo paquete de RESPUESTA_ERROR");
+                break;
+            }
+            int offset = 0;
+            char * motivo = recibirStringDePaqueteConOffset(paquete,&offset);
+            log_debug(logger, "Error en la query, MOTIVO <%s>", motivo);
+            
+            enviarOpcode(FINALIZACION_QUERY,socketMaster); // No se debería avisar acá al master, lo deberíamos hacer en el query interpreter
+            t_paquete* paquete2 = crearPaquete();
+            if(!paquete2){
+                log_error(logger, "Error recibiendo paquete de RESPUESTA_ERROR");
+                break;
+            }
+            agregarIntAPaquete(paquete2,contexto->query_id);
+            agregarIntAPaquete(paquete2,contexto->pc);
+            enviarPaquete(paquete2,socketMaster);
+            eliminarPaquete(paquete2);
 
-    char* escucharStorageContenidoPagina(){
+            
+            
+            eliminarPaquete(paquete);
+            free(motivo);
+            // Se deberia notificar al master
+            break;
+        }
+        case HANDSHAKE_STORAGE_WORKER:{
+            t_paquete* paquete = recibirPaquete(socketStorage);
+            int offset = 0;
+            configW->FS_SIZE = recibirIntDePaqueteconOffset(paquete,&offset);
+            configW->BLOCK_SIZE = recibirIntDePaqueteconOffset(paquete,&offset);
+            eliminarPaquete(paquete);
+            break;
+        }
+        default:
+            log_warning(logger, "Opcode desconocido recibido del Storage: %d", codigo);
+            break;
+    }
+}
+
+char* escucharStorageContenidoPagina(){
         opcode codigo;
         int recibido = recv(socketStorage,&codigo,sizeof(opcode),MSG_WAITALL);
         if (recibido <= 0) {
@@ -241,4 +242,4 @@ void escucharStorage() {
                 log_warning(logger, "Opcode desconocido recibido del Storage: %d", codigo);
                 return NULL;
         }
-    }
+}
