@@ -27,5 +27,5 @@ void ejecutar_flush(char* fileName, char* tag);
 void ejecutar_delete(char* nombreFile, char* tagFile);
 void ejecutar_end(contexto_query_t* contexto);    
 
-
+void notificarMasterError();
 #endif

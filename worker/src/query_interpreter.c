@@ -198,7 +198,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         if (!ObtenerNombreFileYTag(file_Y_tag, &fileName, &tagFile)) {
                 log_error(logger, "Error al parsear <FILE>:<TAG> en CREATE - Formato inválido: %s", file_Y_tag);
                 return;
-            } 
+        } 
     }
     
     switch (instruccion->tipo) {
@@ -292,7 +292,6 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
     }
 
     log_info(logger, "## Query %d: - Instrucción realizada: %s", contexto->query_id, instruccion->parametro[0]);
-
     
     free(fileName);
     free(tagFile);
@@ -359,8 +358,6 @@ void liberarContextoQuery(contexto_query_t* contexto) {
     free(contexto);
 }
 
-
-
 void desalojarQuery(int idQuery, opcode motivo) {
     int pc = contexto->pc;
 
@@ -386,3 +383,4 @@ void desalojarQuery(int idQuery, opcode motivo) {
 
     return;
 }
+

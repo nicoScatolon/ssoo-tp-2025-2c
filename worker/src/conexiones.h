@@ -13,7 +13,8 @@ void conexionConMaster(int idQuery);
 void conexionConMasterDesalojo();
 void esperarRespuesta();
 void escucharMaster();
-void escucharStorage();
+int escucharStorage();
+char* escucharStorageContenidoPagina();
 void conexionConStorage();
 void* escucharDesalojo();
 
