@@ -238,7 +238,6 @@ int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina){
         escribirEnMemoriaPaginaCompleta(nombreFile, tag, numeroPagina, marcoLibre, contenido, configW->BLOCK_SIZE);
         return marcoLibre;
         free(contenido);
-
     }
 }
 
@@ -283,11 +282,11 @@ char* traerPaginaDeStorage(char* nombreFile, char* tag, int numeroPagina){
     return contenido;
 }
 
-void enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
-    char* contenido = obtenerContenidoDelMarco(obtenerNumeroDeMarco(nombreFile, tag, numeroPagina));
+int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
+    char* contenido = obtenerContenidoDelMarco(obtenerNumeroDeMarco(nombreFile, tag, numeroPagina)); //esta bien usar obtener numero de marco aca?? Entendia q la usaba el query interpreter. a
     if (!contenido){
         log_error(logger, "Error al obtener el contenido del marco para enviar a Storage %s:%s pagina %d", nombreFile, tag, numeroPagina);
-        return;
+        return -1;
     }
 
     enviarOpcode(WRITE_BLOCK, socketStorage);
@@ -301,7 +300,13 @@ void enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
     free(contenido);
     log_debug(logger, "Envio a Storage del marco de %s:%s pagina %d", nombreFile, tag, numeroPagina);
 
-    escucharStorage();
+    int respuesta = escucharStorage();
+    if (respuesta == -1){
+        log_error(logger, "Error al enviar pagina a Storage %s:%s pagina %d", nombreFile, tag, numeroPagina);
+        return -1;
+    }
+
+    return 1;
 }
 
 
@@ -361,8 +366,6 @@ void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina,
     modificar_pagina(entrada);
 
     pthread_mutex_unlock(&tabla_paginas_mutex);
-
-    
 }
 
 //Debe escribir todo el contenido de un marco
@@ -519,7 +522,15 @@ int ejecutarAlgoritmoReemplazo() {
     
     marcoLiberado = paginaAReemplazar->numeroFrame;
     
-    enviarPaginaAStorage(fileName, tagFile, paginaAReemplazar->numeroPagina); // la funcion ya implementa la confirmacion de storage
+    int respuesta = enviarPaginaAStorage(fileName, tagFile, paginaAReemplazar->numeroPagina); // la funcion ya implementa la confirmacion de storage
+    if (respuesta == -1){
+        log_error(logger, "Error al enviar pagina a Storage %s:%s pagina %d", fileName, tagFile, paginaAReemplazar->numeroPagina);
+        free(fileName);
+        free(tagFile);
+        free(paginaAReemplazar);
+        free(key);
+        return -1;
+    }
 
     liberarMarco(marcoLiberado);
 

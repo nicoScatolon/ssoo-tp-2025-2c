@@ -9,9 +9,12 @@ void ejecutar_create(char* fileName, char* tagFile){
     agregarStringAPaquete(paquete, tagFile);
     
     enviarPaquete(paquete, socketStorage/*socket storage*/);
-    escucharStorage();
+    int respuesta = escucharStorage();
+    if (respuesta == -1){
+        notificarMasterError();
+    }
+    
     eliminarPaquete(paquete);
-
 }
 
 // Esperar confirmacion de storage luego de hacer un truncate antes de ejecutar la siguiente instruccion.
@@ -24,7 +27,12 @@ void ejecutar_truncate(char* fileName, char* tagFile, int size){
     agregarIntAPaquete(paquete, size); 
 
     enviarPaquete(paquete, socketStorage/*socket storage*/);
-    escucharStorage();
+
+    int respuesta = escucharStorage();
+    if (respuesta == -1){
+        notificarMasterError();
+    }
+    
     eliminarPaquete(paquete);
 
 }
@@ -36,15 +44,13 @@ void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
     int marco = obtenerNumeroDeMarco(fileName, tagFile, numeroPagina);
     if (marco == -1){
         log_error(logger, "Error al obtener o pedir pagina para WRITE en %s:%s direccionBase %d", fileName, tagFile, direccionBase);
-        // Hola soy Franco! Para mi el envio de finalizacion de query hacia el Master deberia ser aca!, ya que 
-        // obtener Marco devuelve -1, entonoces aca rompe con el flujo de la ejecuccion de write.
+        notificarMasterError();
         return;
     }
 
     escribirContenidoDesdeOffset(fileName, tagFile, numeroPagina, marco,  contenido, offset, strlen(contenido)); 
 
     log_info(logger, "Query <%d>: Acción: <ESCRIBIR> - Dirección Física: <%d %d> - Valor: <%s>", contexto->query_id, marco, offset, contenido);
-    
 
 }   
 
@@ -56,6 +62,7 @@ void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, c
 
     if (marco == -1){
         log_error(logger, "Error al obtener o pedir pagina para READ en %s:%s direccionBase %d", fileName, tagFile, direccionBase);
+        notificarMasterError();
         return;
     }
 
@@ -163,3 +170,28 @@ void ejecutar_end(contexto_query_t* contexto){
     
 }       
 
+//funcion  para todos las querys que llamen a escucharStorage(), se debe loggear el error (con el tipo de error) y finalizar la query
+ void notificarMasterError(){
+    t_paquete* paquete = recibirPaquete(socketStorage);
+    if(!paquete){
+        log_error(logger, "Error recibiendo paquete de RESPUESTA_ERROR");
+        return;
+    }
+    int offset = 0;
+    char * motivo = recibirStringDePaqueteConOffset(paquete,&offset);
+    log_error(logger, "Error en la query, MOTIVO <%s>", motivo);
+            
+    enviarOpcode(FINALIZACION_QUERY,socketMaster);
+    t_paquete* paquete2 = crearPaquete();
+    if(!paquete2){
+        log_error(logger, "Error recibiendo paquete de RESPUESTA_ERROR");
+        return;
+    }
+    agregarIntAPaquete(paquete2,contexto->query_id);
+    agregarIntAPaquete(paquete2,contexto->pc);
+    enviarPaquete(paquete2,socketMaster);
+    eliminarPaquete(paquete2);
+            
+    eliminarPaquete(paquete);
+    free(motivo);
+}

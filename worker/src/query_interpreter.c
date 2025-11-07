@@ -359,8 +359,6 @@ void liberarContextoQuery(contexto_query_t* contexto) {
     free(contexto);
 }
 
-
-
 void desalojarQuery(int idQuery, opcode motivo) {
     int pc = contexto->pc;
 
@@ -386,3 +384,4 @@ void desalojarQuery(int idQuery, opcode motivo) {
 
     return;
 }
+

@@ -39,7 +39,7 @@ int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina); // Hech
 void agregarContenidoAMarco(int numeroMarco, char* contenido);
 
 char* traerPaginaDeStorage(char* nombreFile, char* tag, int numeroPagina); // ---Falta esperar storage---
-void enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina); // Hecho (a revisar)
+int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina); // Hecho (a revisar)
 
 int escucharStorageConfirmacion();
 
