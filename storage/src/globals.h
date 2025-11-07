@@ -21,4 +21,13 @@ extern int bitmap_fd;            // fd del archivo bitmap
 
 extern pthread_mutex_t mutex_bitmap; 
 extern pthread_mutex_t mutex_bitmap_file; 
+
+typedef struct {
+    int socket;
+    int workerId;
+}t_worker;
+
+t_list* listadoWorker;
+pthread_mutex_t mutexWorkers;
+
 #endif
