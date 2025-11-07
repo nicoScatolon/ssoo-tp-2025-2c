@@ -44,11 +44,13 @@ void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
     int offset = calcularOffsetDesdeDireccionBase(direccionBase);
 
     int marco = obtenerNumeroDeMarco(fileName, tagFile, numeroPagina);
+    log_debug(logger, "Marco obtenido para WRITE: %d", marco);
     if (marco == -1){
         log_error(logger, "Error al obtener o pedir pagina para WRITE en %s:%s direccionBase %d", fileName, tagFile, direccionBase);
         notificarMasterError();
         return;
     }
+
 
     escribirContenidoDesdeOffset(fileName, tagFile, numeroPagina, marco,  contenido, offset, strlen(contenido)); 
 

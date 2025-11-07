@@ -52,25 +52,32 @@ void *operarWorkers(void*socketClienteVoid){
             int workerId = obtenerYRemoverWorker(socketCliente);
             decrementarWorkers(workerId);
             close(socketCliente);
+            break;
         }
         switch (codigo)
         {
         case HANDSHAKE_STORAGE_WORKER:{
+            log_debug(logger,"Se recibio OPCODE");
             t_paquete*paqueteRecibir = recibirPaquete(socketCliente);
             int offset = 0;
             int workerId = recibirIntDePaqueteconOffset(paqueteRecibir,&offset);
 
             incrementarWorkers(workerId);
             registrarWorker(socketCliente,workerId);
+            
             t_paquete* paqueteEnviar = crearPaquete();
+            enviarOpcode(HANDSHAKE_STORAGE_WORKER,socketCliente);
             agregarIntAPaquete(paqueteEnviar,configSB->FS_SIZE);
             agregarIntAPaquete(paqueteEnviar,configSB->BLOCK_SIZE);
             enviarPaquete(paqueteEnviar,socketCliente);
+
             eliminarPaquete(paqueteEnviar);
             eliminarPaquete(paqueteRecibir);
+            log_debug(logger,"Enviando datos FS_SIZE <%d> BLOCK_SIZE <%d>",configSB->FS_SIZE,configSB->BLOCK_SIZE);
             break;
         }
         case CREATE_FILE:{
+            log_debug(logger,"Se recibio OPCODE");
             t_paquete* paqueteRecibir = recibirPaquete(socketCliente);
             if (!paqueteRecibir) {
                 log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
@@ -81,6 +88,7 @@ void *operarWorkers(void*socketClienteVoid){
             break;
         }
         case TRUNCATE_FILE: {
+            log_debug(logger,"Se recibio OPCODE");
             t_paquete* paquete = recibirPaquete(socketCliente);
             if (!paquete) {
                 log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
@@ -92,6 +100,7 @@ void *operarWorkers(void*socketClienteVoid){
         }
 
         case TAG_FILE:{
+            log_debug(logger,"Se recibio OPCODE");
             t_paquete* paquete = recibirPaquete(socketCliente);
             if (!paquete) {
                 log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
@@ -102,24 +111,35 @@ void *operarWorkers(void*socketClienteVoid){
             break;
         }
         case COMMIT_FILE:{ //antes COMMIT_TAG
+        log_debug(logger,"Se recibio OPCODE");
             t_paquete* paquete = recibirPaquete(socketCliente);
             eliminarPaquete(paquete);
             enviarOpcode(RESPUESTA_OK, socketCliente);
             break;
         }
         case WRITE_BLOCK: {
+            log_debug(logger,"Se recibio OPCODE");
             t_paquete* paquete = recibirPaquete(socketCliente);
             eliminarPaquete(paquete);
             enviarOpcode(RESPUESTA_OK, socketCliente);
             break;
         }
         case READ_BLOCK:{
+            log_debug(logger,"Se recibio OPCODE");
             t_paquete* paquete = recibirPaquete(socketCliente);
             eliminarPaquete(paquete);
-            enviarOpcode(RESPUESTA_OK,socketCliente);
+
+            enviarOpcode(OBTENER_CONTENIDO_PAGINA,socketCliente);
+            t_paquete*paquete2 = crearPaquete();
+            char*contenido= "000000000000000000000000000000000000000";
+            agregarStringAPaquete(paquete2,contenido);
+            enviarPaquete(paquete2,socketCliente);
+            eliminarPaquete(paquete2);
+            log_debug(logger,"Se envio contenido <%s>",contenido);
             break;
         }
         case DELETE_FILE: { // DELETE_TAG en la consigna
+            log_debug(logger,"Se recibio OPCODE");
             t_paquete* paquete = recibirPaquete(socketCliente);
             eliminarPaquete(paquete);
             enviarOpcode(RESPUESTA_OK, socketCliente);

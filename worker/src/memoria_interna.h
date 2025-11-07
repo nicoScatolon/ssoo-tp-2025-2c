@@ -9,18 +9,18 @@
 
 
 // Variables globales
-char* memoria = NULL;        // memoria principal
-t_bitarray* bitmap = NULL;   // bitmap para páginas
-int cant_frames = 0;
-t_dictionary* tablasDePaginas = NULL; //la key es <FILE>:<TAG>
+extern char* memoria ;        // memoria principal
+extern t_bitarray* bitmap ;   // bitmap para páginas
+extern int cant_frames ;
+extern t_dictionary* tablasDePaginas; //la key es <FILE>:<TAG>
 
-int cant_paginas;
-void asignarCant_paginas(void);
+extern int cant_paginas;
+extern void asignarCant_paginas(void);
 
 
 //Mutex
-pthread_mutex_t memoria_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t tabla_paginas_mutex = PTHREAD_MUTEX_INITIALIZER;
+extern pthread_mutex_t memoria_mutex;
+extern pthread_mutex_t tabla_paginas_mutex;
 
 // FUNCIONES
 void inicializarMemoriaInterna(void); // Hecho 
@@ -39,7 +39,7 @@ int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina); // Hech
  
 void agregarContenidoAMarco(int numeroMarco, char* contenido);
 
-char* traerPaginaDeStorage(char* nombreFile, char* tag, int numeroPagina);
+char* traerPaginaDeStorage(char* nombreFile, char* tag, int query_id, int numeroPagina);
 
 int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina); // Hecho (a revisar)
 

@@ -21,6 +21,7 @@ void inicializarMetaData(char* pathTag);
 void cambiarEstadoMetaData(char* pathTag,char* estado);
 void agregarBloqueMetaData(char* pathTag,int nuevoBloque);
 void agregarBloquesLogicos(char* pathTag, int tamanioArchivo);
+void inicializarConexiones();
 extern int cantidadWorkers;
-
+extern t_list * listadoWorker;
 #endif

@@ -9,13 +9,13 @@
 
 
 extern configWorker * configW;
-void conexionConMaster(int idQuery);
+void conexionConMaster(int workerId);
 void conexionConMasterDesalojo();
 void esperarRespuesta();
 void escucharMaster();
 int escucharStorage();
 char* escucharStorageContenidoPagina();
-void conexionConStorage();
+void conexionConStorage(int workerId);
 void* escucharDesalojo();
 
 

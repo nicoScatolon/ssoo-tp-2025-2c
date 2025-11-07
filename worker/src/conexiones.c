@@ -6,7 +6,7 @@ int socketStorage;
 
 contexto_query_t* contexto = NULL;
 
-void conexionConMaster(int ID) {
+void conexionConMaster(int workerId) {
     char* puertoMaster = string_itoa(configW->puertoMaster);
     socketMaster = crearConexion(configW->IPMaster, puertoMaster, logger);
     comprobarSocket(socketMaster, "Worker", "Master", logger);
@@ -15,7 +15,7 @@ void conexionConMaster(int ID) {
     t_paquete* paquete = crearPaquete();
     enviarHandshake(socketMaster, WORKER);
     enviarOpcode(INICIAR_WORKER,socketMaster);
-    agregarIntAPaquete(paquete,ID);
+    agregarIntAPaquete(paquete,workerId);
     enviarPaquete(paquete,socketMaster);
 
     eliminarPaquete(paquete);
@@ -31,7 +31,7 @@ void conexionConMasterDesalojo() {
     free(puertoMasterDesalojo);
 }
 
-void conexionConStorage() {
+void conexionConStorage(int workerId) {
     char* puertoStorage = string_itoa(configW->puertoStorage);
     socketStorage = crearConexion(configW->IPStorage, puertoStorage, logger);
     comprobarSocket(socketStorage, "Worker", "Storage", logger);
@@ -39,6 +39,13 @@ void conexionConStorage() {
     
     enviarHandshake(socketStorage, WORKER);
     enviarOpcode(HANDSHAKE_STORAGE_WORKER,socketStorage);
+    
+    t_paquete* paquete = crearPaquete();
+    agregarIntAPaquete(paquete,workerId);
+    enviarPaquete(paquete,socketStorage);
+    eliminarPaquete(paquete);
+    
+    escucharStorage();
     free(puertoStorage);
 }
 
@@ -64,14 +71,24 @@ void escucharMaster() {
                 int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
                 int pc = recibirIntDePaqueteconOffset(paquete,&offset);
                 log_info(logger, "Recepción de Query: ## Query <%d>: Se recibe la Query. El path de operaciones es: <%s>",idQuery,path);
+                // log_debug(logger,"Se rompe antes del memset");
 
-                memset(contexto, 0, sizeof(contexto_query_t));
+                // memset(contexto, 0, sizeof(contexto_query_t));
                 contexto = cargarQuery(path, idQuery, pc);
 
-                
+                if (!contexto) {
+                    log_error(logger, "Error al cargar query %d", idQuery);
+                    free(path);
+                    eliminarPaquete(paquete);
+                    break;
+                }
+
+                // log_debug(logger,"Se rompe despues del memset");
                 ejecutarQuery(contexto); //hay que lanzar un hilo para esto.
 
                 liberarContextoQuery(contexto);
+                contexto = NULL;
+                
                 free(path);
                 eliminarPaquete(paquete);
                 break;
@@ -86,7 +103,7 @@ void* escucharDesalojo() {
     while (1) {
         opcode codigo;
         int recibido = recv(socketMasterDesalojo,&codigo,sizeof(opcode),MSG_WAITALL);
-        if (recibido <= 0) {
+        if (recibido < 0) {
             log_warning(logger, "## Desconexión del MasterDesalojo en socket <%d>", socketMasterDesalojo);
             close(socketMasterDesalojo);
             pthread_exit(NULL);
@@ -139,7 +156,7 @@ int escucharStorage() {
     opcode codigo;
     int recibido = recv(socketStorage,&codigo,sizeof(opcode),MSG_WAITALL);
     if (recibido < 0) {
-        log_error(logger, "## Desconexión del Storage en socket <%d>", socketStorage);
+        log_error(logger, "## Desconexión del Storage en socket <%d> - Recibido: %d", socketStorage, recibido);
         close(socketStorage); 
         return -1;
     }
@@ -154,10 +171,13 @@ int escucharStorage() {
             break;
         }
         case HANDSHAKE_STORAGE_WORKER:{
+            // log_debug(logger,"entra en HANDSHAKE_STORAGE_WORKER");
             t_paquete* paquete = recibirPaquete(socketStorage);
             int offset = 0;
             configW->FS_SIZE = recibirIntDePaqueteconOffset(paquete,&offset);
             configW->BLOCK_SIZE = recibirIntDePaqueteconOffset(paquete,&offset);
+
+            log_debug(logger,"Handshake con Storage completado. FS_SIZE: %d, BLOCK_SIZE: %d",configW->FS_SIZE,configW->BLOCK_SIZE);
             eliminarPaquete(paquete);
             return 0;
             break;
@@ -190,7 +210,7 @@ char* escucharStorageContenidoPagina(){
             }
             int offset = 0;
             char* contenido = recibirStringDePaqueteConOffset(paquete,&offset);
-                
+            log_debug(logger,"contenido <%s>",contenido);
             eliminarPaquete(paquete);
             return contenido;
         }

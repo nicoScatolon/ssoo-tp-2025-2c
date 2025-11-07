@@ -1,12 +1,15 @@
 #include "query_interpreter.h"
 
+#define BUF_SZ 512
+
 contexto_query_t* cargarQuery(char* path, int query_id, int pc_inicial) { 
-    #define BUF_SZ 512
+    log_debug(logger,"Entro aca");
     //la primera vez que se llama es con pc_inicial = 0
     if (path == NULL) {
         log_error(logger, "Ruta de query NULL");
         return NULL;
     } 
+    log_debug(logger,"Entro aca1");
 
     size_t base_len = strlen(configW->pathQueries);
     size_t path_len = strlen(path);
@@ -223,6 +226,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
             // Formato: WRITE <NOMBRE_FILE>:<TAG> <DIRECCIÓN BASE> <CONTENIDO>
             // parametro[0] = "WRITE", parametro[1] = "MATERIAS:BASE", parametro[2] = "0", parametro[3] = "SISTEMAS_OPERATIVOS"
 
+            log_debug(logger, "Ejecutando WRITE de %s bytes en %s:%s desde offset %s", instruccion->parametro[3], fileName, tagFile, instruccion->parametro[2]);
             ejecutar_write(fileName, tagFile, atoi(instruccion->parametro[2]), instruccion->parametro[3], contexto);
             
             break;

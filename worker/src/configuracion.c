@@ -15,5 +15,7 @@ void inicializarCosas(){
     pthread_detach(hilo_desalojo);
     sem_init(&sem_hayInterrupcion, 0, 0); 
     asignarCant_paginas();
+    inicializarMemoriaInterna();
+    inicializarDiccionarioDeTablas();
 }
 
