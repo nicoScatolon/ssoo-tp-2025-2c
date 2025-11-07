@@ -225,7 +225,7 @@ int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina){
         return obtenerMarcoDesdePagina(nombreFile, tag, numeroPagina);
     }
     else{
-        char* contenido = traerPaginaDeStorage(nombreFile, tag, numeroPagina);
+        char* contenido = traerPaginaDeStorage(nombreFile, tag, contexto->query_id, numeroPagina);
         if(!contenido){
             log_error(logger, "Error al traer pagina de Storage %s:%s pagina %d", nombreFile, tag, numeroPagina);
             return -1;
@@ -267,11 +267,12 @@ int obtenerMarcoDesdePagina(char* nombreFile, char* tag, int numeroPagina){
 }
 
 
-char* traerPaginaDeStorage(char* nombreFile, char* tag, int numeroPagina){
+char* traerPaginaDeStorage(char* nombreFile, char* tag, int query_id, int numeroPagina){
 
     enviarOpcode(READ_BLOCK, socketStorage);
 
     t_paquete* paquete = crearPaquete();
+    agregarIntAPaquete(paquete, query_id);
     agregarStringAPaquete(paquete, nombreFile);
     agregarStringAPaquete(paquete, tag);
     agregarIntAPaquete(paquete, numeroPagina);
@@ -285,6 +286,7 @@ char* traerPaginaDeStorage(char* nombreFile, char* tag, int numeroPagina){
 
 int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
     char* contenido = obtenerContenidoDelMarco(obtenerNumeroDeMarco(nombreFile, tag, numeroPagina), 0, configW->BLOCK_SIZE); //esta bien usar obtener numero de marco aca?? Entendia q la usaba el query interpreter. a
+    //si el contexto de ejecucion es global no habria problema
     if (!contenido){
         log_error(logger, "Error al obtener el contenido del marco para enviar a Storage %s:%s pagina %d", nombreFile, tag, numeroPagina);
         return -1;
@@ -315,6 +317,7 @@ int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
 char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, int offset, int size){
     
     pthread_mutex_lock(&memoria_mutex);
+    // Validar que el offset y size sean correctos, con el tamaño de la página
 
     char* contenido = obtenerContenidoDelMarco(numeroMarco, offset, size);
     if(!contenido){

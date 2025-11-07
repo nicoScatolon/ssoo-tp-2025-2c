@@ -1,10 +1,11 @@
 #include "instrucciones.h"  
 
 
-void ejecutar_create(char* fileName, char* tagFile){
+void ejecutar_create(char* fileName, char* tagFile, int query_id){
     enviarOpcode(CREATE_FILE, socketStorage/*socket storage*/);
 
     t_paquete* paquete = crearPaquete();
+    agregarIntAPaquete(paquete, query_id);
     agregarStringAPaquete(paquete, fileName);
     agregarStringAPaquete(paquete, tagFile);
     
@@ -19,10 +20,11 @@ void ejecutar_create(char* fileName, char* tagFile){
 }
 
 // Esperar confirmacion de storage luego de hacer un truncate antes de ejecutar la siguiente instruccion.
-void ejecutar_truncate(char* fileName, char* tagFile, int size){
+void ejecutar_truncate(char* fileName, char* tagFile, int size, int query_id){
     enviarOpcode(TRUNCATE_FILE, socketStorage/*socket storage*/);
 
     t_paquete* paquete = crearPaquete();
+    agregarIntAPaquete(paquete, query_id);
     agregarStringAPaquete(paquete, fileName);
     agregarStringAPaquete(paquete, tagFile);
     agregarIntAPaquete(paquete, size); 
@@ -83,10 +85,11 @@ void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, c
     
 }
 
-void ejecutar_tag(char* fileNameOrigen, char* tagOrigen, char* fileNameDestino, char* tagDestino){
+void ejecutar_tag(char* fileNameOrigen, char* tagOrigen, char* fileNameDestino, char* tagDestino, int query_id){
     enviarOpcode(TAG_FILE, socketStorage/*socket storage*/);    
 
     t_paquete* paquete = crearPaquete();
+    agregarIntAPaquete(paquete, query_id);
     agregarStringAPaquete(paquete, fileNameOrigen);
     agregarStringAPaquete(paquete, tagOrigen);
     agregarStringAPaquete(paquete, fileNameDestino);
@@ -96,39 +99,41 @@ void ejecutar_tag(char* fileNameOrigen, char* tagOrigen, char* fileNameDestino, 
     eliminarPaquete(paquete);
 }   
 
-void ejecutar_commit(char* fileName, char* tagFile){
+void ejecutar_commit(char* fileName, char* tagFile, int query_id){
     enviarOpcode(COMMIT_FILE, socketStorage/*socket storage*/);    
 
     t_paquete* paquete = crearPaquete();
+    agregarIntAPaquete(paquete, query_id);
     agregarStringAPaquete(paquete, fileName);
-    agregarStringAPaquete(paquete, tagFile); 
+    agregarStringAPaquete(paquete, tagFile);
     enviarPaquete(paquete, socketStorage/*socket storage*/);
     eliminarPaquete(paquete);
     
 }   
 
-void ejecutar_flush(char* fileName, char* tag){
-    TablaDePaginas* tabla = obtenerTablaPorFileYTag(fileName, tag);
+void ejecutar_flush(char* fileName, char* tagFile, int query_id){
+    TablaDePaginas* tabla = obtenerTablaPorFileYTag(fileName, tagFile);
     bool modificadas;
     if (tabla != NULL){
         modificadas = tabla->hayPaginasModificadas;
     }
     else{
-        log_warning(logger, "No se encontró la tabla para %s:%s", fileName, tag);
+        log_warning(logger, "No se encontró la tabla para %s:%s", fileName, tagFile);
         return;
     }
 
     if(modificadas){
         t_paquete* paquete = crearPaquete();
+        agregarIntAPaquete(paquete, query_id);
         agregarStringAPaquete(paquete, fileName);
-        agregarStringAPaquete(paquete, tag); 
+        agregarStringAPaquete(paquete, tagFile); 
         for (int i = 0; i < tabla->cantidadEntradasUsadas; i++){
             if(tabla->entradas[i].bitModificado){
                 int nroPagina = tabla->entradas[i].numeroPagina;
                 int nroFrame = tabla->entradas[i].numeroFrame;
                 char* contenidoPagina = obtenerContenidoDelMarco(nroFrame, 0, configW->BLOCK_SIZE); // antes se llamaba a leerDesdeMemoriaPaginaCompleta pero creo q esta bien asi
                 if (!contenidoPagina){
-                    log_error(logger, "Error al obtener el contenido del marco %d para hacer FLUSH de %s:%s pagina %d", nroFrame, fileName, tag, nroPagina);
+                    log_error(logger, "Error al obtener el contenido del marco %d para hacer FLUSH de %s:%s pagina %d", nroFrame, fileName, tagFile, nroPagina);
                     continue;
                 }
 
@@ -145,17 +150,18 @@ void ejecutar_flush(char* fileName, char* tag){
         tabla->hayPaginasModificadas = false;
     }
     else{
-        log_debug(logger, "No hay páginas modificadas para hacer FLUSH en %s:%s", fileName, tag);
+        log_debug(logger, "No hay páginas modificadas para hacer FLUSH en %s:%s", fileName, tagFile);
     }
 
     free(tabla);   
     return;
 }       
 
-void ejecutar_delete(char* fileNam, char* tagFile){
+void ejecutar_delete(char* fileNam, char* tagFile, int query_id){
     enviarOpcode(DELETE_FILE, socketStorage/*socket storage*/);
 
     t_paquete* paquete = crearPaquete();
+    agregarIntAPaquete(paquete, query_id);
     agregarStringAPaquete(paquete, fileNam);
     agregarStringAPaquete(paquete, tagFile);
     enviarPaquete(paquete, socketStorage/*socket storage*/);
@@ -167,9 +173,9 @@ void ejecutar_end(contexto_query_t* contexto){
     
     t_paquete* paquete = crearPaquete();
     agregarIntAPaquete(paquete, contexto->query_id);
+    //deberìa eleminiar la tabla de paginas??
     enviarPaquete(paquete, socketMaster/*socket master*/);
     eliminarPaquete(paquete);
-    
 }       
 
 //funcion  para todos las querys que llamen a escucharStorage(), se debe loggear el error (con el tipo de error) y finalizar la query
