@@ -3,12 +3,12 @@
 
 #include "utils/config.h"
 #include "utils/logs.h"
+#include "utils/listas.h"
 #include <commons/collections/list.h>
+#include "semaphore.h"
 #include <pthread.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "utils/listas.h"
-#include "semaphore.h"
 
 
 // ✅ SOLO DECLARACIONES con extern - NO definiciones
@@ -27,13 +27,15 @@ extern uint32_t cantidadQueriesControl;
 extern t_log* logger;
 extern configMaster* configM;
 
+extern sem_t sem_ready;
+extern sem_t sem_desalojo;
+extern sem_t sem_workers_libres;
 
 extern t_list_mutex listaReady;
 extern t_list_mutex listaExecute;
 extern t_list_mutex listaWorkers;
 extern t_list_mutex listaQueriesControl;
 
-// ✅ Enums y structs (estos SÍ van en .h)
 typedef enum {
     QUERY_READY,
     QUERY_EXECUTE,
@@ -51,6 +53,7 @@ typedef struct {
 typedef struct {
     char* pathActual;
     int socket;
+    int socketDesalojo;
     int workerID;
     int idActual;
     bool ocupado;

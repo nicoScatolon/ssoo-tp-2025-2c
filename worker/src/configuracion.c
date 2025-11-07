@@ -7,6 +7,13 @@ void iniciarConfiguracionWorker(char*nombreConfig ,configWorker* configWorker){
 
 sem_t sem_hayInterrupcion;
 
+
+
 void inicializarCosas(){
-    sem_init(&sem_hayInterrupcion, 1, 1);
+    pthread_t hilo_desalojo;
+    pthread_create(&hilo_desalojo,NULL,escucharDesalojo,NULL);
+    pthread_detach(hilo_desalojo);
+    sem_init(&sem_hayInterrupcion, 0, 0); 
+    asignarCant_paginas();
 }
+

@@ -33,6 +33,7 @@ configMaster agregarConfiguracionMaster(t_config* config){
     configMaster configMaster;
     configMaster.puertoEscuchaQueryControl = config_get_int_value(config,"PUERTO_ESCUCHA_QUERYCONTROL");
     configMaster.puertoEscuchaWorker = config_get_int_value(config,"PUERTO_ESCUCHA_WORKER");
+    configMaster.puertoEscuchaDesalojo = config_get_int_value(config,"PUERTO_ESCUCHA_DESALOJO");
     configMaster.algoritmoPlanificacion = config_get_string_value(config,"ALGORITMO_PLANIFICACION");
     configMaster.tiempoAging=config_get_int_value(config,"TIEMPO_AGING");
     configMaster.logLevel= obtenerNivelLog(config);
@@ -51,6 +52,7 @@ configWorker agregarConfiguracionWorker(t_config* config){
     configWorker configWorker;
     configWorker.IPMaster = config_get_string_value(config,"IP_MASTER");
     configWorker.puertoMaster = config_get_int_value(config,"PUERTO_MASTER");
+    configWorker.puertoMasterDesalojo = config_get_int_value(config,"PUERTO_MASTER_DESALOJO");
     configWorker.IPStorage = config_get_string_value(config,"IP_STORAGE");
     configWorker.puertoStorage = config_get_int_value(config,"PUERTO_STORAGE");
     configWorker.tamMemoria = config_get_int_value(config,"TAM_MEMORIA");

@@ -1,8 +1,5 @@
 #include "query_interpreter.h"
 
-
-
-
 contexto_query_t* cargarQuery(char* path, int query_id, int pc_inicial) { 
     #define BUF_SZ 512
     //la primera vez que se llama es con pc_inicial = 0
@@ -280,6 +277,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         
         case END: {
             // parametro[0] = "END"
+            ejecutar_flush(fileName, tagFile);
             ejecutar_end(contexto);
             log_debug(logger, "Ejecutando END");
             // implementacion
@@ -301,9 +299,6 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
 
 }
 
-
-
-//falta crear el hilo donde que llamara a la funcion y liberara el contexto
 void ejecutarQuery(contexto_query_t* contexto) {
     if (contexto == NULL) {
         log_error(logger, "Contexto de query NULL");
@@ -326,9 +321,6 @@ void ejecutarQuery(contexto_query_t* contexto) {
         
         contexto->pc++;
         
-        // if (configW->retardoMemoria > 0) { //esto va en la parte de memoria interna
-        //     aplicarRetardoMemoria();
-        // }
         free(linea_actual);
 
         if(sem_trywait(&sem_hayInterrupcion) == 0){
