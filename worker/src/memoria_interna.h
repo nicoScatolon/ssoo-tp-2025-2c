@@ -33,19 +33,21 @@ TablaDePaginas* obtenerTablaPorFileYTag(char* nombreFile, char* tag); // Hecho
 int obtenerMarcoLibre(void); // Hecho
 void liberarMarco(int nro_marco); // Hecho
 int obtenerMarcoDesdePagina(char* nombreFile, char* tag, int numeroPagina); // Hecho
-char* obtenerContenidoDelMarco(int nro_marco); // Hecho
+char* obtenerContenidoDelMarco(int nro_marco, int offset, int size);
+
 int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina); // Hecho
  
 void agregarContenidoAMarco(int numeroMarco, char* contenido);
 
-char* traerPaginaDeStorage(char* nombreFile, char* tag, int numeroPagina); // ---Falta esperar storage---
+char* traerPaginaDeStorage(char* nombreFile, char* tag, int numeroPagina);
+
 int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina); // Hecho (a revisar)
 
 int escucharStorageConfirmacion();
 
 int ejecutarAlgoritmoReemplazo();
 
-// Lectura/Escritura desde la "Memoria Interna" 
+// Lectura/Escritura desde la "Memoria Interna"
 char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, int offset, int size); //Falta
 void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, char* contenido, int offset, int size); //Falta
 

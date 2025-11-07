@@ -138,10 +138,10 @@ void* escucharDesalojo() {
 int escucharStorage() {
     opcode codigo;
     int recibido = recv(socketStorage,&codigo,sizeof(opcode),MSG_WAITALL);
-    if (recibido <= 0) {
-        log_warning(logger, "## Desconexión del Storage en socket <%d>", socketStorage);
+    if (recibido < 0) {
+        log_error(logger, "## Desconexión del Storage en socket <%d>", socketStorage);
         close(socketStorage); 
-        return -1; //esto tmb debería devolver -1??
+        return -1;
     }
     switch (codigo) {
         case RESPUESTA_OK: { 
@@ -173,7 +173,7 @@ char* escucharStorageContenidoPagina(){
     opcode codigo;
     int recibido = recv(socketStorage,&codigo,sizeof(opcode),MSG_WAITALL);
     if (recibido <= 0) {
-        log_warning(logger, "## Desconexión del Storage en socket <%d>", socketStorage);
+        log_error(logger, "## Desconexión del Storage en socket <%d>", socketStorage);
         close(socketStorage);
         return NULL;
     }
@@ -195,7 +195,7 @@ char* escucharStorageContenidoPagina(){
             return contenido;
         }
         default:
-            log_warning(logger, "Opcode desconocido recibido del Storage: %d", codigo);
+            log_error(logger, "Opcode desconocido recibido del Storage: %d", codigo);
             return NULL;
     }
 }

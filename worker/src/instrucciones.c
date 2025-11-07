@@ -9,6 +9,7 @@ void ejecutar_create(char* fileName, char* tagFile){
     agregarStringAPaquete(paquete, tagFile);
     
     enviarPaquete(paquete, socketStorage/*socket storage*/);
+
     int respuesta = escucharStorage();
     if (respuesta == -1){
         notificarMasterError();
@@ -34,7 +35,6 @@ void ejecutar_truncate(char* fileName, char* tagFile, int size){
     }
     
     eliminarPaquete(paquete);
-
 }
 
 void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* contenido, contexto_query_t* contexto){
@@ -51,8 +51,7 @@ void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
     escribirContenidoDesdeOffset(fileName, tagFile, numeroPagina, marco,  contenido, offset, strlen(contenido)); 
 
     log_info(logger, "Query <%d>: Acción: <ESCRIBIR> - Dirección Física: <%d %d> - Valor: <%s>", contexto->query_id, marco, offset, contenido);
-
-}   
+}
 
 void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, contexto_query_t* contexto){
     int numeroPagina = calcularPaginaDesdeDireccionBase(direccionBase);
@@ -110,7 +109,7 @@ void ejecutar_commit(char* fileName, char* tagFile){
 
 void ejecutar_flush(char* fileName, char* tag){
     TablaDePaginas* tabla = obtenerTablaPorFileYTag(fileName, tag);
-    bool modificadas = false;
+    bool modificadas;
     if (tabla != NULL){
         modificadas = tabla->hayPaginasModificadas;
     }
@@ -127,8 +126,12 @@ void ejecutar_flush(char* fileName, char* tag){
             if(tabla->entradas[i].bitModificado){
                 int nroPagina = tabla->entradas[i].numeroPagina;
                 int nroFrame = tabla->entradas[i].numeroFrame;
-                char* contenidoPagina = leerDesdeMemoriaPaginaCompleta(fileName, tag, nroFrame);
-                
+                char* contenidoPagina = obtenerContenidoDelMarco(nroFrame, 0, configW->BLOCK_SIZE); // antes se llamaba a leerDesdeMemoriaPaginaCompleta pero creo q esta bien asi
+                if (!contenidoPagina){
+                    log_error(logger, "Error al obtener el contenido del marco %d para hacer FLUSH de %s:%s pagina %d", nroFrame, fileName, tag, nroPagina);
+                    continue;
+                }
+
                 agregarIntAPaquete(paquete, nroPagina);
                 agregarStringAPaquete(paquete, contenidoPagina); //ver como mandar el bloque entero
                 free(contenidoPagina);
@@ -147,7 +150,6 @@ void ejecutar_flush(char* fileName, char* tag){
 
     free(tabla);   
     return;
-
 }       
 
 void ejecutar_delete(char* fileNam, char* tagFile){
@@ -171,27 +173,16 @@ void ejecutar_end(contexto_query_t* contexto){
 }       
 
 //funcion  para todos las querys que llamen a escucharStorage(), se debe loggear el error (con el tipo de error) y finalizar la query
- void notificarMasterError(){
-    t_paquete* paquete = recibirPaquete(socketStorage);
-    if(!paquete){
+void notificarMasterError(){
+    enviarOpcode(FINALIZACION_QUERY, socketMaster);
+
+    t_paquete* paqueteAMaster = crearPaquete();
+    if(!paqueteAMaster){
         log_error(logger, "Error recibiendo paquete de RESPUESTA_ERROR");
         return;
     }
-    int offset = 0;
-    char * motivo = recibirStringDePaqueteConOffset(paquete,&offset);
-    log_error(logger, "Error en la query, MOTIVO <%s>", motivo);
-            
-    enviarOpcode(FINALIZACION_QUERY,socketMaster);
-    t_paquete* paquete2 = crearPaquete();
-    if(!paquete2){
-        log_error(logger, "Error recibiendo paquete de RESPUESTA_ERROR");
-        return;
-    }
-    agregarIntAPaquete(paquete2,contexto->query_id);
-    agregarIntAPaquete(paquete2,contexto->pc);
-    enviarPaquete(paquete2,socketMaster);
-    eliminarPaquete(paquete2);
-            
-    eliminarPaquete(paquete);
-    free(motivo);
+
+    agregarIntAPaquete(paqueteAMaster, contexto->query_id);
+    enviarPaquete(paqueteAMaster, socketMaster);
+    eliminarPaquete(paqueteAMaster);
 }

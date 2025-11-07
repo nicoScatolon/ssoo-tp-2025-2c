@@ -4,7 +4,6 @@ void asignarCant_paginas(void){
     cant_paginas = configW->tamMemoria / configW->BLOCK_SIZE;
 }
 
-
 void inicializarMemoriaInterna(void) {
     pthread_mutex_lock(&memoria_mutex);
 
@@ -126,16 +125,13 @@ TablaDePaginas* obtenerTablaPorFileYTag(char* nombreFile, char* tag){
 
     pthread_mutex_lock(&tabla_paginas_mutex);
     TablaDePaginas* tabla = dictionary_get(tablasDePaginas, key);
-    if (!tabla) {
-        log_warning(logger, "No se encontró tabla de páginas para %s", key);
-    }
+    
+    //Se hace la validacion si no existe afuera con un log warning
     free(key);
     pthread_mutex_unlock(&tabla_paginas_mutex);
 
     return tabla;
 }
-
-
 
 
 void eliminarMemoriaInterna(void) {
@@ -199,15 +195,19 @@ void liberarMarco(int nro_marco){
 }
 
 //Devuelve el contenido todo del marco pedido. Me traigo el contenido de un marco, para leer, escribir, enviarlo a storage.
-char* obtenerContenidoDelMarco(int nro_marco){
+char* obtenerContenidoDelMarco(int nro_marco, int offset, int size){ //El limite es BlockSize o BlockSize-1??
     if (nro_marco < 0) return NULL;
 
-    size_t blockSize = (size_t) configW->BLOCK_SIZE;
-    size_t bitInicialMarco = (size_t)nro_marco * blockSize;
+    if(offset < 0 || size < 0 || offset + size < configW->BLOCK_SIZE){
+        log_error(logger, "Error de lectura: offset %d + size %d excede el tamaño de la página %d", offset, size, configW->BLOCK_SIZE);
+        return NULL;
+    }
+
+    size_t bitInicialMarco = (size_t)nro_marco * configW->BLOCK_SIZE + (offset);
 
     pthread_mutex_lock(&memoria_mutex);
     /* string_substring hace malloc y copia 'size' bytes desde la posición indicada */
-    char *contenido = string_substring(memoria + bitInicialMarco, 0, blockSize);
+    char *contenido = string_substring(memoria + bitInicialMarco, 0, size);
     pthread_mutex_unlock(&memoria_mutex);
 
     if (!contenido) {
@@ -217,6 +217,7 @@ char* obtenerContenidoDelMarco(int nro_marco){
 
     return contenido; // caller debe free(contenido)
 }
+
 
 //general a usar por query_interpreter
 int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina){
@@ -283,7 +284,7 @@ char* traerPaginaDeStorage(char* nombreFile, char* tag, int numeroPagina){
 }
 
 int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
-    char* contenido = obtenerContenidoDelMarco(obtenerNumeroDeMarco(nombreFile, tag, numeroPagina)); //esta bien usar obtener numero de marco aca?? Entendia q la usaba el query interpreter. a
+    char* contenido = obtenerContenidoDelMarco(obtenerNumeroDeMarco(nombreFile, tag, numeroPagina), 0, configW->BLOCK_SIZE); //esta bien usar obtener numero de marco aca?? Entendia q la usaba el query interpreter. a
     if (!contenido){
         log_error(logger, "Error al obtener el contenido del marco para enviar a Storage %s:%s pagina %d", nombreFile, tag, numeroPagina);
         return -1;
@@ -315,7 +316,7 @@ char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, in
     
     pthread_mutex_lock(&memoria_mutex);
 
-    char* contenido = obtenerContenidoDelMarco(numeroMarco);
+    char* contenido = obtenerContenidoDelMarco(numeroMarco, offset, size);
     if(!contenido){
         pthread_mutex_unlock(&memoria_mutex);
         return NULL;
@@ -335,7 +336,6 @@ char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, in
     actualizar_acceso_pagina(entrada);
 
     pthread_mutex_unlock(&tabla_paginas_mutex);
-
     
     return contenido;
 }
@@ -350,10 +350,16 @@ void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina,
     }
     
     TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFile, tag);
+    if(!tabla){
+        log_error(logger, "Error al obtener tabla de paginas para %s:%s", nombreFile, tag);
+        return;
+    }
+    
     if(tabla->keyProceso != (string_from_format("%s:%s", nombreFile, tag))){
         log_error(logger, "EL Marco %d NO pertenece al FILE:TAG %s:%s", numeroMarco, nombreFile, tag);
         return;
     }
+
     pthread_mutex_lock(&memoria_mutex);
     memcpy(memoria + (numeroMarco * configW->BLOCK_SIZE) + offset, contenido, size);
     pthread_mutex_unlock(&memoria_mutex);

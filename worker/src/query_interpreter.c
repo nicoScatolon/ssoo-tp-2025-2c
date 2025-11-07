@@ -292,7 +292,6 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
     }
 
     log_info(logger, "## Query %d: - Instrucción realizada: %s", contexto->query_id, instruccion->parametro[0]);
-
     
     free(fileName);
     free(tagFile);
