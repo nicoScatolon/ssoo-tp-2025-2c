@@ -206,7 +206,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
             // Formato: CREATE <NOMBRE_FILE>:<TAG>
             // parametro[0] = "CREATE", parametro[1] = "MATERIAS:BASE"
         
-            ejecutar_create(fileName, tagFile);
+            ejecutar_create(fileName, tagFile, contexto->query_id);
 
             break;
         }
@@ -214,7 +214,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case TRUNCATE: {
             // Formato: TRUNCATE <NOMBRE_FILE>:<TAG> <TAMAÑO>
             // parametro[0] = "TRUNCATE", parametro[1] = "MATERIAS:BASE", parametro[2] = "1024"
-            ejecutar_truncate(fileName, tagFile, atoi(instruccion->parametro[2]));
+            ejecutar_truncate(fileName, tagFile, atoi(instruccion->parametro[2]), contexto->query_id);
             
             break;
         }
@@ -243,7 +243,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
             char *fileNameDestino = NULL, *tagFileDestino = NULL;
             ObtenerNombreFileYTag(instruccion->parametro[2], &fileNameDestino, &tagFileDestino);
 
-            ejecutar_tag(fileName, tagFile, fileNameDestino, fileNameDestino); 
+            ejecutar_tag(fileName, tagFile, fileNameDestino, fileNameDestino, contexto->query_id); 
 
             free(fileNameDestino);
             free(tagFileDestino);
@@ -253,8 +253,8 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case COMMIT: {
             // Formato: COMMIT <NOMBRE_FILE>:<TAG>
             // parametro[0] = "COMMIT", parametro[1] = "MATERIAS:BASE"
-            ejecutar_flush(fileName, tagFile);
-            ejecutar_commit(fileName, tagFile);
+            ejecutar_flush(fileName, tagFile, contexto->query_id);
+            ejecutar_commit(fileName, tagFile, contexto->query_id);
 
             break;
         }
@@ -262,7 +262,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case FLUSH: {
             // Formato: FLUSH <NOMBRE_FILE>:<TAG>
             // parametro[0] = "FLUSH", parametro[1] = "MATERIAS:BASE"
-            ejecutar_flush(fileName, tagFile);
+            ejecutar_flush(fileName, tagFile, contexto->query_id);
 
             break;
         }
@@ -270,14 +270,14 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case DELETE: {
             // Formato: DELETE <NOMBRE_FILE>:<TAG>
             // parametro[0] = "DELETE", parametro[1] = "MATERIAS:BASE"
-            ejecutar_delete(fileName, tagFile); 
+            ejecutar_delete(fileName, tagFile, contexto->query_id); 
 
             break;
         }
         
         case END: {
             // parametro[0] = "END"
-            ejecutar_flush(fileName, tagFile);
+            ejecutar_flush(fileName, tagFile, contexto->query_id);
             ejecutar_end(contexto);
             log_debug(logger, "Ejecutando END");
             // implementacion
@@ -367,7 +367,7 @@ void desalojarQuery(int idQuery, opcode motivo) {
         char* key = list_get(keys, i);
         char* file = obtenerNombreFile(key);
         char* tag  = obtenerNombreTag(key);
-        ejecutar_flush(file, tag);
+        ejecutar_flush(file, tag, idQuery);
         free(file);
         free(tag);
         free(key);
