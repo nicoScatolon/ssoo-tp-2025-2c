@@ -83,7 +83,7 @@ configSuperBlock agregarConfiguracionSuperBlock(t_config* config){
 
 bool string_to_bool(char* str) {
     if (!str) return false;
-    return (strcasecmp(str, "false") == 0);
+    return (strcasecmp(str, "TRUE") == 0);
 }
 
 t_log_level obtenerNivelLog(t_config* config) {
