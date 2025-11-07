@@ -432,3 +432,9 @@ void agregarBloquesLogicos(char* pathTag, int tamanioArchivo) {
     free(pathLogicalBlocks);
     free(pathBloqueFisico0);
 }
+
+void inicializarConexiones() {
+    listadoWorker = list_create();
+    pthread_mutex_init(&mutexWorkers, NULL);
+}
+
