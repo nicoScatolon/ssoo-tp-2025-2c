@@ -24,14 +24,18 @@ int main(int argc, char* argv[]) {
     logger = iniciar_logger("worker", configW->logLevel);
 
     inicializarCosas();
-
+    // inicializarHilos(workerId);
     
     conexionConMaster(workerId);
-    conexionConStorage();
+    log_debug(logger,"Handshake con Master completado.");
+    conexionConStorage(workerId);
+    log_debug(logger,"Handshake con Storage completado.");
+    //escucharStorage();
+    //log_debug(logger,"Escuchar Storage completado.");
     escucharMaster();
-    escucharStorage();
+    log_debug(logger,"Escuchar Master completado.");
 
-    return EXIT_SUCCESS;
+    //return EXIT_SUCCESS;
 
     return 0;
 }

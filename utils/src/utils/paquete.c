@@ -130,8 +130,6 @@ int recibirIntDePaqueteconOffset(t_paquete* paquete, int* offset) {
     return valor;
 }
 
-
-
 void enviarOpcode(opcode codigo, int socket) {
     send(socket, &codigo, sizeof(opcode), 0);
 }

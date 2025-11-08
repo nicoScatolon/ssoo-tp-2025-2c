@@ -9,6 +9,8 @@ typedef struct
 {
     uint32_t puertoEscuchaQueryControl;
     uint32_t puertoEscuchaWorker;
+    uint32_t puertoEscuchaDesalojo;
+
     char* algoritmoPlanificacion;
     uint32_t tiempoAging;
     t_log_level logLevel;
@@ -23,6 +25,7 @@ typedef struct{
 typedef struct{
     char* IPMaster;
     uint32_t puertoMaster;
+    uint32_t puertoMasterDesalojo;
     char* IPStorage;
     uint32_t puertoStorage;
     uint32_t tamMemoria;
@@ -30,8 +33,8 @@ typedef struct{
     char* algoritmoReemplazo;
     char* pathQueries;
     t_log_level logLevel;
-    uint32_t FS_SIZE;
-    uint32_t BLOCK_SIZE;
+    int FS_SIZE;
+    int BLOCK_SIZE;
 } configWorker;
 
 typedef struct{

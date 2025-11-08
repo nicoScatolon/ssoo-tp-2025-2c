@@ -1,5 +1,6 @@
 #include "estructuras.h"
 
+
 void vaciarMemoria(void){
 
 }
@@ -38,25 +39,22 @@ bool existeHash(char *hash){
     return existe;
 }
 
-void escribirBloqueHash(t_hash_block *bloque) {
-    if (!bloque) return;
+void escribirHash(char* hash,int numeroBFisico) {
     
     char archivoPath[512];
     snprintf(archivoPath, sizeof(archivoPath), "%s/blocks_hash_index.config", configS->puntoMontaje);
     
     pthread_mutex_lock(&mutex_hash_block);
 
-    FILE *archivo = fopen(archivoPath, "a+");
+    FILE *archivo = fopen(archivoPath, "a");
     if (archivo == NULL) {
         log_error(logger, "No se pudo abrir el archivo blocks_hash_index.config");
         pthread_mutex_unlock(&mutex_hash_block);
-        liberarBloqueHash(bloque);
-        return;
+        exit(EXIT_FAILURE);
     }
 
-    fprintf(archivo, "%s=%04%%d\n", bloque->hash, bloque->numero);
-    log_debug(logger,"Escribiendo el bloque <%d> con hash <%s> ",bloque->numero,bloque->hash);
-    liberarBloqueHash(bloque);
+    fprintf(archivo, "%s=block%04d\n", hash, numeroBFisico); 
+    log_debug(logger,"Escribiendo el bloque <%d> con hash <%s> ",numeroBFisico,hash);
     fclose(archivo);
     pthread_mutex_unlock(&mutex_hash_block);
 }
@@ -187,7 +185,7 @@ int ocuparBloqueBit(int indice_bloque) {
         return -1;
     }
 
-    log_info(logger, "Bloque %d marcado como OCUPADO", indice_bloque);
+    log_debug(logger, "Bloque %d marcado como OCUPADO", indice_bloque);
     pthread_mutex_unlock(&mutex_bitmap_file);
     return 0;
 }
