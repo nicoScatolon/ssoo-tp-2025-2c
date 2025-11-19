@@ -6,6 +6,7 @@
 #include "commons/bitarray.h"
 #include "commons/string.h"
 #include "conexiones.h"
+#include "algoritmosReemplazo.h"
 
 
 // Variables globales
@@ -63,23 +64,6 @@ int64_t obtener_tiempo_actual();
 void inicializar_entrada(EntradaDeTabla* entrada, int numeroPagina);
 void actualizar_acceso_pagina(EntradaDeTabla* entrada);
 void modificar_pagina(EntradaDeTabla* entrada); 
-
-// Algoritmos de reemplazo (devuelven la página reemplazada)
-char* ReemplazoLRU(EntradaDeTabla**); //Por Hacer         puede usar obtenerPaginaLibre(), reservarPagina(), liberarPagina(), agregarPaginaAProceso()
-char*ReemplazoCLOCKM(EntradaDeTabla**); //Por Hacer      puede usar obtenerPaginaLibre(), reservarPagina(), liberarPagina(), agregarPaginaAProceso()
-char* limpiar_puntero_clock();
-void limpiar_puntero_clockM();
-bool buscar_victima_clock(t_list* keys, EntradaDeTabla** victima, char** keyOut, bool buscarBitUso, bool buscarBitMod, bool limpiarBitUso);
-int encontrar_indice_fileTag(t_list* keys, char* keyBuscada);
-// int contar_paginas_presentes(t_list* keys);
-
-
-typedef struct {
-    char* keyProceso;
-    int indicePagina;
-} PunteroClockModificado;
-
-
 
 
 #endif
