@@ -51,7 +51,6 @@ void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
         return;
     }
 
-
     escribirContenidoDesdeOffset(fileName, tagFile, numeroPagina, marco,  contenido, offset, strlen(contenido)); 
 
     log_info(logger, "Query <%d>: Acción: <ESCRIBIR> - Dirección Física: <%d %d> - Valor: <%s>", contexto->query_id, marco, offset, contenido);
@@ -116,7 +115,7 @@ void ejecutar_commit(char* fileName, char* tagFile, int query_id){
 void ejecutar_flush(char* fileName, char* tagFile, int query_id){
     TablaDePaginas* tabla = obtenerTablaPorFileYTag(fileName, tagFile);
     bool modificadas;
-    if (tabla != NULL){
+    if (tabla){
         modificadas = tabla->hayPaginasModificadas;
     }
     else{
@@ -129,13 +128,14 @@ void ejecutar_flush(char* fileName, char* tagFile, int query_id){
         agregarIntAPaquete(paquete, query_id);
         agregarStringAPaquete(paquete, fileName);
         agregarStringAPaquete(paquete, tagFile); 
-        for (int i = 0; i < tabla->cantidadEntradasUsadas; i++){
+        for (int i = 0; i < tabla->capacidadEntradas; i++){
             if(tabla->entradas[i].bitModificado){
                 int nroPagina = tabla->entradas[i].numeroPagina;
-                int nroFrame = tabla->entradas[i].numeroFrame;
-                char* contenidoPagina = obtenerContenidoDelMarco(nroFrame, 0, configW->BLOCK_SIZE); // antes se llamaba a leerDesdeMemoriaPaginaCompleta pero creo q esta bien asi
+                int nroMarco = tabla->entradas[i].numeroMarco;
+
+                char* contenidoPagina = obtenerContenidoDelMarco(nroMarco, 0, configW->BLOCK_SIZE); // antes se llamaba a leerDesdeMemoriaPaginaCompleta pero creo q esta bien asi
                 if (!contenidoPagina){
-                    log_error(logger, "Error al obtener el contenido del marco %d para hacer FLUSH de %s:%s pagina %d", nroFrame, fileName, tagFile, nroPagina);
+                    log_error(logger, "Error al obtener el contenido del marco %d para hacer FLUSH de %s:%s pagina %d", nroMarco, fileName, tagFile, nroPagina);
                     continue;
                 }
 
@@ -144,6 +144,8 @@ void ejecutar_flush(char* fileName, char* tagFile, int query_id){
                 free(contenidoPagina);
                 
                 tabla->entradas[i].bitModificado = false; //reseteo el bit modificado
+
+                //SUMAR RETARDO Acceso a TP
             }
         }
         enviarOpcode(FLUSH_FILE, socketStorage/*socket storage*/);  

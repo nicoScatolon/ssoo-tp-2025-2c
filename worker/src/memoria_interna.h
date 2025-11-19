@@ -11,7 +11,7 @@
 // Variables globales
 extern char* memoria ;        // memoria principal
 extern t_bitarray* bitmap ;   // bitmap para páginas
-extern int cant_frames ;
+extern int cant_marcos;
 extern t_dictionary* tablasDePaginas; //la key es <FILE>:<TAG>
 
 extern int cant_paginas;
@@ -70,9 +70,8 @@ char*ReemplazoCLOCKM(EntradaDeTabla**); //Por Hacer      puede usar obtenerPagin
 char* limpiar_puntero_clock();
 void limpiar_puntero_clockM();
 bool buscar_victima_clock(t_list* keys, EntradaDeTabla** victima, char** keyOut, bool buscarBitUso, bool buscarBitMod, bool limpiarBitUso);
-int encontrar_indice_proceso(t_list* keys, char* keyBuscada);
-int contar_paginas_presentes(t_list* keys);
-
+int encontrar_indice_fileTag(t_list* keys, char* keyBuscada);
+// int contar_paginas_presentes(t_list* keys);
 
 
 typedef struct {
@@ -80,7 +79,7 @@ typedef struct {
     int indicePagina;
 } PunteroClockModificado;
 
-static PunteroClockModificado punteroClockMod = {NULL, 0};
+
 
 
 #endif
