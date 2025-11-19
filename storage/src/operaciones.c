@@ -1,11 +1,9 @@
 #include "operaciones.h"
 
 char* lecturaBloque(char* file, char* tag, int numeroBloque){
-    char rutaCompleta[512];
-    snprintf(rutaCompleta, sizeof(rutaCompleta), 
-             "%s/pathfiles/%s/%s/logical_blocks/%d.dat", 
-             configS->puntoMontaje, file, tag, numeroBloque);
-
+    char* rutaCompleta = string_from_format(
+        "%s/files/%s/%s/logical_blocks/%d.dat",
+        configS->puntoMontaje,file, tag, numeroBloque);
 
     FILE* bloque = fopen(rutaCompleta, "r");
     if (bloque == NULL) {
@@ -18,36 +16,46 @@ char* lecturaBloque(char* file, char* tag, int numeroBloque){
     fclose(bloque);
     aplicarRetardoBloque();
     log_debug(logger,"Contenido del bloque <%d> asociado al file:tag <%s:%s>: %s",numeroBloque,file,tag,contenido);
+    free(rutaCompleta);
     return contenido;
+    
 }
 
 
 // Tag de File
 bool tagFile(char* fileOrigen, char* tagOrigen, char* fileDestino, char* tagDestino, int queryID){
-    char pathTagOrigen[512];
-    char pathFileDestino[512];
-    char pathTagDestino[512];
+    char* pathTagOrigen = string_from_format(
+        "%s/files/%s/%s", 
+        configS->puntoMontaje, fileOrigen, tagOrigen
+    );
     
-    snprintf(pathTagOrigen, sizeof(pathTagOrigen), 
-             "%s/files/%s/%s", configS->puntoMontaje, fileOrigen, tagOrigen);
+    char* pathFileDestino = string_from_format(
+        "%s/files/%s", 
+        configS->puntoMontaje, fileDestino
+    );
     
-    snprintf(pathFileDestino, sizeof(pathFileDestino), 
-             "%s/files/%s", configS->puntoMontaje, fileDestino);
-    
-    snprintf(pathTagDestino, sizeof(pathTagDestino), 
-             "%s/files/%s/%s", configS->puntoMontaje, fileDestino, tagDestino);
+    char* pathTagDestino = string_from_format(
+        "%s/files/%s/%s", 
+        configS->puntoMontaje, fileDestino, tagDestino
+    );
     
     struct stat st;
 
     // Verificacion de existncia del TAG ORIGEN (No existe)
     if (stat(pathTagOrigen, &st) != 0) {
         log_debug(logger, "## <%d>- Error: Tag origen <%s:%s> no existe",queryID,fileOrigen, tagOrigen);
+        free(pathTagOrigen);
+        free(pathFileDestino);
+        free(pathTagDestino);
         return false;
     }
     
     // Verificando de existencia del TAG DESTINO (Ya existe)
     if (stat(pathTagDestino, &st) == 0) {
         log_debug(logger, "## <%d>- Error: Tag destino <%s:%s> ya existe", queryID,fileDestino, tagDestino);
+        free(pathTagOrigen);
+        free(pathFileDestino);
+        free(pathTagDestino);
         return false;
     }
     
@@ -65,21 +73,22 @@ bool tagFile(char* fileOrigen, char* tagOrigen, char* fileDestino, char* tagDest
     }
     
     cambiarEstadoMetaData(pathTagDestino,"WORK_IN_PROGRESS");
+    free(pathTagOrigen);
+    free(pathFileDestino);
+    free(pathTagDestino);
     return true;
 }
 
 bool copiarDirectorioRecursivo(const char* origen, const char* destino) {
     // Crear el directorio destino
     if (mkdir(destino, 0777) != 0 && errno != EEXIST) {
-        log_error(logger, "Error al crear directorio destino: %s - %s", 
-                  destino, strerror(errno));
+        log_error(logger, "Error al crear directorio destino: %s - %s", destino, strerror(errno));
         return false;
     }
     
     DIR* dir = opendir(origen);
     if (dir == NULL) {
-        log_error(logger, "Error al abrir directorio origen: %s - %s", 
-                  origen, strerror(errno));
+        log_error(logger, "Error al abrir directorio origen: %s - %s", origen, strerror(errno));
         return false;
     }
     
@@ -90,29 +99,35 @@ bool copiarDirectorioRecursivo(const char* origen, const char* destino) {
             continue;
         }
         
-        char pathOrigen[512];
-        char pathDestino[512];
-        snprintf(pathOrigen, sizeof(pathOrigen), "%s/%s", origen, entrada->d_name);
-        snprintf(pathDestino, sizeof(pathDestino), "%s/%s", destino, entrada->d_name);
+        char* pathOrigen = string_from_format("%s/%s", origen, entrada->d_name);
+        char* pathDestino = string_from_format("%s/%s", destino, entrada->d_name);
         
         struct stat st;
         if (stat(pathOrigen, &st) != 0) {
             log_error(logger, "Error al obtener info de: %s", pathOrigen);
+            free(pathOrigen);
+            free(pathDestino);
             continue;
         }
         
+        bool resultado = true;
         if (S_ISDIR(st.st_mode)) {
             // Es un directorio, copiar recursivamente
             if (!copiarDirectorioRecursivo(pathOrigen, pathDestino)) {
-                closedir(dir);
-                return false;
+                resultado = false;
             }
         } else {
             // Es un archivo regular, copiarlo
             if (!copiarArchivo(pathOrigen, pathDestino)) {
-                closedir(dir);
-                return false;
+                resultado = false;
             }
+        }
+        free(pathOrigen);
+        free(pathDestino);
+        
+        if (!resultado) {
+            closedir(dir);
+            return false;
         }
     }
     
@@ -121,17 +136,33 @@ bool copiarDirectorioRecursivo(const char* origen, const char* destino) {
 }
 
 bool copiarArchivo(const char* origen, const char* destino) {
+    struct stat st_origen;
+    if (stat(origen, &st_origen) != 0) {
+        log_error(logger, "Error al obtener info de archivo origen: %s", origen);
+        return false;
+    }
+    
+    // Si tiene más de un hardlink, intentar crear hardlink en destino
+    if (st_origen.st_nlink > 1) {
+        // Intentar crear hardlink
+        if (link(origen, destino) == 0) {
+            log_debug(logger, "Hardlink creado: %s -> %s", destino, origen);
+            return true;
+        }
+        log_error(logger, "No se pudo crear hardlink, copiando contenido");
+        exit(EXIT_FAILURE);
+    }
+    
+    // Copiar contenido (código original)
     FILE* archivoOrigen = fopen(origen, "rb");
     if (archivoOrigen == NULL) {
-        log_error(logger, "Error al abrir archivo origen: %s - %s", 
-                  origen, strerror(errno));
+        log_error(logger, "Error al abrir archivo origen: %s - %s", origen, strerror(errno));
         return false;
     }
     
     FILE* archivoDestino = fopen(destino, "wb");
     if (archivoDestino == NULL) {
-        log_error(logger, "Error al crear archivo destino: %s - %s", 
-                  destino, strerror(errno));
+        log_error(logger, "Error al crear archivo destino: %s - %s", destino, strerror(errno));
         fclose(archivoOrigen);
         return false;
     }
@@ -152,10 +183,7 @@ bool copiarArchivo(const char* origen, const char* destino) {
     fclose(archivoDestino);
     
     // Copiar permisos
-    struct stat st;
-    if (stat(origen, &st) == 0) {
-        chmod(destino, st.st_mode);
-    }
+    chmod(destino, st_origen.st_mode);
     
     return true;
 }
@@ -666,136 +694,313 @@ void actualizarMetadataTruncate(t_config* metadata, int nuevoTamanio, int cantid
 
 
 
-// DELETE:
+// COMMIT:
 
 
 
-bool eliminarTag(char* file, char* tag, int queryID) {
+void hacerCommited(char* file, char* tag,int queryID) {
+    char* pathMetadata = string_from_format(
+        "%s/files/%s/%s/metadata.config", 
+        configS->puntoMontaje, file, tag
+    );
     
-    // Verificar existencia del File:Tag
-    char pathTag[512];
-    snprintf(pathTag, sizeof(pathTag), 
-             "%s/files/%s/%s", 
-             configS->puntoMontaje, file, tag);
-
-    if (access(pathTag, F_OK) != 0) {
-        log_error(logger, "##<%d> - Error: File:Tag <%s:%s> no existe", 
-                  queryID, file, tag);
-        return false;
+    // ✅ Pasar pathMetadata a esCommited
+    if (esCommited(file, tag, pathMetadata)) {
+        free(pathMetadata);
+        return;
     }
-
-    // Obtener metadata para leer los bloques asignados
-    t_config* metadata = obtenerMetadata(file, tag, queryID);
-    if (!metadata) {
-        return false;
-    }
-
-    // Obtener array de bloques
-    char** bloques = config_get_array_value(metadata, "BLOCKS");
-    if (!bloques) {
-        log_warning(logger, "##<%d> - <%s:%s> no tiene bloques asignados", 
-                    queryID, file, tag);
-        config_destroy(metadata);
-        // Continuar con la eliminación del directorio
-    } else {
-        // Procesar cada bloque lógico antes de eliminar
-        int cantidadBloques = 0;
-        while (bloques[cantidadBloques] != NULL) {
-            cantidadBloques++;
-        }
-
-        log_debug(logger, "##<%d> - <%s:%s> tiene %d bloques asignados. Verificando referencias...",
-                  queryID, file, tag, cantidadBloques);
-
-        // Liberar bloques físicos si corresponde
-        for (int i = 0; i < cantidadBloques; i++) {
-            int bloqueFisico = atoi(bloques[i]);
-            
-            char pathBloqueLogico[512];
-            snprintf(pathBloqueLogico, sizeof(pathBloqueLogico),
-                     "%s/files/%s/%s/logical_blocks/%06d.dat",
-                     configS->puntoMontaje, file, tag, i);
-
-            // Contar referencias antes de eliminar
-            int referencias = contarReferenciasBloque(pathBloqueLogico, queryID);
-            
-            if (referencias == 1) {
-                // Única referencia → liberar bloque físico
-                liberarBloque(bloqueFisico);
-                log_info(logger, "##<%d> - Bloque Físico Liberado - Número de Bloque: <%d>",
-                         queryID, bloqueFisico);
-            }
-
-            log_info(logger, "##<%d> - <%s:%s> Se eliminó el hard link del bloque lógico <%d> al bloque físico <%d>",
-                     queryID, file, tag, i, bloqueFisico);
-        }
-
-        config_destroy(metadata);
-    }
-
-    // Eliminar directorio completo del Tag
-    if (!eliminarDirectorioRecursivo(pathTag, queryID)) {
-        log_error(logger, "##<%d> - Error al eliminar directorio <%s:%s>", 
-                  queryID, file, tag);
-        return false;
-    }
-
-    log_info(logger, "##<%d> - Tag Eliminado <%s:%s>", queryID, file, tag);
-    return true;
+    
+    recorrerBloquesLogicos(file, tag, queryID);
+    cambiarEstadoMetaData(pathMetadata, "COMMITED");
+    
+    free(pathMetadata);
+    return;
 }
 
-bool eliminarDirectorioRecursivo(const char* path, int queryID) {
-    DIR* dir = opendir(path);
-    if (!dir) {
-        log_error(logger, "##<%d> - Error al abrir directorio %s: %s", 
-                  queryID, path, strerror(errno));
-        return false;
+bool esCommited(char* file, char* tag, char*pathMetaData) {
+
+    t_config* config = config_create(pathMetaData);
+    if (config == NULL) {
+        log_error(logger, "## - Error al abrir metadata de <%s:%s>", file, tag);
+        free(pathMetaData);
+        exit(EXIT_FAILURE);
     }
+    
+    char* estadoActual = config_get_string_value(config, "ESTADO");
+    if (strcmp(estadoActual, "COMMITED") == 0) {
+        log_debug(logger, "## - File:Tag <%s:%s> ya está confirmado (COMMITED)",file, tag);
+        config_destroy(config);
+        free(pathMetaData);
+        return true;  
+    }
+    config_destroy(config);
+    log_error(logger,"Esto no deberia pasar");
+    return false;
+}
 
+void recorrerBloquesLogicos(char* file, char* tag, int queryID) {
+    char* pathLogicalBlocks = string_from_format(
+        "%s/files/%s/%s/logical_blocks",
+        configS->puntoMontaje, file, tag
+    );
+    
+    DIR* dir = opendir(pathLogicalBlocks);
+    if (dir == NULL) {
+        log_error(logger, "Error al abrir directorio logical_blocks de <%s:%s>: %s",
+                  file, tag, strerror(errno));
+        free(pathLogicalBlocks);
+        return;
+    }
     struct dirent* entrada;
-    bool exito = true;
-
-    // Eliminar contenido del directorio
-    while ((entrada = readdir(dir)) != NULL && exito) {
+    while ((entrada = readdir(dir)) != NULL) {
         // Ignorar . y ..
         if (strcmp(entrada->d_name, ".") == 0 || strcmp(entrada->d_name, "..") == 0) {
             continue;
         }
-
-        char pathCompleto[1024];
-        snprintf(pathCompleto, sizeof(pathCompleto), "%s/%s", path, entrada->d_name);
-
-        struct stat st;
-        if (stat(pathCompleto, &st) != 0) {
-            log_error(logger, "##<%d> - Error al obtener info de %s: %s", 
-                      queryID, pathCompleto, strerror(errno));
-            exito = false;
+        if (strstr(entrada->d_name, ".dat") == NULL) {
             continue;
         }
+        int numeroBloqueLogico = atoi(entrada->d_name);
+        char* pathBloqueLogico = string_from_format("%s/%s",pathLogicalBlocks, entrada->d_name);
+        procesarBloqueLogico(pathBloqueLogico, file, tag, numeroBloqueLogico, queryID);
+        free(pathBloqueLogico);
+    }
+    closedir(dir);
+    free(pathLogicalBlocks);
+}
 
-        if (S_ISDIR(st.st_mode)) {
-            // Es un subdirectorio → eliminar recursivamente
-            if (!eliminarDirectorioRecursivo(pathCompleto, queryID)) {
-                exito = false;
-            }
+int obtenerBloqueFisico(char* file, char* tag, int numeroBloqueLogico) {
+    char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config", configS->puntoMontaje, file, tag);
+    
+    t_config* config = config_create(pathMetadata);
+    if (config == NULL) {
+        log_error(logger, "No se pudo abrir el archivo de metadata: %s", pathMetadata);
+        free(pathMetadata);
+        exit(EXIT_FAILURE);
+    }
+    
+    int bloqueFisico = -1;
+    
+    if (config_has_property(config, "BLOCKS")) {
+        char** bloques = config_get_array_value(config, "BLOCKS");
+        
+        // Verificar que el número de bloque lógico esté en rango
+        int cantidadBloques = 0;
+        while (bloques[cantidadBloques] != NULL) {
+            cantidadBloques++;
+        }
+        
+        if (numeroBloqueLogico < cantidadBloques) {
+            bloqueFisico = atoi(bloques[numeroBloqueLogico]);
         } else {
-            // Es un archivo regular → eliminar
-            if (unlink(pathCompleto) != 0) {
-                log_error(logger, "##<%d> - Error al eliminar archivo %s: %s", 
-                          queryID, pathCompleto, strerror(errno));
-                exito = false;
-            }
+            log_error(logger, "Bloque lógico %d fuera de rango (total: %d)", numeroBloqueLogico, cantidadBloques);
+            exit(EXIT_FAILURE);
+        }
+        
+        // Liberar el array
+        for (int i = 0; bloques[i] != NULL; i++) { free(bloques[i]); }
+        free(bloques);
+    }
+    
+    config_destroy(config);
+    free(pathMetadata);
+    return bloqueFisico;
+}
+
+void procesarBloqueLogico(char* pathBloqueLogico, char* file, char* tag, int numeroBloqueLogico, int queryID){
+    char* hashContenido = calcularHashArchivo(pathBloqueLogico);    
+    log_debug(logger, "Hash calculado para bloque lógico %d: %s",numeroBloqueLogico, hashContenido);
+    
+    /// Caso de que el hash exista
+    if (existeHash(hashContenido)) {
+        // El contenido ya existe, obtener el bloque físico existente
+        int anteriorBloqueFisico = obtenerBloqueFisico(file, tag, numeroBloqueLogico);
+        int nuevoBloqueFisico = obtenerBloquePorHash(hashContenido);
+        if (nuevoBloqueFisico != -1) {
+            reapuntarBloqueLogico(file,tag,numeroBloqueLogico,anteriorBloqueFisico,nuevoBloqueFisico,queryID);
+            actualizarMetadataBloques(file, tag , numeroBloqueLogico, nuevoBloqueFisico, anteriorBloqueFisico, queryID);
+            
+        }
+    } else {
+        // Caso de que el hash no exista
+        int bloqueActual = obtenerBloqueActual(file, tag, numeroBloqueLogico);
+        log_debug(logger, "Nuevo contenido: agregando hash %s -> bloque físico %d",hashContenido, bloqueActual);
+        escribirHash(hashContenido, bloqueActual);
+        
+    }
+    free(hashContenido);
+}
+
+char* calcularHashArchivo(char* path) {
+    FILE* archivo = fopen(path, "rb");
+    if (archivo == NULL) {
+        log_error(logger, "Error al abrir archivo para hash: %s", path);
+        exit(EXIT_FAILURE);  
+    }
+    
+    // Leer todo el contenido
+    fseek(archivo, 0, SEEK_END);
+    long tamanio = ftell(archivo);
+    fseek(archivo, 0, SEEK_SET);
+    
+    char* contenido = malloc(tamanio + 1);  
+    if (contenido == NULL) {
+        fclose(archivo);
+        return NULL;
+    }
+    
+    fread(contenido, 1, tamanio, archivo);
+    contenido[tamanio] = '\0';  
+    fclose(archivo);
+    
+    char* hash = crypto_md5((void*)contenido, tamanio);
+    free(contenido);
+    return hash;
+}
+
+int obtenerBloquePorHash(char* hash) {    
+    char* archivoPath = string_from_format("%s/blocks_hash_index.config",configS->puntoMontaje);
+    
+    pthread_mutex_lock(&mutex_hash_block);
+    t_config* config = config_create(archivoPath);
+    
+    if (config == NULL) {
+        log_error(logger, "No se pudo abrir blocks_hash_index.config");
+        pthread_mutex_unlock(&mutex_hash_block);
+        free(archivoPath);
+        exit(EXIT_FAILURE);
+    }
+    
+    int bloque = -1;
+    if (config_has_property(config, hash)) {
+        char* valor = config_get_string_value(config, hash);
+        
+        // Extraer el número después de "block"
+        if (strncmp(valor, "block", 5) == 0) {
+            bloque = atoi(valor + 5);
         }
     }
+    
+    config_destroy(config);
+    pthread_mutex_unlock(&mutex_hash_block);
+    free(archivoPath);
+    
+    return bloque;
+}
 
-    closedir(dir);
+void reapuntarBloqueLogico(char* file, char *tag, int numeroBloqueLogico,int previoBloqueFisico ,int nuevoBloqueFisico, int queryID) {
+    char* pathBloqueLogico = string_from_format("%s/files/%s/%s/logical_blocks/block%04d.dat",configS->puntoMontaje,file,tag, numeroBloqueLogico);
+    // Eliminamos Hardlink
+    if (unlink(pathBloqueLogico) != 0) {
+        log_error(logger, "Error al eliminar hardlink: %s - %s", pathBloqueLogico, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    log_info(logger,"##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d> al bloque físico <%d>",queryID,file,tag,numeroBloqueLogico,previoBloqueFisico);
+    liberarBloque(previoBloqueFisico);
+    char* pathBloqueFisico = string_from_format("%s/physical_blocks/block%04d.dat",configS->puntoMontaje, nuevoBloqueFisico);
+    
+    // Creamos nuevo Hardlink
+    if (link(pathBloqueFisico, pathBloqueLogico) != 0) {
+        log_error(logger, "Error al crear nuevo hardlink: %s -> %s - %s", pathBloqueLogico, pathBloqueFisico, strerror(errno));
+        free(pathBloqueFisico);
+        exit(EXIT_FAILURE);
+    }
+    log_info(logger,"##<%d> - <%s>:<%s> Se agregó el hard link del bloque lógico <%d> al bloque físico <%d>",queryID,file,tag,numeroBloqueLogico,nuevoBloqueFisico);
+    free(pathBloqueFisico);
+}
 
-    // Eliminar el directorio vacío
-    if (exito && rmdir(path) != 0) {
-        log_error(logger, "##<%d> - Error al eliminar directorio %s: %s", 
-                  queryID, path, strerror(errno));
-        return false;
+int obtenerBloqueActual(char* file, char* tag, int numeroBloqueLogico) {
+    char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config",configS->puntoMontaje, file, tag);
+    
+    t_config* config = config_create(pathMetadata);
+    if (config == NULL) {
+        log_error(logger, "Error al abrir metadata de <%s:%s>", file, tag);
+        free(pathMetadata);
+        exit(EXIT_FAILURE);
+    }
+    
+    char** arrayBloques = config_get_array_value(config, "BLOQUES");
+    
+    if (arrayBloques == NULL) {
+        log_error(logger, "No se pudo leer BLOQUES del metadata");
+        config_destroy(config);
+        free(pathMetadata);
+        exit(EXIT_FAILURE);
+    }
+    
+    // Obtener el bloque físico en la posición numeroBloqueLogico
+    int bloqueFisico = atoi(arrayBloques[numeroBloqueLogico]);
+    
+    for (int i = 0; arrayBloques[i] != NULL; i++) {
+        free(arrayBloques[i]);
     }
 
-    return exito;
+    free(arrayBloques);
+    config_destroy(config);
+    free(pathMetadata);
+    return bloqueFisico;
+}
+
+void actualizarMetadataBloques(char* file, char* tag, int numeroBloqueLogico, int numeroNuevoBloqueFisico, int anteriorBloqueFisico, int queryID) {
+    char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config",configS->puntoMontaje, file, tag);
+    t_config* config = config_create(pathMetadata);
+    if (config == NULL) {
+        log_error(logger, "Error al abrir metadata de <%s:%s>", file, tag);
+        free(pathMetadata);
+        exit(EXIT_FAILURE);
+    }
+    char** arrayBloques = config_get_array_value(config, "BLOQUES");
+    if (arrayBloques == NULL) {
+        log_error(logger, "No se pudo leer BLOQUES del metadata");
+        config_destroy(config);
+        free(pathMetadata);
+        exit(EXIT_FAILURE);
+    }
+    
+    free(arrayBloques[numeroBloqueLogico]);
+    arrayBloques[numeroBloqueLogico] = string_itoa(numeroNuevoBloqueFisico);
+    
+    char* nuevoArrayStr = construirStringArray(arrayBloques);
+    config_set_value(config, "BLOQUES", nuevoArrayStr);
+    config_save(config);
+    
+    for (int i = 0; arrayBloques[i] != NULL; i++) {
+        free(arrayBloques[i]);
+    }
+
+    free(arrayBloques);
+    free(nuevoArrayStr);
+    free(pathMetadata);
+
+    config_destroy(config);
+    log_info(logger,"##<%d> - <%s>:<%s> Bloque Lógico <%d> se reasigna de <%d> a <%d>", queryID, file, tag, numeroBloqueLogico, anteriorBloqueFisico, numeroNuevoBloqueFisico);
+
+}
+char* construirStringArray(char** array) {
+    if (array == NULL || array[0] == NULL) {
+        return string_duplicate("[]");
+    }
+    
+    char* resultado = string_duplicate("[");
+    
+    for (int i = 0; array[i] != NULL; i++) {
+        string_append(&resultado, array[i]);
+        
+        if (array[i + 1] != NULL) {
+            string_append(&resultado, ",");
+        }
+    }
+    string_append(&resultado, "]");
+    return resultado;
+}
+
+
+
+// DELETE:
+
+
+
+bool eliminarTag(char*file, char*tag, int queryID){
+    // Crear el pathFileTag utilizando las commons
+    // Verificamos si este path existe,
 }

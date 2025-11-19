@@ -25,4 +25,15 @@ void aplicarRetardoOperacion();
 bool eliminarTag(char* file, char* tag, int queryID);
 bool eliminarDirectorioRecursivo(const char* path, int queryID);
 
+void hacerCommited(char* file, char* tag, int queryID);
+bool esCommited(char* file, char* tag,char*pathMetaData);
+void recorrerBloquesLogicos(char* file, char* tag, int queryID);
+int obtenerBloqueFisico(char* file, char* tag, int numeroBloqueLogico);
+void procesarBloqueLogico(char* pathBloqueLogico, char* file, char* tag, int numeroBloqueLogico, int queryID);
+char* calcularHashArchivo(char* path);
+int obtenerBloquePorHash(char* hash);
+void reapuntarBloqueLogico(char* file, char *tag, int numeroBloqueLogico,int previoBloqueFisico ,int nuevoBloqueFisico, int queryID);
+int obtenerBloqueActual(char* file, char* tag, int numeroBloqueLogico);
+void actualizarMetadataBloques(char* file, char* tag, int numeroBloqueLogico, int numeroNuevoBloqueFisico, int anteriorBloqueFisico, int queryID);
+char* construirStringArray(char** array);
 #endif 
