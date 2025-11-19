@@ -1000,7 +1000,121 @@ char* construirStringArray(char** array) {
 
 
 
-bool eliminarTag(char*file, char*tag, int queryID){
-    // Crear el pathFileTag utilizando las commons
-    // Verificamos si este path existe,
+bool eliminarTag(char* file, char* tag, int queryID) {
+    // 1. Construir el path al tag
+    char* pathFileTag = string_from_format("%s/files/%s/%s", configS->puntoMontaje, file, tag);
+    
+    // 2. Verificar si existe
+    struct stat st;
+    if (stat(pathFileTag, &st) != 0) {
+        log_debug(logger, "## <%d> - Error: File:Tag <%s:%s> no existe",queryID, file, tag);
+        free(pathFileTag);
+        return false;
+    }
+    
+    // Eliminar Bloques Logicos
+    eliminarBloquesLogicos(file, tag, queryID);
+    
+    // Eliminar path de Bloques Logicos
+    char* pathLogicalBlocks = string_from_format("%s/logical_blocks",pathFileTag);
+    
+    if (rmdir(pathLogicalBlocks) != 0) {
+        log_error(logger, "## <%d> - Error al eliminar directorio logical_blocks: %s", queryID, strerror(errno));
+        free(pathLogicalBlocks);
+        exit(EXIT_FAILURE);
+    }
+    
+    // Eliminar metadata.config
+    char* pathMetadata = string_from_format("%s/metadata.config", pathFileTag);
+    
+    if (unlink(pathMetadata) != 0) {
+        log_error(logger, "## <%d> - Error al eliminar metadata.config: %s", queryID, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    
+    // Eliminar Directorio Tag
+    if (rmdir(pathFileTag) != 0) {
+        log_error(logger, "## <%d> - Error al eliminar directorio del tag: %s", queryID, strerror(errno));
+        free(pathFileTag);
+        free(pathMetadata);
+        exit(EXIT_FAILURE);
+    }
+    
+    free(pathMetadata);
+    free(pathFileTag);
+    free(pathLogicalBlocks);
+
+    return true;
+}
+void eliminarBloqueLogico(char* pathBloqueLogico, char* file, char* tag, int queryID) {
+    int numeroBloqueFisico = obtenerBloqueActual(file, tag, numeroBloqueLogico);
+    char* pathBloqueFisico = string_from_format("%s/blocks/block%03d.dat",configS->puntoMontaje, numeroBloqueFisico);
+    struct stat st;
+    if (stat(pathBloqueFisico, &st) != 0) {
+        log_error(logger, "## <%d> - Error al obtener info del bloque físico %d: %s",queryID, numeroBloqueFisico, strerror(errno));
+        free(pathBloqueFisico);
+        exit(EXIT_FAILURE);
+    }
+
+    nlink_t numHardlinks = st.st_nlink;
+    if (unlink(pathBloqueLogico) != 0) {
+        log_error(logger, "## <%d> - Error al eliminar bloque lógico %s: %s",queryID, pathBloqueLogico, strerror(errno));
+        free(pathBloqueFisico);
+        exit(EXIT_FAILURE);
+    }
+
+    if (numHardlinks == 1) {
+        log_info(logger, "## <%d> - Bloque físico %d era el último hardlink, liberando",queryID, numeroBloqueFisico);
+        liberarBloque(numeroBloqueFisico);
+    } else {
+        log_debug(logger, "## <%d> - Bloque físico %d aún tiene %ld hardlinks, no se libera",
+                  queryID, numeroBloqueFisico, (long)(numHardlinks - 1));
+    }
+    
+    free(pathBloqueFisico);
+}
+    
+void eliminarBloquesLogicos(char* file, char* tag, int queryID) {
+    char* pathLogicalBlocks = string_from_format(
+        "%s/files/%s/%s/logical_blocks",
+        configS->puntoMontaje, file, tag
+    );
+    
+    DIR* dir = opendir(pathLogicalBlocks);
+    if (dir == NULL) {
+        log_error(logger, "## <%d> - Error al abrir logical_blocks: %s",
+                  queryID, strerror(errno));
+        free(pathLogicalBlocks);
+        return;
+    }
+    
+    struct dirent* entrada;
+    while ((entrada = readdir(dir)) != NULL) {
+        // Ignorar . y ..
+        if (strcmp(entrada->d_name, ".") == 0 || strcmp(entrada->d_name, "..") == 0) {
+            continue;
+        }
+        
+        // Solo procesar archivos .dat
+        if (strstr(entrada->d_name, ".dat") == NULL) {
+            continue;
+        }
+        
+        // Extraer el número de bloque lógico del nombre
+        // "0000.dat" -> 0, "0001.dat" -> 1
+        int numeroBloqueLogico = atoi(entrada->d_name);
+        
+        char* pathBloqueLogico = string_from_format(
+            "%s/%s",
+            pathLogicalBlocks, entrada->d_name
+        );
+        
+        // Eliminar el bloque lógico
+        eliminarBloqueLogico(pathBloqueLogico, file, tag, numeroBloqueLogico, queryID);
+        
+        free(pathBloqueLogico);
+    }
+    
+    closedir(dir);
+    free(pathLogicalBlocks);
 }
