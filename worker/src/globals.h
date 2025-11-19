@@ -61,7 +61,7 @@ typedef struct {
 typedef struct {
     EntradaDeTabla      *entradas;                   // array indexado por número de página virtual (PV)
     int                 capacidadEntradas;      // cuantos slots están reservados (p. ej. 16, 32)
-    int                 cantidadEntradasUsadas; // opcional (para métricas)
+    int                 cantidadEntradas;       // cantidad de entradas que tiene la tabla
     int                 paginasPresentes;       // cantidad de entradas con bitPresencia == true
     bool                hayPaginasModificadas;  // true si existe al menos una página con bitModificado==true
     char               *keyProceso;           // strdup("file:tag") — útil para logs

@@ -27,8 +27,11 @@ void inicializarMemoriaInterna(void); // Hecho
 void inicializarDiccionarioDeTablas(void); // Hecho 
 void eliminarMemoriaInterna(void); // Hecho 
 
-void agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag); // Hecho
+TablaDePaginas* agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag); // Hecho
 TablaDePaginas* obtenerTablaPorFileYTag(char* nombreFile, char* tag); // Hecho
+void actualizarMetadataTablaPagina(TablaDePaginas* tabla);
+
+void escribirMarcoConOffset(int numeroMarco, char* contenido, int offset);
 
 int obtenerMarcoLibre(void); // Hecho
 void liberarMarco(int nro_marco); // Hecho
@@ -37,8 +40,6 @@ char* obtenerContenidoDelMarco(int nro_marco, int offset, int size);
 
 int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina); // Hecho
  
-void agregarContenidoAMarco(int numeroMarco, char* contenido);
-
 char* traerPaginaDeStorage(char* nombreFile, char* tag, int query_id, int numeroPagina);
 
 int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina); // Hecho (a revisar)
