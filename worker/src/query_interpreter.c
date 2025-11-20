@@ -3,13 +3,11 @@
 #define BUF_SZ 512
 
 contexto_query_t* cargarQuery(char* path, int query_id, int pc_inicial) { 
-    log_debug(logger,"Entro aca");
     //la primera vez que se llama es con pc_inicial = 0
     if (path == NULL) {
         log_error(logger, "Ruta de query NULL");
         return NULL;
     } 
-    log_debug(logger,"Entro aca1");
 
     size_t base_len = strlen(configW->pathQueries);
     size_t path_len = strlen(path);
@@ -22,9 +20,9 @@ contexto_query_t* cargarQuery(char* path, int query_id, int pc_inicial) {
         return NULL;
     }
     if (need_slash)
-        snprintf(path_completo, len, "%s/%s", configW->pathQueries, path);
+        string_from_format(path_completo, len, "%s/%s", configW->pathQueries, path); //si se rompe volver al sprintf
     else
-        snprintf(path_completo, len, "%s%s", configW->pathQueries, path);
+        string_from_format(path_completo, len, "%s%s", configW->pathQueries, path);
 
 
     
@@ -147,12 +145,6 @@ char* obtenerNombreTag(const char* file_Y_tag) {
     return strdup(sep + 1);             // después del ':'
 }
 
-
-// void aplicarRetardoMemoria() {
-//     usleep(configW->retardoMemoria * 1000);
-// }
-
-
 char* ObtenerNombreFileYTag(const char* fileTagText, char** fileOut, char** tagOut) {
     if (!fileTagText || !fileOut || !tagOut) return NULL;
 
@@ -208,9 +200,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case CREATE: { 
             // Formato: CREATE <NOMBRE_FILE>:<TAG>
             // parametro[0] = "CREATE", parametro[1] = "MATERIAS:BASE"
-        
             ejecutar_create(fileName, tagFile, contexto->query_id);
-
             break;
         }
         
@@ -218,17 +208,13 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
             // Formato: TRUNCATE <NOMBRE_FILE>:<TAG> <TAMAÑO>
             // parametro[0] = "TRUNCATE", parametro[1] = "MATERIAS:BASE", parametro[2] = "1024"
             ejecutar_truncate(fileName, tagFile, atoi(instruccion->parametro[2]), contexto->query_id);
-            
             break;
         }
         
         case WRITE: {
             // Formato: WRITE <NOMBRE_FILE>:<TAG> <DIRECCIÓN BASE> <CONTENIDO>
             // parametro[0] = "WRITE", parametro[1] = "MATERIAS:BASE", parametro[2] = "0", parametro[3] = "SISTEMAS_OPERATIVOS"
-
-            log_debug(logger, "Ejecutando WRITE de %s bytes en %s:%s desde offset %s", instruccion->parametro[3], fileName, tagFile, instruccion->parametro[2]);
             ejecutar_write(fileName, tagFile, atoi(instruccion->parametro[2]), instruccion->parametro[3], contexto);
-            
             break;
         }
         
@@ -284,14 +270,16 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
             ejecutar_flush(fileName, tagFile, contexto->query_id);
             ejecutar_end(contexto);
             log_debug(logger, "Ejecutando END");
-            // implementacion
             break;
         }
         
         case DESCONOCIDO:
         default: {
             log_warning(logger, "Instrucción desconocida en PC %d: %s", contexto->pc, instruccion->parametro[0]);
-            break;
+            free(fileName);
+            free(tagFile);
+            exit(EXIT_FAILURE);
+            return;
         }
     }
 
@@ -300,17 +288,17 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
     free(fileName);
     free(tagFile);
 
+    return;
 }
 
 void ejecutarQuery(contexto_query_t* contexto) {
     if (contexto == NULL) {
         log_error(logger, "Contexto de query NULL");
-        return;
+        exit(EXIT_FAILURE);
     }
     
     log_debug(logger, "Iniciando ejecución de query %d desde PC %d", contexto->query_id, contexto->pc);
    
-    
     while (contexto->pc < contexto->total_lineas) {
         
         char* linea_actual = contexto->lineas_query[contexto->pc];
@@ -318,22 +306,22 @@ void ejecutarQuery(contexto_query_t* contexto) {
         instruccion_t* instruccion = parsearInstruccion(linea_actual);
         if (instruccion != NULL) {
             ejecutarInstruccion(instruccion, contexto);
-            
             liberarInstruccion(instruccion);
+        }else{
+            log_error(logger, "Error al parsear la instrucción en la línea %d: %s, La instruccion es NULL", contexto->pc, linea_actual);
+            exit(EXIT_FAILURE);
         }
         
         contexto->pc++;
-        
         free(linea_actual);
 
         if(sem_trywait(&sem_hayInterrupcion) == 0){
-            return;
+            log_debug(logger, "Query %d interrumpida en PC %d", contexto->query_id, contexto->pc);
+            return; 
         }
-        
     }
-    
     log_debug(logger, "Finalizó ejecución de query %d", contexto->query_id);
-    
+    return;
 }
 
 void liberarInstruccion(instruccion_t* instr) {

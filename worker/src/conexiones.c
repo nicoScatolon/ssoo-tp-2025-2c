@@ -21,11 +21,12 @@ void conexionConMaster(int workerId) {
     eliminarPaquete(paquete);
     free(puertoMaster);
 }
+
 void conexionConMasterDesalojo() {
     char* puertoMasterDesalojo = string_itoa(configW->puertoMasterDesalojo);
     socketMasterDesalojo = crearConexion(configW->IPMaster, puertoMasterDesalojo, logger);
     comprobarSocket(socketMasterDesalojo, "Worker", "Master_Desalojo", logger);
-    log_debug(logger," ## Conexión al Master_Desalojo exitosa. IP: <%s>, Puerto: <%d>", configW->IPMaster,configW->puertoMasterDesalojo);
+    log_info(logger," ## Conexión al Master_Desalojo exitosa. IP: <%s>, Puerto: <%d>", configW->IPMaster,configW->puertoMasterDesalojo);
     
     enviarHandshake(socketMasterDesalojo, WORKER);
     free(puertoMasterDesalojo);
@@ -74,7 +75,7 @@ void escucharMaster() {
                 // log_debug(logger,"Se rompe antes del memset");
 
                 // memset(contexto, 0, sizeof(contexto_query_t));
-                contexto = cargarQuery(path, idQuery, pc);
+                contexto = cargarQuery(path, idQuery, pc); 
 
                 if (!contexto) {
                     log_error(logger, "Error al cargar query %d", idQuery);
@@ -85,10 +86,8 @@ void escucharMaster() {
 
                 // log_debug(logger,"Se rompe despues del memset");
                 ejecutarQuery(contexto); //hay que lanzar un hilo para esto.
-
                 liberarContextoQuery(contexto);
                 contexto = NULL;
-                
                 free(path);
                 eliminarPaquete(paquete);
                 break;

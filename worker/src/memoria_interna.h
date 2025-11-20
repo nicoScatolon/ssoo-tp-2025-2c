@@ -16,8 +16,10 @@ extern int cant_marcos;
 extern t_dictionary* tablasDePaginas; //la key es <FILE>:<TAG>
 
 extern int cant_paginas;
-extern void asignarCant_paginas(void);
+// extern void asignarCant_paginas(void);
 
+
+void aplicarRetardoMemoria(void);
 
 //Mutex
 extern pthread_mutex_t memoria_mutex;

@@ -31,7 +31,6 @@ char* ObtenerNombreFileYTag(const char* fileTagText, char** fileOut, char** tagO
 
 
 tipo_instruccion_t obtenerTipoInstruccion(char* nombre);
-void aplicarRetardoMemoria();
 
 void desalojarQuery(int idQuery, opcode motivo);
 

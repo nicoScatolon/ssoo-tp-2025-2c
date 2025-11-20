@@ -23,19 +23,15 @@ int main(int argc, char* argv[]) {
 
     logger = iniciar_logger("worker", configW->logLevel);
 
-    inicializarCosas();
-    // inicializarHilos(workerId);
+    inicializarEstructuras();
     
     conexionConMaster(workerId);
-    log_debug(logger,"Handshake con Master completado.");
+    conexionConMasterDesalojo(workerId);
     conexionConStorage(workerId);
-    log_debug(logger,"Handshake con Storage completado.");
-    //escucharStorage();
-    //log_debug(logger,"Escuchar Storage completado.");
+    
     escucharMaster();
-    log_debug(logger,"Escuchar Master completado.");
+    escucharDesalojo(); //revisar el tema del hilo
 
-    //return EXIT_SUCCESS;
 
-    return 0;
+    return 0;   
 }

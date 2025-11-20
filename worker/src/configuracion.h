@@ -9,7 +9,7 @@
 
 extern configWorker* configW;
 
-void inicializarCosas();
+void inicializarEstructuras();
 void iniciarConfiguracionWorker(char*nombreConfig ,configWorker* configWorker);
 
 #endif
