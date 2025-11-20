@@ -26,12 +26,14 @@ int main(int argc, char* argv[]) {
     inicializarEstructuras();
     
     conexionConMaster(workerId);
-    conexionConMasterDesalojo(workerId);
+    conexionConMasterDesalojo();
     conexionConStorage(workerId);
     
-    escucharMaster();
-    escucharDesalojo(); //revisar el tema del hilo
+    escucharMaster(); 
+    
+    pthread_t hilo_desalojo;
+    pthread_create(&hilo_desalojo,NULL,escucharDesalojo,NULL);
+    pthread_detach(hilo_desalojo);
 
-
-    return 0;   
+    return 0;
 }

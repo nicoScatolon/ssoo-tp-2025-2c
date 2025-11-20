@@ -83,34 +83,101 @@ void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
 }
 
 void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, contexto_query_t* contexto){
-    int numeroPagina = calcularPaginaDesdeDireccionBase(direccionBase);
-    int offset = calcularOffsetDesdeDireccionBase(direccionBase);
-
-    int marco = obtenerNumeroDeMarco(fileName, tagFile, numeroPagina);
-
-    if (marco == -1){
-        log_error(logger, "Error al obtener o pedir pagina para READ en %s:%s direccionBase %d", fileName, tagFile, direccionBase);
+    int offsetInicial = calcularOffsetDesdeDireccionBase(direccionBase);
+    int primerPagina = calcularPaginaDesdeDireccionBase(direccionBase);
+    
+    // Calcular última página que necesitamos
+    int ultimaPagina = (direccionBase + size - 1) / configW->BLOCK_SIZE;
+    
+    int offsetDentroContenido = 0;
+    char* contenidoCompleto = malloc(size + 1); // +1 para el null terminator
+    if (!contenidoCompleto) {
+        log_error(logger, "Error al asignar memoria para READ");
         notificarMasterError();
         return;
     }
+    contenidoCompleto[0] = '\0';
 
-    char* contenidoLeido = leerContenidoDesdeOffset(fileName, tagFile, numeroPagina, marco, offset, size);
+    for (int paginaActual = primerPagina; paginaActual <= ultimaPagina; paginaActual++) {
+        int offsetEnPagina = (paginaActual == primerPagina) ? offsetInicial : 0;
+        
+        int bytesRestantesALeer = size - offsetDentroContenido;
+        int espacioDisponibleEnPagina = configW->BLOCK_SIZE - offsetEnPagina;
+        int bytesALeer = (bytesRestantesALeer < espacioDisponibleEnPagina) 
+                         ? bytesRestantesALeer 
+                         : espacioDisponibleEnPagina;
+        
+        int marco = obtenerNumeroDeMarco(fileName, tagFile, paginaActual);
+        if (marco == -1) {
+            log_error(logger, "Error al obtener marco para READ en %s:%s direccionBase %d", 
+                      fileName, tagFile, direccionBase);
+            free(contenidoCompleto);
+            notificarMasterError();
+            return;
+        }
+        
+        char* contenidoPagina = leerContenidoDesdeOffset(fileName, tagFile, paginaActual, 
+                                                          marco, offsetEnPagina, bytesALeer);
+        if (!contenidoPagina) {
+            log_error(logger, "Error al leer contenido de página");
+            free(contenidoCompleto);
+            notificarMasterError();
+            return;
+        }
+        
+        // Concatenar el contenido leído
+        strcat(contenidoCompleto, contenidoPagina);
+        
+        log_info(logger, "Query <%d>: Acción: <LEER> - Dirección Física: <%d %d> - Valor: <%s>", 
+                 contexto->query_id, marco, offsetEnPagina, contenidoPagina);
+        
+        free(contenidoPagina);
+        offsetDentroContenido += bytesALeer;
+    }
 
-    enviarOpcode(READ_BLOCK, socketMaster/*socket master*/);
+    // Enviar el contenido completo al master
+    enviarOpcode(READ_BLOCK, socketMaster);
     t_paquete* paquete = crearPaquete();
     agregarIntAPaquete(paquete, contexto->query_id);
     agregarStringAPaquete(paquete, fileName);
     agregarStringAPaquete(paquete, tagFile);
-    agregarStringAPaquete(paquete, contenidoLeido);
+    agregarStringAPaquete(paquete, contenidoCompleto);
     
-    enviarPaquete(paquete, socketMaster/*socket master*/);
-
-    log_info(logger, "Query <%d>: Acción: <LEER> - Dirección Física: <%d %d> - Valor: <%s>", contexto->query_id, marco, offset, contenidoLeido);
+    enviarPaquete(paquete, socketMaster);
 
     eliminarPaquete(paquete);
-    free(contenidoLeido);
-    
+    free(contenidoCompleto);
 }
+
+// void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, contexto_query_t* contexto){
+//     int numeroPagina = calcularPaginaDesdeDireccionBase(direccionBase);
+//     int offset = calcularOffsetDesdeDireccionBase(direccionBase);
+
+//     int marco = obtenerNumeroDeMarco(fileName, tagFile, numeroPagina);
+
+//     if (marco == -1){
+//         log_error(logger, "Error al obtener o pedir pagina para READ en %s:%s direccionBase %d", fileName, tagFile, direccionBase);
+//         notificarMasterError();
+//         return;
+//     }
+
+//     char* contenidoLeido = leerContenidoDesdeOffset(fileName, tagFile, numeroPagina, marco, offset, size);
+
+//     enviarOpcode(READ_BLOCK, socketMaster/*socket master*/);
+//     t_paquete* paquete = crearPaquete();
+//     agregarIntAPaquete(paquete, contexto->query_id);
+//     agregarStringAPaquete(paquete, fileName);
+//     agregarStringAPaquete(paquete, tagFile);
+//     agregarStringAPaquete(paquete, contenidoLeido);
+    
+//     enviarPaquete(paquete, socketMaster/*socket master*/);
+
+//     log_info(logger, "Query <%d>: Acción: <LEER> - Dirección Física: <%d %d> - Valor: <%s>", contexto->query_id, marco, offset, contenidoLeido);
+
+//     eliminarPaquete(paquete);
+//     free(contenidoLeido);
+    
+// }
 
 void ejecutar_tag(char* fileNameOrigen, char* tagOrigen, char* fileNameDestino, char* tagDestino, int query_id){
     enviarOpcode(TAG_FILE, socketStorage/*socket storage*/);    

@@ -3,63 +3,70 @@
 
 static PunteroClockModificado punteroClockMod = {NULL, 0};
 
-char* ReemplazoLRU(EntradaDeTabla** entradaAReemplazar) {
-    char* keyProceso = NULL;
-    EntradaDeTabla* entradaMenorTiempo = NULL;
-    int64_t menorTiempo = INT64_MAX;  // Empezamos con el valor maximo posible
-    
+key_Reemplazo* ReemplazoLRU() {
+    key_Reemplazo* keyReemplazo = malloc(sizeof(key_Reemplazo));  
+    keyReemplazo->key = NULL;
+    keyReemplazo->marco = -1;
+    keyReemplazo->pagina = -1;
+
+    int64_t menorTiempo = INT64_MAX;
+
+    pthread_mutex_lock(&tabla_paginas_mutex);
     t_list* keys = dictionary_keys(tablasDePaginas);
-    
+
     for(int i = 0; i < list_size(keys); i++) {
         char* currentKey = list_get(keys, i);
         TablaDePaginas* tabla = dictionary_get(tablasDePaginas, currentKey);
-        
+
         for(int j = 0; j < tabla->capacidadEntradas; j++) {
             EntradaDeTabla* entrada = &(tabla->entradas[j]);
-            
-            // Solo considerar páginas que están presentes en memoria
+
             if(entrada->bitPresencia) {
-                // Comparación directa de timestamps
                 if(entrada->ultimoAcceso < menorTiempo) {
                     menorTiempo = entrada->ultimoAcceso;
-                    entradaMenorTiempo = entrada;
-                    keyProceso = currentKey;
+
+                    keyReemplazo->key = currentKey;
+                    keyReemplazo->marco = entrada->numeroMarco;
+                    keyReemplazo->pagina = entrada->numeroPagina;
                 }
             }
         }
     }
-    
+
+    pthread_mutex_unlock(&tabla_paginas_mutex);
     list_destroy(keys);
-    
-    // Asignar la entrada encontrada al puntero de salida
-    if(entradaAReemplazar != NULL) {
-        *entradaAReemplazar = entradaMenorTiempo;
-    }
-    
-    return keyProceso;
+
+    return keyReemplazo; 
 }
 
-char* ReemplazoCLOCKM(EntradaDeTabla** entradaAReemplazar) {
-    char* key = NULL;
+
+//se debe hacer el free d
+key_Reemplazo* ReemplazoCLOCKM() {
+    key_Reemplazo* keyReemplazo = (key_Reemplazo*)malloc(sizeof(key_Reemplazo));
     EntradaDeTabla* entradaVictima = NULL;
     bool encontrado = false;
     
+    pthread_mutex_lock(&tabla_paginas_mutex);
+
     t_list* keys = dictionary_keys(tablasDePaginas);
     int totalProcesos = list_size(keys);
     
     if(totalProcesos == 0) {
         list_destroy(keys);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        free(keyReemplazo);
         return NULL;
     }
     
     // Inicializar puntero si es la primera vez
     if(punteroClockMod.keyProceso == NULL) {
-        punteroClockMod.keyProceso = strdup(list_get(keys, 0));
-        punteroClockMod.indicePagina = 0;
+        log_error(logger, "El puntero clock no esta inicializado");
     }
 
     int intentos = 0;
     const int MAX_INTENTOS = 10; // Límite de seguridad para evitar bucle infinito
+
+    char* key = NULL;
     
     while(!encontrado && intentos < MAX_INTENTOS) {
         intentos++;
@@ -80,19 +87,23 @@ char* ReemplazoCLOCKM(EntradaDeTabla** entradaAReemplazar) {
     if(!encontrado) {
         log_error(logger, "Clock-M: No se encontró víctima después de %d intentos", intentos);
         list_destroy(keys);
+        exit(EXIT_FAILURE);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
         return NULL;
     }
     
     list_destroy(keys);
     
-    if(entradaAReemplazar != NULL) {
-        *entradaAReemplazar = entradaVictima;
-    }
+    keyReemplazo->key = key;
+    keyReemplazo->marco = entradaVictima->numeroMarco;
+    keyReemplazo->pagina = entradaVictima->numeroPagina;
+
+    pthread_mutex_unlock(&tabla_paginas_mutex);
     
     log_debug(logger, "Clock-M: Víctima encontrada en intento %d - %s, Página: %d, Frame: %d", 
-              intentos, key, entradaVictima->numeroPagina, entradaVictima->numeroMarco);
+              intentos, keyReemplazo->key, entradaVictima->numeroPagina, entradaVictima->numeroMarco);
     
-    return key;
+    return keyReemplazo;
 }
 
 
