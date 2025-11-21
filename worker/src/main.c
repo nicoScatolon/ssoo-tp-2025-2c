@@ -23,19 +23,17 @@ int main(int argc, char* argv[]) {
 
     logger = iniciar_logger("worker", configW->logLevel);
 
-    inicializarCosas();
-    // inicializarHilos(workerId);
+    inicializarEstructuras();
     
     conexionConMaster(workerId);
-    log_debug(logger,"Handshake con Master completado.");
+    conexionConMasterDesalojo();
     conexionConStorage(workerId);
-    log_debug(logger,"Handshake con Storage completado.");
-    //escucharStorage();
-    //log_debug(logger,"Escuchar Storage completado.");
-    escucharMaster();
-    log_debug(logger,"Escuchar Master completado.");
-
-    //return EXIT_SUCCESS;
+    
+    escucharMaster(); 
+    
+    pthread_t hilo_desalojo;
+    pthread_create(&hilo_desalojo,NULL,escucharDesalojo,NULL);
+    pthread_detach(hilo_desalojo);
 
     return 0;
 }
