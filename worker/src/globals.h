@@ -20,6 +20,7 @@ extern int socketMaster;
 extern int socketStorage;
 
 extern sem_t sem_hayInterrupcion;
+extern sem_t sem_interrupcionAtendida;
 
 typedef enum {
     CREATE,

@@ -312,6 +312,7 @@ void ejecutarQuery(contexto_query_t* contexto) {
         contexto->pc++;
 
         if(sem_trywait(&sem_hayInterrupcion) == 0){
+            sem_post(&sem_interrupcionAtendida); 
             log_debug(logger, "Query %d interrumpida en PC %d", contexto->query_id, contexto->pc);
             return; 
         }
@@ -364,6 +365,8 @@ void desalojarQuery(int idQuery, opcode motivo) {
         free(key);
     }
     list_destroy(keys);
+    
+    log_debug(logger, "Desalojando Query %d en PC %d por motivo %d", idQuery, pc, motivo);
 
     enviarOpcode(motivo, socketMaster/*socket master*/);
     t_paquete* paquete = crearPaquete();

@@ -243,6 +243,7 @@ void ejecutar_commit(char* fileName, char* tagFile, int query_id){
 }   
 
 void ejecutar_flush(char* fileName, char* tagFile, int query_id){
+    log_debug(logger, "Iniciando FLUSH para %s:%s", fileName, tagFile);
     TablaDePaginas* tabla = obtenerTablaPorFileYTag(fileName, tagFile);
     bool modificadas;
     if (tabla){

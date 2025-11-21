@@ -22,14 +22,24 @@ void conexionConMaster(int workerId) {
     free(puertoMaster);
 }
 
-void conexionConMasterDesalojo() {
+void conexionConMasterDesalojo(int workerId) {
     char* puertoMasterDesalojo = string_itoa(configW->puertoMasterDesalojo);
     socketMasterDesalojo = crearConexion(configW->IPMaster, puertoMasterDesalojo, logger);
     comprobarSocket(socketMasterDesalojo, "Worker", "Master_Desalojo", logger);
     log_info(logger," ## Conexión al Master_Desalojo exitosa. IP: <%s>, Puerto: <%d>", configW->IPMaster,configW->puertoMasterDesalojo);
     
-    enviarHandshake(socketMasterDesalojo, WORKER);
+    t_paquete* paquete = crearPaquete();
+    enviarHandshake(socketMasterDesalojo, WORKER_DESALOJO);
+    enviarOpcode(CONEXION_DESALOJO,socketMasterDesalojo); 
+    agregarIntAPaquete(paquete,workerId);
+    enviarPaquete(paquete,socketMasterDesalojo); //No estaba
+
+    eliminarPaquete(paquete);
     free(puertoMasterDesalojo);
+    
+    pthread_t hilo_desalojo;
+    pthread_create(&hilo_desalojo,NULL,escucharDesalojo,NULL);
+    pthread_detach(hilo_desalojo);
 }
 
 void conexionConStorage(int workerId) {
@@ -86,7 +96,9 @@ void escucharMaster() {
 
                 // log_debug(logger,"Se rompe despues del memset");
                 ejecutarQuery(contexto); //hay que lanzar un hilo para esto.
+                
                 liberarContextoQuery(contexto);
+
                 //contexto = NULL;
                 // free(path);
                 eliminarPaquete(paquete);
@@ -99,6 +111,7 @@ void escucharMaster() {
     }
 }
 void* escucharDesalojo() {
+    log_debug(logger,"Hilo corriendo");
     while (1) {
         opcode codigo;
         int recibido = recv(socketMasterDesalojo,&codigo,sizeof(opcode),MSG_WAITALL);
@@ -107,7 +120,8 @@ void* escucharDesalojo() {
             close(socketMasterDesalojo);
             pthread_exit(NULL);
         }
-
+        log_debug(logger,"Recibido codigo <%d> en hilo desalojo", codigo);
+        
         switch (codigo) {
             case DESALOJO_QUERY_PLANIFICADOR:{
                 sem_post(&sem_hayInterrupcion); 
@@ -122,25 +136,29 @@ void* escucharDesalojo() {
             
                 //ejecuta el flush y enviar Id y PC actualizado
                 desalojarQuery(idQuery, codigo);
-                
                 eliminarPaquete(paquete);
+                
                 break;
             }
             case DESALOJO_QUERY_DESCONEXION:{
                 sem_post(&sem_hayInterrupcion); 
+                sem_wait(&sem_interrupcionAtendida);
+                log_debug(logger,"Notificando interrupcion");
+                log_debug(logger,"socketMasterDesalojo <%d>",socketMasterDesalojo);
+                log_debug(logger,"socketMaster <%d>",socketMaster);
                 t_paquete* paquete = recibirPaquete(socketMasterDesalojo);
                 if(!paquete){
                     log_error(logger, "Error recibiendo paquete de DESALOJO_QUERY_DESCONEXION");
-                    break;
+                    exit(EXIT_FAILURE);
                 }
                 int offset = 0;
                 int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
                 log_info(logger,"Desalojo de Query: ## Query <%d>: Desalojada por desconexión del cliente",idQuery);
             
-                //esta bien que aca tambièn se ejecute el flush??
-                desalojarQuery(idQuery, codigo);
-                
                 eliminarPaquete(paquete);
+                desalojarQuery(idQuery, DESALOJO_QUERY_DESCONEXION);
+                //esta bien que aca tambièn se ejecute el flush??
+                
                 break;
             }
             default:

@@ -10,7 +10,7 @@
 
 extern configWorker * configW;
 void conexionConMaster(int workerId);
-void conexionConMasterDesalojo();
+void conexionConMasterDesalojo(int workerId);
 void esperarRespuesta();
 void escucharMaster();
 int escucharStorage();
