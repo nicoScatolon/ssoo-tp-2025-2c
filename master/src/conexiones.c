@@ -204,7 +204,7 @@ void * operarQueryControl(void* socketClienteVoid){
                 worker* workerANotificar = buscarWorkerPorQueryId(qcAEliminar->queryControlID);
                 enviarOpcode(DESALOJO_QUERY_DESCONEXION,workerANotificar->socket);
             }
-             break;
+            break;
         }
         switch (codigo)
         {
@@ -263,8 +263,7 @@ void *operarWorker(void*socketClienteVoid){
     int socketCliente = (intptr_t) socketClienteVoid;
     while(1){
         opcode codigo = recibirOpcode(socketCliente);
-        switch (codigo)
-    {
+    
     if (codigo < 0)
     {
         {
@@ -297,19 +296,20 @@ void *operarWorker(void*socketClienteVoid){
             
             log_info(logger,"## Se desaloja la Query <%d> del Worker <%d> por desconexion de worker",q->qcb->queryID,w->workerID);
 
-            close(qc->socket);
-            close(w->socketDesalojo);
-            close(socketCliente);
-            
             eliminarWorker(w);
             eliminarQuery(q);
             eliminarQueryControl(qc);
+
+            //close(qc->socket);
+            close(w->socketDesalojo);
+            close(socketCliente);
+            
             eliminarPaquete(paquete);
 
             break;
         }
     }
-    
+    switch (codigo){
     case INICIAR_WORKER:{
         t_paquete* paquete = recibirPaquete(socketCliente);
         if (!paquete) {
@@ -474,6 +474,7 @@ void *operarWorker(void*socketClienteVoid){
     }
     }
 }
+
 
 void aumentarCantidadQueriesControl(){
     pthread_mutex_lock(&mutex_cantidadQueriesControl);

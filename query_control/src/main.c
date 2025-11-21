@@ -19,7 +19,7 @@ int main(int argc,char*argv[]){
     iniciarConfiguracionQueryControl(nombreConfiguracion,configQ);
     logger = iniciar_logger("queryControl",configQ->logLevel);
     iniciarConexion(path,prioridad);
-    signal(SIGINT, manejar_sigint);
+    //signal(SIGINT, manejar_sigint);
     esperarRespuesta();
     //liberarQuery(logger,config);
 }

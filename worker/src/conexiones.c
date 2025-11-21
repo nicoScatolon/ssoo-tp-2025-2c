@@ -161,7 +161,7 @@ int escucharStorage() {
     }
     switch (codigo) {
         case RESPUESTA_OK: { 
-            log_debug(logger,"Se ejecuto la instruccion correctamente");
+            //log_debug(logger,"Se ejecuto la instruccion correctamente");
             return 0; //no hay error
             break;
         }

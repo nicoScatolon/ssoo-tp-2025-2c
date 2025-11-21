@@ -20,9 +20,9 @@ contexto_query_t* cargarQuery(char* path, int query_id, int pc_inicial) {
         return NULL;
     }
     if (need_slash)
-        string_from_format(path_completo, len, "%s/%s", configW->pathQueries, path); //si se rompe volver al sprintf
+        snprintf(path_completo, len, "%s/%s", configW->pathQueries, path); //si se rompe volver al sprintf
     else
-        string_from_format(path_completo, len, "%s%s", configW->pathQueries, path);
+        snprintf(path_completo, len, "%s%s", configW->pathQueries, path);
 
 
     

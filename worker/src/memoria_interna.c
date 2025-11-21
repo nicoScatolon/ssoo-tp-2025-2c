@@ -120,6 +120,7 @@ TablaDePaginas* agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag){
     }
 
     tabla->keyProceso = strdup(key);
+    log_debug(logger, "Creando tabla de paginas para %s, lo guardado en tabla->keyProceso: %s", key, tabla->keyProceso);
     if (!tabla->keyProceso) {
         log_error(logger, "Error al duplicar key para tabla");
         free(tabla->keyProceso);
@@ -161,7 +162,7 @@ TablaDePaginas* agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag){
     dictionary_put(tablasDePaginas, key, tabla);
     
     log_debug(logger, "Tabla de paginas creada para %s con capacidad de %d páginas", 
-              key, maxPaginas);
+              tabla->keyProceso, maxPaginas);
 
     free(key);
     pthread_mutex_unlock(&tabla_paginas_mutex);
@@ -350,6 +351,7 @@ void asignarMarcoEntradaTabla(char* nombreFile, char* tag, int numeroPagina, int
     if(!tabla){
         // Crear nueva tabla
         tabla = agreagarTablaPorFileTagADicionario(nombreFile, tag); // (CON lock interno)
+        log_debug(logger, "Tabla de paginas creada para %s:%s al asignar marco", nombreFile, tag);
         
         if(!tabla){
             log_error(logger, "Error al crear tabla de paginas para %s:%s", nombreFile, tag);
@@ -380,7 +382,9 @@ void asignarMarcoEntradaTabla(char* nombreFile, char* tag, int numeroPagina, int
     
     // Actualizar la entrada
     entrada->numeroMarco = numeroMarco;
+    entrada->numeroPagina = numeroPagina;
     entrada->bitPresencia = true;
+    entrada->bitUso = true; //revisar si esta correcto...
 
     pthread_mutex_unlock(&tabla_paginas_mutex);
 
@@ -407,10 +411,10 @@ void liberarMarco(int nro_marco){
 char* obtenerContenidoDelMarco(int nro_marco, int offset, int size){ //El limite es BlockSize o BlockSize-1??
     if (nro_marco < 0) return NULL;
 
-    if(offset < 0 || size < 0 || offset + size < configW->BLOCK_SIZE){
-        log_error(logger, "Error de lectura: offset %d + size %d excede el tamaño de la página %d", offset, size, configW->BLOCK_SIZE);
-        return NULL;
-    }
+    // if(offset < 0 || size < 0 || offset + size < configW->BLOCK_SIZE){
+    //     log_error(logger, "Error de lectura: offset %d + size %d excede el tamaño de la página %d", offset, size, configW->BLOCK_SIZE);
+    //     return NULL;
+    // }
 
     size_t bitInicialMarco = (size_t)nro_marco * configW->BLOCK_SIZE + (offset);
 
@@ -434,9 +438,14 @@ char* obtenerContenidoDelMarco(int nro_marco, int offset, int size){ //El limite
 int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina){
     int marco = obtenerMarcoDesdePagina(nombreFile, tag, numeroPagina);
     
+    log_debug(logger, "Obtenido marco %d para %s:%s pagina %d", marco, nombreFile, tag, numeroPagina);
+    log_debug(logger, "Antes de retardo de memoria en obtenerNumeroDeMarco");
     aplicarRetardoMemoria();
 
+    log_debug(logger, "Despues de retardo de memoria en obtenerNumeroDeMarco");
+
     if(marco != -1){
+        log_debug(logger, "devolvio el marco: %d", marco);
         return marco;
     }
     else{
@@ -454,7 +463,6 @@ int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina){
             free(contenido);
             exit(EXIT_FAILURE);
         }
-
         //esta funcion no va tener q reservar marco
         escribirEnMemoriaPaginaCompleta(nombreFile, tag, numeroPagina, marcoLibre, contenido, configW->BLOCK_SIZE);
         log_info(logger,"Query <%d>: - Memoria Add - File: <%s> - Tag: <%s> - Pagina: <%d> - Marco: <%d>",contexto->query_id,nombreFile,tag,numeroPagina,marcoLibre);
@@ -549,30 +557,26 @@ int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
 char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, int offset, int size){
     
     // Validar que el offset y size sean correctos, con el tamaño de la página
-    if(offset < 0 || size < 0 || offset + size > configW->BLOCK_SIZE){
-        log_error(logger, "Error de lectura: offset %d + size %d excede el tamaño de la página %d", offset, size, configW->BLOCK_SIZE);
-        return NULL;
-    }
+    // if(offset < 0 || size < 0 || offset + size > configW->BLOCK_SIZE){
+    //     log_error(logger, "Error de lectura: offset %d + size %d excede el tamaño de la página %d", offset, size, configW->BLOCK_SIZE);
+    //     return NULL;
+    // }
     
-    pthread_mutex_lock(&memoria_mutex);
 
 
     char* contenido = obtenerContenidoDelMarco(numeroMarco, offset, size);
     if(!contenido){
-        pthread_mutex_unlock(&memoria_mutex);
         return NULL;
     }
-    pthread_mutex_unlock(&memoria_mutex);
 
-    pthread_mutex_lock(&tabla_paginas_mutex);
     TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFile, tag);
     if(!tabla){
         log_error(logger, "Error al obtener tabla de paginas para %s:%s", nombreFile, tag);
         free(contenido);
-        pthread_mutex_unlock(&tabla_paginas_mutex);
         return NULL;
     }
 
+    pthread_mutex_lock(&tabla_paginas_mutex);
     EntradaDeTabla* entrada = &tabla->entradas[numeroPagina];
     actualizar_acceso_pagina(entrada);
 
@@ -593,12 +597,13 @@ void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina,
     }
     
     TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFile, tag);
+    log_debug(logger, "1. Escribiendo en tabla de paginas para %s:%s pagina %d", nombreFile, tag, numeroPagina);
     if(!tabla){
         log_error(logger, "Error al obtener tabla de paginas para %s:%s", nombreFile, tag);
         exit(EXIT_FAILURE);
     }
     
-    if(tabla->keyProceso != (string_from_format("%s:%s", nombreFile, tag))){
+    if(strcmp(tabla->keyProceso, (string_from_format("%s:%s", nombreFile, tag))) != 0){
         log_error(logger, "El Marco %d NO pertenece al FILE:TAG %s:%s", numeroMarco, nombreFile, tag);
         exit(EXIT_FAILURE);
     }
@@ -613,6 +618,8 @@ void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina,
     modificar_pagina(entrada);
 
     pthread_mutex_unlock(&tabla_paginas_mutex);
+
+    log_debug(logger, "Antes de aplicar retardo de memoria en escribirContenidoDesdeOffset");   
 
     aplicarRetardoMemoria();
     return;
@@ -640,7 +647,7 @@ void escribirEnMemoriaPaginaCompleta(char* nombreFile, char* tag, int numeroPagi
         log_error(logger, "Numero de marco %d invalido (max: %d)", marcoLibre, cant_marcos - 1);
         exit(EXIT_FAILURE);
     }
-    
+    log_debug(logger, "Escribiendo pagina completa en memoria para %s:%s pagina %d en marco %d", nombreFile, tag, numeroPagina, marcoLibre);
     asignarMarcoEntradaTabla(nombreFile, tag, numeroPagina, marcoLibre);
 
 

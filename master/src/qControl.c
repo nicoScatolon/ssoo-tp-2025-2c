@@ -47,7 +47,6 @@ void eliminarQueryControl(queryControl* queryC){
     list_remove(listaQueriesControl.lista,posicion);
     pthread_mutex_unlock(&listaQueriesControl.mutex);
 
-
     pthread_mutex_destroy(&queryC->mutex);
     free(queryC->path);
     free(queryC);
