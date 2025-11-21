@@ -43,7 +43,6 @@ void esperarRespuesta(){
                 break;
             }
             case LECTURA_QUERY_CONTROL:{
-                log_debug(logger,"Lectura en queryControl");
                 t_paquete* paquete = recibirPaquete(socketMaster);
                 int offset = 0;
                 char * file = recibirStringDePaqueteConOffset(paquete,&offset);

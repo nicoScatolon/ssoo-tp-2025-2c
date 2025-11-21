@@ -220,10 +220,11 @@ TablaDePaginas* obtenerTablaPorFileYTag(char* nombreFile, char* tag){
     pthread_mutex_lock(&tabla_paginas_mutex);
     TablaDePaginas* tabla = dictionary_get(tablasDePaginas, key);
     if(tabla == NULL){
-            free(key);
-            pthread_mutex_unlock(&tabla_paginas_mutex);
-            return NULL;
-        }
+        log_debug(logger, "Entro aca, No existe tabla de paginas para %s:%s", nombreFile, tag);
+        free(key);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        return NULL;
+    }
     //Se hace la validacion si no existe afuera con un log warning
     pthread_mutex_unlock(&tabla_paginas_mutex);
     free(key);
@@ -438,12 +439,8 @@ char* obtenerContenidoDelMarco(int nro_marco, int offset, int size){ //El limite
 int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina){
     int marco = obtenerMarcoDesdePagina(nombreFile, tag, numeroPagina);
     
-    log_debug(logger, "Obtenido marco %d para %s:%s pagina %d", marco, nombreFile, tag, numeroPagina);
-    log_debug(logger, "Antes de retardo de memoria en obtenerNumeroDeMarco");
     aplicarRetardoMemoria();
-
-    log_debug(logger, "Despues de retardo de memoria en obtenerNumeroDeMarco");
-
+    
     if(marco != -1){
         log_debug(logger, "devolvio el marco: %d", marco);
         return marco;
@@ -656,10 +653,14 @@ void escribirEnMemoriaPaginaCompleta(char* nombreFile, char* tag, int numeroPagi
         log_error(logger, "Error al obtener tabla de paginas para %s:%s", nombreFile, tag);
         exit(EXIT_FAILURE);
     }
-
+    pthread_mutex_lock(&tabla_paginas_mutex);
     EntradaDeTabla* entrada = &tabla->entradas[numeroPagina];
 
-    modificar_pagina(entrada);
+    // modificar_pagina(entrada);
+    entrada->ultimoAcceso = obtener_tiempo_actual();  // Actualizar timestamp
+    entrada->bitUso = true;
+    entrada->bitModificado = true;
+
     tabla->hayPaginasModificadas = true;
     pthread_mutex_unlock(&tabla_paginas_mutex);
 

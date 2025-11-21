@@ -87,8 +87,8 @@ void escucharMaster() {
                 // log_debug(logger,"Se rompe despues del memset");
                 ejecutarQuery(contexto); //hay que lanzar un hilo para esto.
                 liberarContextoQuery(contexto);
-                contexto = NULL;
-                free(path);
+                //contexto = NULL;
+                // free(path);
                 eliminarPaquete(paquete);
                 break;
             }
