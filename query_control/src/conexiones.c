@@ -24,7 +24,7 @@ void esperarRespuesta(){
     while(1){
         opcode codigo;
         int recibido = recv(socketMaster,&codigo,sizeof(opcode),0);
-        if (recibido <= 0) {
+        if (recibido < 0) {
             log_warning(logger, "Cliente desconectado en socket %d", socketMaster);
             close(socketMaster);
             //finalizarQueryControl();
@@ -38,8 +38,8 @@ void esperarRespuesta(){
                 log_info(logger,"## Query finalizada - <Motivo> <%s>",motivo);
                 free(motivo);
                 eliminarPaquete(paquete);
-                finalizarQueryControl();
                 exit(EXIT_FAILURE);
+                //finalizarQueryControl();
                 break;
             }
             case LECTURA_QUERY_CONTROL:{

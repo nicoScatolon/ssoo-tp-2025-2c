@@ -2,7 +2,7 @@
 #define GLOBALES_H
 
 typedef enum
-{
+{   DEAD=-1,
     FINALIZACION_QUERY ,
     INICIAR_QUERY_CONTROL,
     INICIAR_WORKER,

@@ -181,26 +181,35 @@ void comprobacionModulo(modulo modulo_origen, modulo esperado, char *modulo, voi
     }
 }
 void * operarQueryControl(void* socketClienteVoid){
-    int socketCliente =(intptr_t) socketClienteVoid;
+    int socketCliente = (intptr_t) socketClienteVoid;
+    
     while(1){
         opcode codigo = recibirOpcode(socketCliente);
+        
         if(codigo < 0){
+            log_debug(logger,"Entro Aca - Desconexión detectada");
             queryControl * qcAEliminar = buscarQueryControlPorSocket(socketCliente);
-            if (estaEnListaPorId(&listaReady,qcAEliminar->queryControlID))
-            {   
+            
+            if (qcAEliminar == NULL) {
+                log_debug(logger,"QueryControl ya eliminado");
+                close(socketCliente);
+                goto fin_hilo;
+            }
+            
+            if (estaEnListaPorId(&listaReady,qcAEliminar->queryControlID)) {   
                 disminuirCantidadQueriesControl();
                 query* q = sacarDePorId(&listaReady,qcAEliminar->queryControlID);
                 eliminarQuery(q);
-
                 pthread_mutex_lock(&mutex_grado);
-                log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",qcAEliminar->queryControlID,qcAEliminar->prioridad,gradoMultiprogramacion);
+                log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",
+                         qcAEliminar->queryControlID,qcAEliminar->prioridad,gradoMultiprogramacion);
                 pthread_mutex_unlock(&mutex_grado);
-
                 eliminarQueryControl(qcAEliminar);
                 close(socketCliente);
-
+                goto fin_hilo;
             }
             else if(estaEnListaPorId(&listaExecute,qcAEliminar->queryControlID)){
+                log_debug(logger,"Estamos dentro de execute");
                 worker* workerANotificar = buscarWorkerPorQueryId(qcAEliminar->queryControlID);
                 enviarOpcode(DESALOJO_QUERY_DESCONEXION,workerANotificar->socket);
             }
@@ -211,209 +220,213 @@ void * operarQueryControl(void* socketClienteVoid){
                 pthread_mutex_unlock(&mutex_grado);
                 close(socketCliente);
                 eliminarQueryControl(qcAEliminar);
+                goto fin_hilo;
             }
-            break;
         }
-        switch (codigo)
-        {
-        case INICIAR_QUERY_CONTROL:{
-            t_paquete* paquete = recibirPaquete(socketCliente);
-            if (!paquete) {
-                log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
-                exit(EXIT_FAILURE);
-            }
-            int offset = 0;
-            char* path = recibirStringDePaqueteConOffset(paquete, &offset);
-            if (!path) {
-                log_error(logger, "Error desempaquetando path");
+        
+        switch (codigo) {
+            case INICIAR_QUERY_CONTROL:{
+                t_paquete* paquete = recibirPaquete(socketCliente);
+                if (!paquete) {
+                    log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
+                    exit(EXIT_FAILURE);
+                }
+                int offset = 0;
+                char* path = recibirStringDePaqueteConOffset(paquete, &offset);
+                if (!path) {
+                    log_error(logger, "Error desempaquetando path");
+                    eliminarPaquete(paquete);
+                    exit(EXIT_FAILURE);
+                }
+
+                int prioridad = recibirIntDePaqueteconOffset(paquete, &offset);
+                agregarQueryControl(path,socketCliente,prioridad);
+
+                free(path);
                 eliminarPaquete(paquete);
-                exit(EXIT_FAILURE);
+                break;
             }
-
-            int prioridad = recibirIntDePaqueteconOffset(paquete, &offset);
-            agregarQueryControl(path,socketCliente,prioridad);
-
-            free(path);
-            eliminarPaquete(paquete);
-            break;
+            default:{
+                log_warning(logger, "Opcode desconocido: %d", codigo);
+                goto fin_hilo;
+            }
         }
-        default:
-            log_warning(logger, "Opcode desconocido: %d", codigo);
-            return NULL;
-            break;
-        }
-    }
+    } 
+    
+fin_hilo:  
     return NULL;
 }
 void *operarWorker(void*socketClienteVoid){
     int socketCliente = (intptr_t) socketClienteVoid;
-    while(1){
-    opcode codigo = recibirOpcode(socketCliente);
     
-    if (codigo < 0)
-    {
-        {
+    while(1){
+        opcode codigo = recibirOpcode(socketCliente);
+        if (codigo < 0) {
             worker* w = buscarWorkerPorSocket(socketCliente);
+            
+            if (w == NULL) {
+                log_debug(logger, "Worker ya eliminado");
+                close(socketCliente);
+                goto fin_hilo_worker;
+            }
             disminuirGradoMultiprogramacion();
-            if (!w->ocupado)
-            {
+            if (!w->ocupado) {
                 pthread_mutex_lock(&mutex_grado);
-                log_info(logger,"## Se desconecta el Worker <%d> - Cantidad total de Workers: <%d>",w->workerID,gradoMultiprogramacion);
+                log_info(logger,"## Se desconecta el Worker <%d> - Cantidad total de Workers: <%d>",w->workerID, gradoMultiprogramacion);
                 pthread_mutex_unlock(&mutex_grado);
                 close(w->socketDesalojo);
                 close(socketCliente);
                 eliminarWorker(w);
-                break;
+                goto fin_hilo_worker;
             }
-
             queryControl* qc = buscarQueryControlPorId(w->idActual);
-            //disminuirCantidadQueriesControl();
             
-            enviarOpcode(FINALIZACION_QUERY,qc->socket);
-            t_paquete* paquete= crearPaquete();
-            agregarStringAPaquete(paquete,"Desconexion");
-            enviarPaquete(paquete,qc->socket);
-
-            query* q = sacarDePorId(&listaExecute,qc->queryControlID);
+            if (qc != NULL) {
+                enviarOpcode(FINALIZACION_QUERY, qc->socket);
+                t_paquete* paquete = crearPaquete();
+                agregarStringAPaquete(paquete, "Desconexion");
+                enviarPaquete(paquete, qc->socket);
+                eliminarPaquete(paquete);
+            }
+            
+            query* q = sacarDePorId(&listaExecute, qc->queryControlID);
+            
             pthread_mutex_lock(&mutex_grado);
-            //log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",q->qcb->queryID,q->qcb->prioridad,gradoMultiprogramacion);
-            log_info(logger,"## Se desconecta el Worker <%d> - Se finaliza la Query <%d> - Cantidad total de Workers: <%d>",w->workerID,q->qcb->queryID,gradoMultiprogramacion);
+            log_info(logger,"## Se desconecta el Worker <%d> - Se finaliza la Query <%d> - Cantidad total de Workers: <%d>",w->workerID, q->qcb->queryID, gradoMultiprogramacion);
             pthread_mutex_unlock(&mutex_grado);
             
-            log_info(logger,"## Se desaloja la Query <%d> del Worker <%d> por desconexion de worker",q->qcb->queryID,w->workerID);
-
+            log_info(logger,"## Se desaloja la Query <%d> del Worker <%d> por desconexion de worker",q->qcb->queryID, w->workerID);
+            
+            //close(w->socketDesalojo);
+            close(socketCliente);
             eliminarWorker(w);
             eliminarQuery(q);
-            //eliminarQueryControl(qc);
-            // Error de doble free()
-            //close(qc->socket);
-            close(w->socketDesalojo);
-            close(socketCliente);
-            eliminarPaquete(paquete);
-
-            break;
+            
+            goto fin_hilo_worker;
         }
-    }
-    switch (codigo){
-    case INICIAR_WORKER:{
-        t_paquete* paquete = recibirPaquete(socketCliente);
-        if (!paquete) {
-                log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
+        
+        // SWITCH PARA OPCODES VÁLIDOS
+        switch (codigo){
+            case INICIAR_WORKER:{
+                t_paquete* paquete = recibirPaquete(socketCliente);
+                if (!paquete) {
+                    log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
+                    break;
+                }
+                int offset = 0;
+                int idWorker = recibirIntDePaqueteconOffset(paquete,&offset);
+                agregarWorker(socketCliente,idWorker);
+                eliminarPaquete(paquete);
                 break;
             }
-            int offset = 0;
-            int idWorker = recibirIntDePaqueteconOffset(paquete,&offset);
-            agregarWorker(socketCliente,idWorker);
-            eliminarPaquete(paquete);
-            break;
-    }
-    case LECTURA_QUERY_CONTROL:{
-        t_paquete* paqueteReceptor = recibirPaquete(socketCliente);
-        if (!paqueteReceptor){
-                log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
-                exit(EXIT_FAILURE);
-        }
-            int offset = 0;
-
-            int idQuery = recibirIntDePaqueteconOffset(paqueteReceptor,&offset);
-            char * file = recibirStringDePaqueteConOffset(paqueteReceptor,&offset);
-            char * tag = recibirStringDePaqueteConOffset(paqueteReceptor,&offset);
-            char * contenido = recibirStringDePaqueteConOffset(paqueteReceptor,&offset);
-
-            queryControl*queryC = buscarQueryControlPorId(idQuery);
-            worker* workerA = buscarWorkerPorQueryId(idQuery);
-            enviarOpcode(LECTURA_QUERY_CONTROL,queryC->socket);
-            t_paquete* paqueteEnviar = crearPaquete();
-            agregarStringAPaquete(paqueteEnviar,file);
-            agregarStringAPaquete(paqueteEnviar,tag);
-            agregarStringAPaquete(paqueteEnviar,contenido);
-            enviarPaquete(paqueteEnviar,queryC->socket);
-
-            log_info(logger,"## Se envía un mensaje de lectura de la Query <%d> en el Worker <%d> al Query Control",idQuery,workerA->workerID);
             
-            free(file);
-            free(tag);
-            free(contenido);
-            eliminarPaquete(paqueteReceptor);
-            eliminarPaquete(paqueteEnviar);
+            case LECTURA_QUERY_CONTROL:{
+                t_paquete* paqueteReceptor = recibirPaquete(socketCliente);
+                if (!paqueteReceptor){
+                    log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
+                    goto fin_hilo_worker;
+                }
+                int offset = 0;
 
-            break;
-    }
-    case FINALIZACION_QUERY: {
-        t_paquete * paqueteReceptor = recibirPaquete(socketCliente);
-        if (!paqueteReceptor){
-            log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
-            exit(EXIT_FAILURE);
-        }
+                int idQuery = recibirIntDePaqueteconOffset(paqueteReceptor,&offset);
+                char * file = recibirStringDePaqueteConOffset(paqueteReceptor,&offset);
+                char * tag = recibirStringDePaqueteConOffset(paqueteReceptor,&offset);
+                char * contenido = recibirStringDePaqueteConOffset(paqueteReceptor,&offset);
 
-        int offset = 0;
-        int idQuery = recibirIntDePaqueteconOffset(paqueteReceptor,&offset);
+                queryControl*queryC = buscarQueryControlPorId(idQuery);
+                worker* workerA = buscarWorkerPorQueryId(idQuery);
+                enviarOpcode(LECTURA_QUERY_CONTROL,queryC->socket);
+                t_paquete* paqueteEnviar = crearPaquete();
+                agregarStringAPaquete(paqueteEnviar,file);
+                agregarStringAPaquete(paqueteEnviar,tag);
+                agregarStringAPaquete(paqueteEnviar,contenido);
+                enviarPaquete(paqueteEnviar,queryC->socket);
 
-
-        queryControl* queryC = buscarQueryControlPorId(idQuery);
-        worker* workerA = buscarWorkerPorQueryId(idQuery);
-
-        log_info(logger, "## Se terminó la Query %d en el Worker %d", idQuery, workerA->workerID);
-        liberarWorker(workerA);
-        query* q = sacarDePorId(&listaExecute,idQuery);
-        eliminarQuery(q);
-        
-        //disminuirCantidadQueriesControl();
-
-        enviarOpcode(FINALIZACION_QUERY,queryC->socket);        
-        t_paquete* paqueteEnviar = crearPaquete();
-        agregarStringAPaquete(paqueteEnviar, "Finalizacion");
-        enviarPaquete(paqueteEnviar, queryC->socket);
-
-        // pthread_mutex_lock(&mutex_grado);
-        // log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",q->qcb->queryID,q->qcb->prioridad,gradoMultiprogramacion);
-        // pthread_mutex_unlock(&mutex_grado);  
-
-        //close(queryC->socket);
-        //eliminarQueryControl(queryC);
-        eliminarPaquete(paqueteEnviar);
-        eliminarPaquete(paqueteReceptor);
-        break;
-    }    
-        case DESALOJO_QUERY_DESCONEXION:{
-            worker* workerA = buscarWorkerPorSocket(socketCliente);
-            query * queryAEliminar = sacarDePorId(&listaExecute,workerA->idActual);
-            queryControl * queryCAEliminar = buscarQueryControlPorId(queryAEliminar->qcb->queryID);
-            liberarWorker(workerA);
-            log_info(logger,"## Se desaloja la Query <%d> del Worker <%d> por desconexion de queryControl",queryAEliminar->qcb->queryID,workerA->workerID);
-            disminuirGradoMultiprogramacion();
-            pthread_mutex_lock(&mutex_grado);
-            log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",queryCAEliminar->queryControlID,queryCAEliminar->prioridad,gradoMultiprogramacion);
-            pthread_mutex_unlock(&mutex_grado);
-
-            close(queryCAEliminar->socket);
-            eliminarQuery(queryAEliminar);
-            eliminarQueryControl(queryCAEliminar);
-            sem_post(&sem_ready);
+                log_info(logger,"## Se envía un mensaje de lectura de la Query <%d> en el Worker <%d> al Query Control",
+                         idQuery, workerA->workerID);
+                
+                free(file);
+                free(tag);
+                free(contenido);
+                eliminarPaquete(paqueteReceptor);
+                eliminarPaquete(paqueteEnviar);
+                break;
+            }
             
-            break;
-        }
-        case DESALOJO_QUERY_PLANIFICADOR:{
-            t_paquete* paquete =recibirPaquete(socketCliente);
-            int offset = 0;
-            
-            int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
-            int pcActualizado = recibirIntDePaqueteconOffset(paquete,&offset);
-            worker * w = buscarWorkerPorSocket(socketCliente);
-            query * queryDesalojada = sacarDePorId(&listaExecute,idQuery);
-            queryDesalojada->qcb->PC = pcActualizado;
+            case FINALIZACION_QUERY: {
+                t_paquete * paqueteReceptor = recibirPaquete(socketCliente);
+                if (!paqueteReceptor){
+                    log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
+                    goto fin_hilo_worker;
+                }
 
-            listaAdd(queryDesalojada,&listaReady);
-            log_info(logger,"## Se desaloja la Query <%d> (<%d>)-del Worker <%d>Motivo:<Planificacicon>",queryDesalojada->qcb->queryID,queryDesalojada->qcb->prioridad,w->workerID);
-            liberarWorker(w);
-            sem_post(&sem_ready);
-            eliminarPaquete(paquete);
-            break;
+                int offset = 0;
+                int idQuery = recibirIntDePaqueteconOffset(paqueteReceptor,&offset);
+
+                queryControl* queryC = buscarQueryControlPorId(idQuery);
+                worker* workerA = buscarWorkerPorQueryId(idQuery);
+
+                log_info(logger, "## Se terminó la Query %d en el Worker %d", idQuery, workerA->workerID);
+                liberarWorker(workerA);
+                query* q = sacarDePorId(&listaExecute,idQuery);
+                eliminarQuery(q);
+
+                enviarOpcode(FINALIZACION_QUERY,queryC->socket);        
+                t_paquete* paqueteEnviar = crearPaquete();
+                agregarStringAPaquete(paqueteEnviar, "Finalizacion");
+                enviarPaquete(paqueteEnviar, queryC->socket);
+
+                eliminarPaquete(paqueteEnviar);
+                eliminarPaquete(paqueteReceptor);
+                break;
+            }
+            
+            case DESALOJO_QUERY_DESCONEXION:{
+                worker* workerA = buscarWorkerPorSocket(socketCliente);
+                query * queryAEliminar = sacarDePorId(&listaExecute,workerA->idActual);
+                queryControl * queryCAEliminar = buscarQueryControlPorId(queryAEliminar->qcb->queryID);
+                liberarWorker(workerA);
+                log_info(logger,"## Se desaloja la Query <%d> del Worker <%d> por desconexion de queryControl",
+                         queryAEliminar->qcb->queryID, workerA->workerID);
+                disminuirGradoMultiprogramacion();
+                pthread_mutex_lock(&mutex_grado);
+                log_info(logger,"## Se desconecta un Query Control. Se finaliza la Query <%d> con prioridad <%d>. Nivel multiprocesamiento <%d>",
+                         queryCAEliminar->queryControlID, queryCAEliminar->prioridad, gradoMultiprogramacion);
+                pthread_mutex_unlock(&mutex_grado);
+
+                close(queryCAEliminar->socket);
+                eliminarQuery(queryAEliminar);
+                //eliminarQueryControl(queryCAEliminar);
+                sem_post(&sem_ready);
+                break;
+            }
+            
+            case DESALOJO_QUERY_PLANIFICADOR:{
+                t_paquete* paquete = recibirPaquete(socketCliente);
+                int offset = 0;
+                
+                int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
+                int pcActualizado = recibirIntDePaqueteconOffset(paquete,&offset);
+                worker * w = buscarWorkerPorSocket(socketCliente);
+                query * queryDesalojada = sacarDePorId(&listaExecute,idQuery);
+                queryDesalojada->qcb->PC = pcActualizado;
+
+                listaAdd(queryDesalojada,&listaReady);
+                log_info(logger,"## Se desaloja la Query <%d> (<%d>)-del Worker <%d>Motivo:<Planificacicon>",queryDesalojada->qcb->queryID, queryDesalojada->qcb->prioridad, w->workerID);
+                liberarWorker(w);
+                sem_post(&sem_ready);
+                eliminarPaquete(paquete);
+                break;
+            }
+            
+            default:
+                log_warning(logger, "Opcode desconocido: %d", codigo);
+                goto fin_hilo_worker;
         }
-    default:
-        break;
-    }
-    }
+    } 
+    
+fin_hilo_worker: 
+    return NULL;
 }
 
 

@@ -232,7 +232,6 @@ TablaDePaginas* obtenerTablaPorFileYTag(char* nombreFile, char* tag){
     return tabla;
 }
 
-
 void eliminarMemoriaInterna(void) {
     pthread_mutex_lock(&memoria_mutex);
 
@@ -431,6 +430,7 @@ char* obtenerContenidoDelMarco(int nro_marco, int offset, int size){ //El limite
     
     //SUMAR RETARDO DE MEMORIA (marco accedido)
     // log_info(logger,"“Query <QUERY_ID>: Acción: <LEER / ESCRIBIR> - Dirección Física: <DIRECCION_FISICA> - Valor: <VALOR LEIDO / ESCRITO>");
+    aplicarRetardoMemoria();
     return contenido; // caller debe free(contenido)
 }
 
@@ -439,10 +439,10 @@ char* obtenerContenidoDelMarco(int nro_marco, int offset, int size){ //El limite
 int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina){
     int marco = obtenerMarcoDesdePagina(nombreFile, tag, numeroPagina);
     
-    aplicarRetardoMemoria();
     
     if(marco != -1){
         log_debug(logger, "devolvio el marco: %d", marco);
+        
         return marco;
     }
     else{
@@ -466,6 +466,7 @@ int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina){
 
         free(key);
         free(contenido);
+        aplicarRetardoMemoria();
         return marcoLibre;
     }
 }
@@ -496,6 +497,8 @@ int obtenerMarcoDesdePagina(char* nombreFile, char* tag, int numeroPagina){
     }
     int marco = entrada->numeroMarco;
     pthread_mutex_unlock(&tabla_paginas_mutex);
+
+    aplicarRetardoMemoria(); 
 
     return marco;
 }
@@ -551,7 +554,7 @@ int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
 
 
 // Lectura en "Memoria Interna"
-char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, int offset, int size){
+char* leerContenidoDesdeOffsetVieja(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, int offset, int size){
     
     // Validar que el offset y size sean correctos, con el tamaño de la página
     // if(offset < 0 || size < 0 || offset + size > configW->BLOCK_SIZE){
@@ -579,9 +582,38 @@ char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, in
 
     pthread_mutex_unlock(&tabla_paginas_mutex);
     
-    //SUMAR RETARDO DE MEMORIA
-
+    
     return contenido;
+}
+
+// Para asegurar que leerContenidoDesdeOffset devuelva strings válidos:
+char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, 
+                                int numeroMarco, int offset, int size){
+    
+    char* contenido = obtenerContenidoDelMarco(numeroMarco, offset, size);
+    if(!contenido){
+        return NULL;
+    }
+    
+    // Si el contenido puede tener nulls intermedios, crear un string seguro:
+    char* contenidoSeguro = malloc(size + 1);
+    memcpy(contenidoSeguro, contenido, size);
+    contenidoSeguro[size] = '\0';
+    free(contenido);
+    
+    TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFile, tag);
+    if(!tabla){
+        log_error(logger, "Error al obtener tabla de paginas para %s:%s", nombreFile, tag);
+        free(contenidoSeguro);
+        return NULL;
+    }
+    
+    pthread_mutex_lock(&tabla_paginas_mutex);
+    EntradaDeTabla* entrada = &tabla->entradas[numeroPagina];
+    actualizar_acceso_pagina(entrada);
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+    
+    return contenidoSeguro;
 }
 
 //Escritura en "Memoria Interna"
@@ -668,6 +700,8 @@ void escribirEnMemoriaPaginaCompleta(char* nombreFile, char* tag, int numeroPagi
     
     // Escribir en memoria fisica
     escribirMarcoConOffset(marcoLibre, contenidoPagina,0);
+
+    aplicarRetardoMemoria();
     
     return;
 }

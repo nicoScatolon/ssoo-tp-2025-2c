@@ -330,21 +330,6 @@ void liberarInstruccion(instruccion_t* instr) {
     free(instr);
 }
 
-// void liberarContextoQueryVieja(contexto_query_t* contexto) {
-//     if (contexto == NULL) return;
-
-//     /* free(NULL) es seguro, las comprobaciones son opcionales */
-//     free(contexto->path_query);
-
-//     if (contexto->lineas_query != NULL && contexto->total_lineas > 0) {
-
-//         for (int i = 0; i < contexto->total_lineas; i++) {
-//             free(contexto->lineas_query[i]); /* safe si cada entrada fue inicializada o asignada */
-//         }
-//         free(contexto->lineas_query);
-//     }
-//     free(contexto);
-// }
 
 
 void liberarContextoQuery(contexto_query_t* contexto) {
