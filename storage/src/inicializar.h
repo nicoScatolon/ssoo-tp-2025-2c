@@ -14,8 +14,8 @@ void inicializarBloqueCero(char* pathPhysicalBlocks);
 char* crearHash(const char* contenido);
 
 void levantarFileSystem(void);
-void crearFile(char* nombreFile, char* nombreTag);
-void crearTag(char* pathFile, char* nombreTag);
+bool crearFile(char* nombreFile, char* nombreTag);
+bool crearTag(char* pathFile, char* nombreTag);
 void crearMetaData(char* pathTag);
 void inicializarMetaData(char* pathTag);
 void cambiarEstadoMetaData(char* pathTag,char* estado);

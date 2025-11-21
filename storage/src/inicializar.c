@@ -123,6 +123,8 @@ void levantarFileSystem(){
         pathBloquesFisicos = inicializarDirectorio(configS->puntoMontaje,"physical_blocks");
         char* pathBitMap = string_from_format("%s/bitmap.bin", configS->puntoMontaje);
         inicializarBitmap(pathBitMap);
+        free(pathBitMap);
+
         inicializarBlocksHashIndex(configS->puntoMontaje);
         inicializarBloquesFisicos(pathBloquesFisicos);
         inicializarBloqueCero(pathBloquesFisicos);
@@ -133,7 +135,7 @@ void levantarFileSystem(){
         char* pathTagBase = string_from_format("%s/initial_file/BASE", pathFiles);  
         agregarBloqueMetaData(pathTagBase,0);
         agregarBloquesLogicos(pathTagBase,configSB->BLOCK_SIZE);
-        cambiarEstadoMetaData(pathTagBase, "COMMITTED");
+        cambiarEstadoMetaData(pathTagBase, "COMMITED");
         free(pathTagBase);
 
 
@@ -142,27 +144,51 @@ void levantarFileSystem(){
     }
 }
 
-void crearFile(char* nombreFile, char* nombreTag){
-    char * path = inicializarDirectorio(pathFiles,nombreFile);
-    crearTag(path,nombreTag);
-    free(path);
+bool crearFile(char* nombreFile, char* nombreTag){
+    char* pathFile = string_from_format("%s/%s", pathFiles, nombreFile);
+
+    struct stat st;
+    if (stat(pathFile, &st) != 0) {
+        if (mkdir(pathFile, 0777) != 0) {
+            log_debug(logger, "Error al crear directorio del File <%s>: %s", nombreFile, strerror(errno));
+            free(pathFile);
+            return false;
+        }
+        log_debug(logger, "Directorio del File <%s> creado", nombreFile);
+    }
+
+    if (!crearTag(pathFile, nombreTag)) {
+        free(pathFile);
+        return false;
+    }
+
+    free(pathFile);
+    return true;
 }
 
-void crearTag(char* pathFile,char* nombreTag){
+bool crearTag(char* pathFile, char* nombreTag){
     char *pathTag =  inicializarDirectorio(pathFile,nombreTag);
     char* pathLogicalBlocks = inicializarDirectorio(pathTag,"logical_blocks");
+
+    struct stat st;
+    if (stat(pathTag, &st) == 0) {
+        log_debug(logger, "Error: File:Tag <%s:%s> ya existe (preexistente)", pathFile, nombreTag);
+        free(pathFile);
+        free(pathTag);
+        return false;
+    }
+
     crearMetaData(pathTag);
 
     free(pathTag);
     free(pathLogicalBlocks);
 }
 
-void crearMetaData(char*pathTag){
+void crearMetaData(char* pathTag){
     inicializarArchivo(pathTag,"metadata","config","a+");
     inicializarMetaData(pathTag);
     
 }
-
 
 void inicializarMetaData(char* pathTag) {
     char* pathMetadata = string_from_format("%s/metadata.config", pathTag);
@@ -185,6 +211,7 @@ void inicializarMetaData(char* pathTag) {
     fclose(archivo);
     free(pathMetadata);
 }
+
 void cambiarEstadoMetaData(char* pathTag,char* estado) {
     char* pathMetadata = string_from_format("%s/metadata.config", pathTag);
 

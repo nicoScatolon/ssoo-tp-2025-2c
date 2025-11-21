@@ -232,8 +232,8 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
     }
 
     char* estado = config_get_string_value(metadata, "ESTADO");
-    if (strcmp(estado, "COMMITTED") == 0) {
-        log_error(logger, "##<%d> - Error: No se puede escribir en <%s:%s> (COMMITTED)", 
+    if (strcmp(estado, "COMMITED") == 0) {
+        log_error(logger, "##<%d> - Error: No se puede escribir en <%s:%s> (COMMITED)", 
                   queryID, file, tag);
         config_destroy(metadata);
         return false;
@@ -448,16 +448,29 @@ bool truncarArchivo(char* file, char* tag, int nuevoTamanio, int queryID) {
         return false;
     }
 
-    // Obtener metadata
-    t_config* metadata = obtenerMetadata(file, tag, queryID);
-    if (!metadata) {
+    // 1. Construir path al metadata del File:Tag
+    char pathMetadata[512];
+    snprintf(pathMetadata, sizeof(pathMetadata), 
+             "%s/files/%s/%s/metadata.config", 
+             configS->puntoMontaje, file, tag);
+
+    // Verificar existencia del File:Tag
+    if (access(pathMetadata, F_OK) != 0) {
+        log_error(logger, "##<%d> - Error: File:Tag <%s:%s> no existe", queryID, file, tag);
         return false;
     }
 
-    // Verificar que no esté COMMITTED
+    // Obtener metadata
+    t_config* metadata = config_create(pathMetadata);
+    if (!metadata) {
+        log_error(logger, "##<%d> - Error al abrir metadata de <%s:%s>", queryID, file, tag);
+        return false;
+    }
+
+    // Verificar que no esté COMMITED
     char* estado = config_get_string_value(metadata, "ESTADO");
-    if (strcmp(estado, "COMMITTED") == 0) {
-        log_error(logger, "##<%d> - Error: No se puede truncar <%s:%s> (COMMITTED)", 
+    if (strcmp(estado, "COMMITED") == 0) {
+        log_error(logger, "##<%d> - Error: No se puede truncar <%s:%s> (COMMITED)", 
                   queryID, file, tag);
         config_destroy(metadata);
         return false;
@@ -522,15 +535,7 @@ bool aumentarTamanioArchivo(char* file, char* tag, int bloquesActuales, int bloq
     
     int bloquesAAgregar = bloquesNuevos - bloquesActuales;
 
-    log_debug(logger, "##<%d> - Aumentando tamaño: agregar %d bloques lógicos",
-              queryID, bloquesAAgregar);
-
-    // Verificar espacio disponible en el bitmap
-    if (!hayEspacioDisponible(bloquesAAgregar, queryID)) {
-        log_error(logger, "##<%d> - Error: Espacio insuficiente (se necesitan %d bloques)",
-                  queryID, bloquesAAgregar);
-        return false;
-    }
+    log_debug(logger, "##<%d> - Aumentando tamaño: agregar %d bloques lógicos", queryID, bloquesAAgregar);
 
     // Construir path al bloque físico 0
     char pathBloqueFisico0[512];
@@ -620,7 +625,7 @@ bool reducirTamanioArchivo(char* file, char* tag, int bloquesActuales, int bloqu
                  queryID, file, tag, i, bloqueFisico);
 
         // Si era la única referencia, liberar el bloque físico
-        if (referencias == 1) {
+        if (referencias == 2) {
             liberarBloque(bloqueFisico);
             log_info(logger, "##<%d> - Bloque Físico Liberado - Número de Bloque: <%d>",
                      queryID, bloqueFisico);
@@ -699,12 +704,8 @@ void actualizarMetadataTruncate(t_config* metadata, int nuevoTamanio, int cantid
 
 
 void hacerCommited(char* file, char* tag,int queryID) {
-    char* pathMetadata = string_from_format(
-        "%s/files/%s/%s/metadata.config", 
-        configS->puntoMontaje, file, tag
-    );
+    char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config", configS->puntoMontaje, file, tag);
     
-    // ✅ Pasar pathMetadata a esCommited
     if (esCommited(file, tag, pathMetadata)) {
         free(pathMetadata);
         return;
@@ -1011,6 +1012,11 @@ bool eliminarTag(char* file, char* tag, int queryID) {
         free(pathFileTag);
         return false;
     }
+
+    if (strcmp(file, "initial_file") == 0) { // && strcmp(tag, "BASE") == 0
+        log_error(logger, "## <%d> - Error: No se puede eliminar initial_file:BASE (protegido por el sistema)", queryID);
+        return false;
+    }
     
     // Eliminar Bloques Logicos
     eliminarBloquesLogicos(file, tag, queryID);
@@ -1046,44 +1052,49 @@ bool eliminarTag(char* file, char* tag, int queryID) {
 
     return true;
 }
-void eliminarBloqueLogico(char* pathBloqueLogico, char* file, char* tag, int queryID) {
+
+void eliminarBloqueLogico(char* pathBloqueLogico, char* file, char* tag, int numeroBloqueLogico, int queryID) {
     int numeroBloqueFisico = obtenerBloqueActual(file, tag, numeroBloqueLogico);
-    char* pathBloqueFisico = string_from_format("%s/blocks/block%03d.dat",configS->puntoMontaje, numeroBloqueFisico);
+    if (numeroBloqueFisico < 0) {
+        log_debug(logger, "## <%d> - Error: no se pudo obtener bloque físico para bloque lógico %d de %s:%s", queryID, numeroBloqueLogico, file, tag);
+        return;
+    }
+    
+    char* pathBloqueFisico = string_from_format("%s/physical_blocks/block%04d.dat", configS->puntoMontaje, numeroBloqueFisico);
+    
     struct stat st;
     if (stat(pathBloqueFisico, &st) != 0) {
-        log_error(logger, "## <%d> - Error al obtener info del bloque físico %d: %s",queryID, numeroBloqueFisico, strerror(errno));
+        log_error(logger, "## <%d> - Error al obtener info del bloque físico %d: %s", queryID, numeroBloqueFisico, strerror(errno));
         free(pathBloqueFisico);
         exit(EXIT_FAILURE);
     }
-
+    
     nlink_t numHardlinks = st.st_nlink;
+    
     if (unlink(pathBloqueLogico) != 0) {
-        log_error(logger, "## <%d> - Error al eliminar bloque lógico %s: %s",queryID, pathBloqueLogico, strerror(errno));
+        log_error(logger, "## <%d> - Error al eliminar bloque lógico %s: %s", queryID, pathBloqueLogico, strerror(errno));
         free(pathBloqueFisico);
-        exit(EXIT_FAILURE);
+        return;
     }
-
+    
+    log_info(logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d> al bloque físico <%d>", queryID, file, tag, numeroBloqueLogico, numeroBloqueFisico);
+    
     if (numHardlinks == 1) {
-        log_info(logger, "## <%d> - Bloque físico %d era el último hardlink, liberando",queryID, numeroBloqueFisico);
         liberarBloque(numeroBloqueFisico);
+        log_info(logger, "##<%d> - Bloque Físico Liberado - Número de Bloque: <%d>", queryID, numeroBloqueFisico);
     } else {
-        log_debug(logger, "## <%d> - Bloque físico %d aún tiene %ld hardlinks, no se libera",
-                  queryID, numeroBloqueFisico, (long)(numHardlinks - 1));
+        log_debug(logger, "## <%d> - Bloque físico %d aún tiene %ld hardlinks, no se libera", queryID, numeroBloqueFisico, (long)(numHardlinks - 1));
     }
     
     free(pathBloqueFisico);
 }
     
 void eliminarBloquesLogicos(char* file, char* tag, int queryID) {
-    char* pathLogicalBlocks = string_from_format(
-        "%s/files/%s/%s/logical_blocks",
-        configS->puntoMontaje, file, tag
-    );
+    char* pathLogicalBlocks = string_from_format( "%s/files/%s/%s/logical_blocks", configS->puntoMontaje, file, tag);
     
     DIR* dir = opendir(pathLogicalBlocks);
     if (dir == NULL) {
-        log_error(logger, "## <%d> - Error al abrir logical_blocks: %s",
-                  queryID, strerror(errno));
+        log_error(logger, "## <%d> - Error al abrir logical_blocks: %s", queryID, strerror(errno));
         free(pathLogicalBlocks);
         return;
     }
@@ -1101,15 +1112,16 @@ void eliminarBloquesLogicos(char* file, char* tag, int queryID) {
         }
         
         // Extraer el número de bloque lógico del nombre
-        // "0000.dat" -> 0, "0001.dat" -> 1
+        // Formato esperado: "000000.dat", "000001.dat", etc.
         int numeroBloqueLogico = atoi(entrada->d_name);
         
+        // Construir path completo del bloque lógico
         char* pathBloqueLogico = string_from_format(
             "%s/%s",
             pathLogicalBlocks, entrada->d_name
         );
         
-        // Eliminar el bloque lógico
+        // Eliminar el bloque lógico (ahora con el parámetro correcto)
         eliminarBloqueLogico(pathBloqueLogico, file, tag, numeroBloqueLogico, queryID);
         
         free(pathBloqueLogico);
