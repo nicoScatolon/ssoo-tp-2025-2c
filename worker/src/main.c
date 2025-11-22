@@ -23,11 +23,11 @@ int main(int argc, char* argv[]) {
 
     logger = iniciar_logger("worker", configW->logLevel);
 
-    inicializarEstructuras();
-    
     conexionConMaster(workerId);
     conexionConStorage(workerId);
-    conexionConMasterDesalojo(workerId);
+    inicializarEstructuras();
+    
+    //conexionConMasterDesalojo(workerId);
     
     
     escucharMaster(); 

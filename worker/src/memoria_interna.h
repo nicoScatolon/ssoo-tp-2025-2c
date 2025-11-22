@@ -40,12 +40,13 @@ TablaDePaginas* agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag);
 TablaDePaginas* obtenerTablaPorFileYTag(char* nombreFile, char* tag); // Hecho
 void actualizarMetadataTablaPagina(TablaDePaginas* tabla);
 
-void escribirMarcoConOffset(int numeroMarco, char* contenido, int offset);
+void escribirMarcoConOffset(int numeroMarco, char* contenido, int offset, int size);
 
 int obtenerMarcoLibre(void); // Hecho
 int liberarMarcoVictimaYAsignar(key_Reemplazo* keyVictima, char* keyAsignar, int numeroPagina);
 
 void liberarMarco(int nro_marco); // Hecho
+void ocuparMarco(int nro_marco);
 int obtenerMarcoDesdePagina(char* nombreFile, char* tag, int numeroPagina); // Hecho
 char* obtenerContenidoDelMarco(int nro_marco, int offset, int size);
 
