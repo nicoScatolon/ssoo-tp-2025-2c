@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
     conexionConStorage(workerId);
     inicializarEstructuras();
     
-    //conexionConMasterDesalojo(workerId);
+    conexionConMasterDesalojo(workerId);
     
     
     escucharMaster(); 

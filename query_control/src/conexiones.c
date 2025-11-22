@@ -25,10 +25,9 @@ void esperarRespuesta(){
         opcode codigo;
         int recibido = recv(socketMaster,&codigo,sizeof(opcode),0);
         if (recibido < 0) {
-            log_warning(logger, "Cliente desconectado en socket %d", socketMaster);
-            close(socketMaster);
-            //finalizarQueryControl();
-            break;
+            log_error(logger, "Cliente desconectado en socket %d", socketMaster);
+            exit(EXIT_FAILURE);
+        
         }
         switch(codigo){
             case FINALIZACION_QUERY:{
@@ -39,7 +38,6 @@ void esperarRespuesta(){
                 free(motivo);
                 eliminarPaquete(paquete);
                 exit(EXIT_FAILURE);
-                //finalizarQueryControl();
                 break;
             }
             case LECTURA_QUERY_CONTROL:{
@@ -57,50 +55,7 @@ void esperarRespuesta(){
             }
             default:
                 log_warning(logger, " ## Respuesta desconocida de Master (opcode=%d)", codigo);
-                break;
+                exit(EXIT_FAILURE);
         }
     }
-}
-
-void finalizarQueryControl(){
-    close(socketMaster);
-    log_destroy(logger);
-}
-// void manejar_sigint(int sig) {
-//     write(STDOUT_FILENO, "\n[SIGINT] Desconectando del Master...\n", 39);
-//     if (socketMaster > 0) {
-//         enviarOpcode(DESCONEXION_QUERY_CONTROL, socketMaster);
-//     }
-//     usleep(1000);
-//     log_debug(logger, "Desconectando del Master y saliendo...");
-//     log_destroy(logger);
-//     close(socketMaster);
-//     exit(EXIT_SUCCESS);
-// }
-
-void manejar_sigint(int sig) {
-    const char* msg = "\n\n*** SIGINT CAPTURADO ***\n";
-    write(STDOUT_FILENO, msg, strlen(msg));
-    
-    write(STDOUT_FILENO, "Paso 1: Verificando socket...\n", 31);
-    
-    if (socketMaster > 0) {
-        write(STDOUT_FILENO, "Paso 2: Enviando opcode...\n", 28);
-        enviarOpcode(DESCONEXION_QUERY_CONTROL, socketMaster);
-        
-        write(STDOUT_FILENO, "Paso 3: Esperando envío...\n", 28);
-        usleep(100000);
-        
-        write(STDOUT_FILENO, "Paso 4: Cerrando socket...\n", 28);
-        close(socketMaster);
-    }
-    
-    write(STDOUT_FILENO, "Paso 5: Cerrando logger...\n", 28);
-    if (logger != NULL) {
-        log_debug(logger, "Desconectando del Master y saliendo...");
-        log_destroy(logger);
-    }
-    
-    write(STDOUT_FILENO, "Paso 6: Saliendo...\n\n", 21);
-    _exit(EXIT_SUCCESS);
 }

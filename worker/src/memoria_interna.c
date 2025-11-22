@@ -34,13 +34,13 @@ void inicializarMemoriaInterna(void) {
     }
 
     temp = temporal_create();
-    log_debug(logger, "Inicializando contador de actualizacion tablas de paginas");
+    // log_debug(logger, "Inicializando contador de actualizacion tablas de paginas");
 
     
     cant_marcos = tam_memoria / tam_marco;
-    log_error(logger, "Tamaño de memoria: %d bytes", tam_memoria); //despues borrar no es un error real
-    log_error(logger, "Tamaño de marco (BLOCK_SIZE): %d bytes", tam_marco); //despues borrar no es un error real
-    log_error(logger, "Cantidad de marcos calculada: %d", cant_marcos); //despues borrar no es un error real
+    // log_error(logger, "Tamaño de memoria: %d bytes", tam_memoria); //despues borrar no es un error real
+    // log_error(logger, "Tamaño de marco (BLOCK_SIZE): %d bytes", tam_marco); //despues borrar no es un error real
+    // log_error(logger, "Cantidad de marcos calculada: %d", cant_marcos); //despues borrar no es un error real
 
     if (cant_marcos <= 0) {
         log_error(logger, "Tam memoria insuficiente para pagina de %d bytes", tam_marco);
