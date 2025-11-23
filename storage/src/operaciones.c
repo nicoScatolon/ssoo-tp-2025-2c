@@ -1,5 +1,6 @@
 #include "operaciones.h"
-// READ
+
+// READ:
 char* lecturaBloque(char* file, char* tag, int numeroBloque){
     char* rutaCompleta = string_from_format(
         "%s/files/%s/%s/logical_blocks/%06d.dat",
@@ -22,7 +23,7 @@ char* lecturaBloque(char* file, char* tag, int numeroBloque){
 }
 
 
-// Tag de File
+// TAG:
 bool tagFile(char* fileOrigen, char* tagOrigen, char* fileDestino, char* tagDestino, int queryID){
     char* pathTagOrigen = string_from_format(
         "%s/files/%s/%s", 
@@ -357,16 +358,18 @@ bool truncarArchivo(char* file, char* tag, int nuevoTamanio, int queryID) {
         log_error(logger, "##<%d> - Error: El tamaño <%d> no es múltiplo del tamaño de bloque <%d>", queryID, nuevoTamanio, configSB->BLOCK_SIZE);
         return false;
     }
-
-    char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config", configS->puntoMontaje, file, tag);
-
-    // Verificar existencia del File:Tag
-    if (access(pathMetadata, F_OK) != 0) {
+    
+    char* pathTag = string_from_format("%s/files/%s/%s", configS->puntoMontaje, file, tag);
+    struct stat st;
+    if (stat(pathTag, &st) != 0 || !S_ISDIR(st.st_mode)) {
         log_error(logger, "##<%d> - Error: File:Tag <%s:%s> no existe", queryID, file, tag);
-        free(pathMetadata);
+        free(pathTag);
         return false;
     }
+    free(pathTag);
 
+    char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config", configS->puntoMontaje, file, tag);
+    
     t_config* metadata = config_create(pathMetadata);
     free(pathMetadata);
     if (!metadata) {
@@ -419,7 +422,6 @@ bool aumentarTamanioArchivo(char* file, char* tag, int bloquesActuales, int bloq
     log_debug(logger, "##<%d> - Aumentando tamaño: agregar %d bloques lógicos", queryID, bloquesAAgregar);
 
     char* pathBloqueFisico0 = string_from_format("%s/physical_blocks/block0000.dat", configS->puntoMontaje);
-
     char* pathLogicalBlocks = string_from_format("%s/files/%s/%s/logical_blocks", configS->puntoMontaje, file, tag);
 
     // Crear hardlinks apuntando al bloque 0
@@ -435,7 +437,11 @@ bool aumentarTamanioArchivo(char* file, char* tag, int bloquesActuales, int bloq
         }
 
         log_info(logger, "##<%d> - <%s:%s> Se agregó el hard link del bloque lógico <%d> al bloque físico <0>", queryID, file, tag, i);
-        agregarBloqueMetaData(string_from_format("%s/files/%s/%s", configS->puntoMontaje, file, tag), 0,0);
+
+        char* pathTag = string_from_format("%s/files/%s/%s", configS->puntoMontaje, file, tag);
+        agregarBloqueMetaData(pathTag, i, 0);
+        free(pathTag);
+        // agregarBloqueMetaData(string_from_format("%s/files/%s/%s", configS->puntoMontaje, file, tag), 0,0);
         
         free(pathBloqueLogico);
     }
@@ -480,8 +486,7 @@ bool reducirTamanioArchivo(char* file, char* tag, int bloquesActuales, int bloqu
 
         int referencias = contarReferenciasBloque(pathBloqueLogico, queryID);
         if (referencias < 0) {
-            log_error(logger, "##<%d> - Error al obtener referencias del bloque lógico %d",
-                      queryID, i);
+            log_error(logger, "##<%d> - Error al obtener referencias del bloque lógico %d", queryID, i);
             free(pathBloqueLogico);
             string_array_destroy(bloques);
             return false;
@@ -498,7 +503,6 @@ bool reducirTamanioArchivo(char* file, char* tag, int bloquesActuales, int bloqu
 
         if (referencias == 1) {
             liberarBloque(bloqueFisico, queryID);
-            log_info(logger, "##<%d> - Bloque Físico Liberado - Número de Bloque: <%d>", queryID, bloqueFisico);
         }
         
         free(pathBloqueLogico);
@@ -573,7 +577,6 @@ void actualizarMetadataTruncate(t_config* metadata, int nuevoTamanio, int cantid
     }
     free(nuevosBloquesStr);
 }
-
 
 
 // COMMIT:
@@ -790,6 +793,7 @@ void actualizarMetadataBloques(char* file, char* tag, int numeroBloqueLogico, in
     log_info(logger,"##<%d> - <%s>:<%s> Bloque Lógico <%d> se reasigna de <%d> a <%d>", queryID, file, tag, numeroBloqueLogico, anteriorBloqueFisico, numeroNuevoBloqueFisico);
 
 }
+
 char* construirStringArray(char** array) {
     if (array == NULL || array[0] == NULL) {
         return string_duplicate("[]");
@@ -809,11 +813,7 @@ char* construirStringArray(char** array) {
 }
 
 
-
 // DELETE:
-
-
-
 bool eliminarTag(char* file, char* tag, int queryID) {
     // 1. Construir el path al tag
     char* pathFileTag = string_from_format("%s/files/%s/%s", configS->puntoMontaje, file, tag);
