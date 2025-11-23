@@ -7,12 +7,16 @@ extern configWorker * configW;
 
 extern t_dictionary* tablasDePaginas;
 
+
 extern pthread_mutex_t tabla_paginas_mutex;
+
 
 typedef struct {
     char* keyProceso;
-    int indicePagina;
+    int indiceMarco;
 } PunteroClockModificado;
+
+
 typedef struct {
     char* key;
     int pagina;

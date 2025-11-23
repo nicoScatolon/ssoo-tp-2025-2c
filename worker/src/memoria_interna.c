@@ -4,8 +4,13 @@ char *memoria = NULL;        // memoria principal
 t_bitarray* bitmap = NULL;   // bitmap para páginas
 int cant_marcos = 0;
 t_dictionary* tablasDePaginas = NULL; //la key es <FILE>:<TAG>
+t_list* paginasPorMarco = NULL;
+
+VectorPaginaXMarco* vectorPaginaXMarco = NULL;
 
 t_temporal* temp = NULL;
+
+
 
 //Mutex
 pthread_mutex_t memoria_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -74,12 +79,23 @@ void inicializarMemoriaInterna(void) {
         pthread_mutex_unlock(&memoria_mutex);
         exit(EXIT_FAILURE);
     }
+    
+    vectorPaginaXMarco = vector_pxm_create(cant_marcos);
+    if (vectorPaginaXMarco == NULL) {
+        log_error(logger, "Error creando vectorPaginaXMarco");
+        bitarray_destroy(bitmap);
+        free(memoria);
+        memoria = NULL;
+        pthread_mutex_unlock(&memoria_mutex);
+        exit(EXIT_FAILURE);
+    }
 
     log_debug(logger, "Memoria interna inicializada: %d bytes, %d marcos, bitmap de %d bytes",
               tam_memoria, cant_marcos, bytes_bitmap);
 
     pthread_mutex_unlock(&memoria_mutex);
 }
+
 
 void inicializarDiccionarioDeTablas(void) {
     pthread_mutex_lock(&tabla_paginas_mutex);
@@ -260,6 +276,8 @@ void eliminarMemoriaInterna(void) {
 
     cant_marcos = 0;
 
+    vector_pxm_destroy(vectorPaginaXMarco);
+
     pthread_mutex_unlock(&memoria_mutex);
 }
 
@@ -278,6 +296,14 @@ int obtenerMarcoLibreYReservado(char* keyAsignar, int numeroPagina){
             asignarMarcoEntradaTabla(nombreFile, tag, numeroPagina, i);
            
             log_debug(logger, "Marco libre encontrado: %d", i);
+            
+            bool rta = vector_pxm_addIndex(vectorPaginaXMarco, numeroPagina, keyAsignar, i);
+            if (!rta){
+                log_error(logger, "Error al agregar paginaXMarco en vectorPaginaXMarco para key: %s, nroPagina: %d, nroMarco: %d", keyAsignar, numeroPagina, i);
+                free(nombreFile);
+                free(tag);
+                exit(EXIT_FAILURE);
+            }
 
             free(nombreFile);
             free(tag);
@@ -305,6 +331,13 @@ int obtenerMarcoLibreYReservado(char* keyAsignar, int numeroPagina){
     }
 
     ocuparMarco(marco);
+    bool rta = vector_pxm_addIndex(vectorPaginaXMarco, numeroPagina, keyAsignar, marco);
+    if (!rta){
+        log_error(logger, "Error al agregar paginaXMarco en vectorPaginaXMarco para key: %s, nroPagina: %d, nroMarco: %d", keyAsignar, numeroPagina, marco);
+        free(keyVictima->key);
+        free(keyVictima);
+        exit(EXIT_FAILURE);
+    }
 
     free(keyVictima->key);
     free(keyVictima);

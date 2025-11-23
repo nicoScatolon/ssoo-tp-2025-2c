@@ -1,7 +1,7 @@
 #include "algoritmosReemplazo.h"
 
-
 static PunteroClockModificado punteroClockMod = {NULL, 0};
+
 
 key_Reemplazo* ReemplazoLRU() {
     key_Reemplazo* keyReemplazo = malloc(sizeof(key_Reemplazo));  
@@ -54,11 +54,8 @@ key_Reemplazo* ReemplazoCLOCKM() {
     bool encontrado = false;
     
     pthread_mutex_lock(&tabla_paginas_mutex);
-
-    t_list* keys = dictionary_keys(tablasDePaginas);
-    int totalProcesos = list_size(keys);
     
-    if(totalProcesos == 0) {
+    if(vectorPaginaXMarco->cantidad == 0) {
         list_destroy(keys);
         pthread_mutex_unlock(&tabla_paginas_mutex);
         free(keyReemplazo);
@@ -102,7 +99,7 @@ key_Reemplazo* ReemplazoCLOCKM() {
         return NULL;
     }
 
-    keyReemplazo->key = strdup(key);  // ← CAMBIO CRÍTICO
+    keyReemplazo->key = strdup(key);  // CAMBIO CRÍTICO
     keyReemplazo->marco = entradaVictima->numeroMarco;
     keyReemplazo->pagina = entradaVictima->numeroPagina;
     
