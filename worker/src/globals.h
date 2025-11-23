@@ -20,6 +20,7 @@ extern int socketMaster;
 extern int socketStorage;
 
 extern sem_t sem_hayInterrupcion;
+extern sem_t sem_interrupcionAtendida;
 
 typedef enum {
     CREATE,
@@ -58,6 +59,8 @@ typedef struct {
     bool        bitPresencia;
 } EntradaDeTabla;
 
+
+
 typedef struct {
     EntradaDeTabla      *entradas;              // array indexado por número de página virtual (PV)
     int                 capacidadEntradas;      // cuantos slots están reservados (p. ej. 16, 32)
@@ -66,10 +69,27 @@ typedef struct {
     char               *keyProceso;             // strdup("file:tag") — útil para logs
 } TablaDePaginas;
 
+typedef struct {
+    int nroPagina;
+    char* key;
+} PaginaXMarco;
+
+typedef struct {
+    PaginaXMarco* elementos;  
+    int capacidad;             // tamaño fijo del vector
+    int cantidad;              // opcional si necesitás saber cuántos están en uso
+} VectorPaginaXMarco;
+
 
 int calcularPaginaDesdeDireccionBase(int direccionBase);
 int calcularOffsetDesdeDireccionBase(int direccionBase);
 void inicializarCosas();
 
+// libreria interna manejar vectorpagina
+VectorPaginaXMarco* vector_pxm_create(int capacidad);
+void vector_pxm_destroy(VectorPaginaXMarco* vector);
+bool vector_pxm_addIndex(VectorPaginaXMarco* vector, int numeroPagina, char* key, int index);
+PaginaXMarco* vector_pxm_get(VectorPaginaXMarco* vector, int nroMarco);
+PaginaXMarco paginaXMarco_create(int nroPagina, char* key);
 
 #endif

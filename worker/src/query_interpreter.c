@@ -20,9 +20,9 @@ contexto_query_t* cargarQuery(char* path, int query_id, int pc_inicial) {
         return NULL;
     }
     if (need_slash)
-        string_from_format(path_completo, len, "%s/%s", configW->pathQueries, path); //si se rompe volver al sprintf
+        snprintf(path_completo, len, "%s/%s", configW->pathQueries, path); //si se rompe volver al sprintf
     else
-        string_from_format(path_completo, len, "%s%s", configW->pathQueries, path);
+        snprintf(path_completo, len, "%s%s", configW->pathQueries, path);
 
 
     
@@ -231,7 +231,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
             char *fileNameDestino = NULL, *tagFileDestino = NULL;
             ObtenerNombreFileYTag(instruccion->parametro[2], &fileNameDestino, &tagFileDestino);
 
-            ejecutar_tag(fileName, tagFile, fileNameDestino, fileNameDestino, contexto->query_id); 
+            ejecutar_tag(fileName, tagFile, fileNameDestino, tagFileDestino, contexto->query_id); 
 
             free(fileNameDestino);
             free(tagFileDestino);
@@ -265,9 +265,8 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         
         case END: {
             // parametro[0] = "END"
-            ejecutar_flush(fileName, tagFile, contexto->query_id);
+            // ejecutar_flush(fileName, tagFile, contexto->query_id);
             ejecutar_end(contexto);
-            log_debug(logger, "Ejecutando END");
             break;
         }
         
@@ -311,9 +310,9 @@ void ejecutarQuery(contexto_query_t* contexto) {
         }
         
         contexto->pc++;
-        free(linea_actual);
 
         if(sem_trywait(&sem_hayInterrupcion) == 0){
+            sem_post(&sem_interrupcionAtendida); 
             log_debug(logger, "Query %d interrumpida en PC %d", contexto->query_id, contexto->pc);
             return; 
         }
@@ -332,21 +331,24 @@ void liberarInstruccion(instruccion_t* instr) {
     free(instr);
 }
 
-void liberarContextoQuery(contexto_query_t* contexto) {
-    if (contexto == NULL) return;
 
-    /* free(NULL) es seguro, las comprobaciones son opcionales */
+
+void liberarContextoQuery(contexto_query_t* contexto) {
+    if (contexto == NULL)
+        return;
+
     free(contexto->path_query);
 
-    if (contexto->lineas_query != NULL && contexto->total_lineas > 0) {
+    if (contexto->lineas_query != NULL) {
         for (int i = 0; i < contexto->total_lineas; i++) {
-            free(contexto->lineas_query[i]); /* safe si cada entrada fue inicializada o asignada */
+            free(contexto->lineas_query[i]);   
         }
         free(contexto->lineas_query);
     }
 
     free(contexto);
 }
+
 
 void desalojarQuery(int idQuery, opcode motivo) {
     int pc = contexto->pc;
@@ -363,6 +365,8 @@ void desalojarQuery(int idQuery, opcode motivo) {
         free(key);
     }
     list_destroy(keys);
+    
+    log_debug(logger, "Desalojando Query %d en PC %d por motivo %d", idQuery, pc, motivo);
 
     enviarOpcode(motivo, socketMaster/*socket master*/);
     t_paquete* paquete = crearPaquete();

@@ -5,7 +5,7 @@ t_config* iniciarConfig(const char* modulo, const char* archivo) {
     snprintf(
         pathConcatenado,
         sizeof(pathConcatenado),
-        "/home/utnso/tp-2025-2c-Here-we-go-again/%s/configs/%s.config",
+        "/home/nico/tp-2025-2c-Here-we-go-again/%s/configs/%s.config",
         modulo,
         archivo
     );
