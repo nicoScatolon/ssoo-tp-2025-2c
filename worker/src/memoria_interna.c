@@ -357,7 +357,7 @@ int liberarMarcoVictimaYAsignar(key_Reemplazo* keyVictima, char* keyAsignar, int
     
     char* fileNameAsignar = NULL;
     char* tagFileAsignar = NULL;
-    EntradaDeTabla* paginaAsignar = NULL;
+  
     if (!ObtenerNombreFileYTag(keyAsignar, &fileNameAsignar, &tagFileAsignar)) {
         log_error(logger, "Error al obtener <FILE>:<TAG> en liberarMarcoVictimaYAsignar. key: %s", keyVictima->key);
         exit(EXIT_FAILURE);

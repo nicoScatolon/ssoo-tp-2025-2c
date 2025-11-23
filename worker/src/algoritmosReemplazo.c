@@ -11,37 +11,88 @@ key_Reemplazo* ReemplazoLRU() {
 
     int64_t menorTiempo = INT64_MAX;
 
-    log_debug(logger,"Estamos dentro del LRU");
     pthread_mutex_lock(&tabla_paginas_mutex);
-    t_list* keys = dictionary_keys(tablasDePaginas);
-    log_debug(logger,"Log +1");
 
-    for(int i = 0; i < list_size(keys); i++) {
-        char* currentKey = list_get(keys, i);
-        TablaDePaginas* tabla = dictionary_get(tablasDePaginas, currentKey);
-
-        for(int j = 0; j < tabla->capacidadEntradas; j++) {
-            EntradaDeTabla* entrada = &(tabla->entradas[j]);
-
-            if(entrada->bitPresencia) {
-                log_warning(logger,"Revisando %s página %d: último acceso %ld, acceso a comparar: %ld", currentKey, entrada->numeroPagina, entrada->ultimoAcceso, menorTiempo);
-                if(entrada->ultimoAcceso < menorTiempo) {
-                    menorTiempo = entrada->ultimoAcceso;
-                    
-                    if(keyReemplazo->key != NULL) {
-                        free(keyReemplazo->key);
-                    }
-
-                    keyReemplazo->key = strdup(currentKey);
-                    keyReemplazo->marco = entrada->numeroMarco;
-                    keyReemplazo->pagina = entrada->numeroPagina;
-                }
+    for(int marcoIdx = 0; marcoIdx < cant_marcos; marcoIdx++) {
+        // Obtener la página que está en este marco (si hay alguna)
+        PaginaXMarco* pxm = vector_pxm_get(vectorPaginaXMarco, marcoIdx);
+        
+        if(pxm != NULL && pxm->key != NULL) {
+            // Este marco está ocupado, verificar su timestamp
+            char* nombreFile = NULL;
+            char* tag = NULL;
+            
+            if(!ObtenerNombreFileYTagInterna(pxm->key, &nombreFile, &tag)) {
+                log_error(logger, "LRU: Error parseando key %s en marco %d", pxm->key, marcoIdx);
+                free(nombreFile);
+                free(tag);
+                continue;
             }
+            
+            TablaDePaginas* tabla = dictionary_get(tablasDePaginas, pxm->key);
+            if(!tabla) {
+                log_error(logger, "LRU: Tabla NULL para key %s en marco %d", pxm->key, marcoIdx);
+                free(nombreFile);
+                free(tag);
+                continue;
+            }
+            
+            // Verificar que el número de página sea válido
+            if(pxm->nroPagina < 0 || pxm->nroPagina >= tabla->capacidadEntradas) {
+                log_error(logger, "LRU: Número de página inválido %d en marco %d", 
+                          pxm->nroPagina, marcoIdx);
+                free(nombreFile);
+                free(tag);
+                continue;
+            }
+            
+            EntradaDeTabla* entrada = &(tabla->entradas[pxm->nroPagina]);
+            
+            // Verificar consistencia: debe estar presente y el marco debe coincidir
+            if(!entrada->bitPresencia || entrada->numeroMarco != marcoIdx) {
+                log_warning(logger, "LRU: Inconsistencia en marco %d: esperaba pág %d de %s, "
+                           "pero bitPresencia=%d o marco=%d", 
+                           marcoIdx, pxm->nroPagina, pxm->key, 
+                           entrada->bitPresencia, entrada->numeroMarco);
+                free(nombreFile);
+                free(tag);
+                continue;
+            }
+            
+            // Comparar timestamp
+            log_warning(logger, "LRU: Revisando marco %d - %s[pág %d]: último acceso %ld vs menorTiempo %ld", 
+                      marcoIdx, pxm->key, pxm->nroPagina, entrada->ultimoAcceso, menorTiempo);
+            
+            if(entrada->ultimoAcceso < menorTiempo) {
+                menorTiempo = entrada->ultimoAcceso;
+                
+                if(keyReemplazo->key != NULL) {
+                    free(keyReemplazo->key);
+                }
+                
+                keyReemplazo->key = strdup(pxm->key);
+                keyReemplazo->marco = entrada->numeroMarco;
+                keyReemplazo->pagina = entrada->numeroPagina;
+                
+                log_debug(logger, "LRU: Nueva víctima candidata - marco %d, %s[pág %d], tiempo %ld", 
+                          marcoIdx, pxm->key, pxm->nroPagina, entrada->ultimoAcceso);
+            }
+            
+            free(nombreFile);
+            free(tag);
         }
     }
 
     pthread_mutex_unlock(&tabla_paginas_mutex);
-    list_destroy(keys);
+
+    if(keyReemplazo->key == NULL) {
+        log_error(logger, "LRU: No se encontró ninguna página para reemplazar");
+        free(keyReemplazo);
+        return NULL;
+    }
+
+    log_info(logger, "LRU: Víctima seleccionada - marco %d: %s[pág %d] con tiempo %ld", 
+             keyReemplazo->marco, keyReemplazo->key, keyReemplazo->pagina, menorTiempo);
 
     return keyReemplazo; 
 }
@@ -56,54 +107,50 @@ key_Reemplazo* ReemplazoCLOCKM() {
     pthread_mutex_lock(&tabla_paginas_mutex);
     
     if(vectorPaginaXMarco->cantidad == 0) {
-        list_destroy(keys);
         pthread_mutex_unlock(&tabla_paginas_mutex);
         free(keyReemplazo);
+        log_error(logger, "Clock-M: No hay marcos ocupados en memoria");
         return NULL;
     }
     
     // Inicializar puntero si es la primera vez
-    if(punteroClockMod.keyProceso == NULL) {
-        punteroClockMod.keyProceso = strdup(list_get(keys, 0));
-        punteroClockMod.indicePagina = 0;
-        // log_error(logger, "El puntero clock no esta inicializado");
-
+    if(punteroClockMod.indiceMarco < 0 || punteroClockMod.indiceMarco >= cant_marcos) {
+        punteroClockMod.indiceMarco = 0;
+        if(punteroClockMod.keyProceso != NULL) {
+            free(punteroClockMod.keyProceso);
+            punteroClockMod.keyProceso = NULL;
+        }
     }
 
     char* key = NULL;
     int intentos = 0;
-    const int MAX_INTENTOS = 10; // Límite de seguridad para evitar bucle infinito
+    const int MAX_INTENTOS = 10; // Límite de seguridad
 
     
     while(!encontrado && intentos < MAX_INTENTOS) {
         intentos++;
         
         // PASO 1: Buscar (0,0) SIN limpiar bits de uso
-        log_debug(logger, "Clock-M intento %d: Paso 1 - Buscando (0,0) sin limpiar", intentos);
-        encontrado = buscar_victima_clock(keys, &entradaVictima, &key, false, false, false);
+        log_debug(logger, "Clock-M intento %d: Paso 1 - Buscando (U=0, M=0) sin limpiar", intentos);
+        encontrado = buscar_victima_clock(&entradaVictima, &key, false, false, false);
         
         if(!encontrado) {
             // PASO 2: Buscar (0,1) LIMPIANDO bits de uso
-            log_debug(logger, "Clock-M intento %d: Paso 2 - Buscando (0,1) limpiando bits", intentos);
-            encontrado = buscar_victima_clock(keys, &entradaVictima, &key, false, true, true);
+            log_debug(logger, "Clock-M intento %d: Paso 2 - Buscando (U=0, M=1) limpiando bits", intentos);
+            encontrado = buscar_victima_clock(&entradaVictima, &key, false, true, true);
         }
-        
-        // Si no encontró, vuelve al paso 1 automáticamente (siguiente iteración del while)
     }
-    
     if(!encontrado) {
         log_error(logger, "Clock-M: No se encontró víctima después de %d intentos", intentos);
-        list_destroy(keys);
-        exit(EXIT_FAILURE);
         pthread_mutex_unlock(&tabla_paginas_mutex);
-        return NULL;
+        free(keyReemplazo);
+        exit(EXIT_FAILURE);
     }
 
-    keyReemplazo->key = strdup(key);  // CAMBIO CRÍTICO
+    keyReemplazo->key = strdup(key);
     keyReemplazo->marco = entradaVictima->numeroMarco;
     keyReemplazo->pagina = entradaVictima->numeroPagina;
     
-    list_destroy(keys);
     pthread_mutex_unlock(&tabla_paginas_mutex);
     
     log_debug(logger, "Clock-M: Víctima encontrada en intento %d - %s, Página: %d, Frame: %d", 
@@ -112,284 +159,140 @@ key_Reemplazo* ReemplazoCLOCKM() {
     return keyReemplazo;
 }
 
-key_Reemplazo* ReemplazoCLOCKMTrucho() {
-    key_Reemplazo* keyReemplazo = (key_Reemplazo*)malloc(sizeof(key_Reemplazo));
-    EntradaDeTabla* entradaVictima = NULL;
-    bool encontrado = false;
+bool buscar_victima_clock(EntradaDeTabla** victima, char** keyOut, 
+                                       bool buscarBitUso, bool buscarBitMod, bool limpiarBitUso) {
     
-    pthread_mutex_lock(&tabla_paginas_mutex);
-
-    t_list* keys = dictionary_keys(tablasDePaginas);
-    int totalProcesos = list_size(keys);
+    int indiceMarcoActual = punteroClockMod.indiceMarco;
+    int indiceMarcoInicial = indiceMarcoActual;
+    int marcosRevisados = 0;
+    bool primeraIteracion = true;
     
-    if(totalProcesos == 0) {
-        list_destroy(keys);
-        pthread_mutex_unlock(&tabla_paginas_mutex);
-        free(keyReemplazo);
-        return NULL;
-    }
+    log_debug(logger, "Clock-M búsqueda vectorizada: iniciando desde marco %d (U=%d, M=%d, limpiar=%d)", 
+              indiceMarcoActual, buscarBitUso, buscarBitMod, limpiarBitUso);
     
-    // Inicializar puntero si es la primera vez
-    if(punteroClockMod.keyProceso == NULL) {
-        punteroClockMod.keyProceso = strdup(list_get(keys, 0));
-        punteroClockMod.indicePagina = 0;
-    }
-
-    char* key = NULL;
-    
-    // Ciclo principal: repetir hasta encontrar víctima
-    while(!encontrado) {
-        // PASO 1: Buscar (0,0) SIN limpiar bits de uso
-        log_debug(logger, "Clock-M: Paso 1 - Buscando (U=0, M=0) sin limpiar bits");
-        encontrado = buscar_victima_clock(keys, &entradaVictima, &key, false, false, false);
+    // Dar una vuelta completa al reloj
+    while(marcosRevisados < cant_marcos) {
+        // Obtener la página en este marco usando el vector indexado por marco
+        PaginaXMarco* pxm = vector_pxm_get(vectorPaginaXMarco, indiceMarcoActual);
         
-        if(!encontrado) {
-            // PASO 2: Buscar (0,1) LIMPIANDO bits de uso
-            log_debug(logger, "Clock-M: Paso 2 - Buscando (U=0, M=1) limpiando bits de uso");
-            encontrado = buscar_victima_clock(keys, &entradaVictima, &key, false, true, true);
+        if(pxm != NULL && pxm->key != NULL) {
+            // Este marco está ocupado, revisar su entrada de tabla
+            char* nombreFile = NULL;
+            char* tag = NULL;
+            
+            if(!ObtenerNombreFileYTagInterna(pxm->key, &nombreFile, &tag)) {
+                log_error(logger, "Clock-M: Error parseando key %s en marco %d", pxm->key, indiceMarcoActual);
+                indiceMarcoActual = (indiceMarcoActual + 1) % cant_marcos;
+                marcosRevisados++;
+                continue;
+            }
+            
+            TablaDePaginas* tabla = dictionary_get(tablasDePaginas, pxm->key);
+            if(!tabla) {
+                log_error(logger, "Clock-M: Tabla NULL para key %s en marco %d", pxm->key, indiceMarcoActual);
+                free(nombreFile);
+                free(tag);
+                indiceMarcoActual = (indiceMarcoActual + 1) % cant_marcos;
+                marcosRevisados++;
+                continue;
+            }
+            
+            // Verificar que el número de página sea válido
+            if(pxm->nroPagina < 0 || pxm->nroPagina >= tabla->capacidadEntradas) {
+                log_error(logger, "Clock-M: Número de página inválido %d en marco %d", 
+                          pxm->nroPagina, indiceMarcoActual);
+                free(nombreFile);
+                free(tag);
+                indiceMarcoActual = (indiceMarcoActual + 1) % cant_marcos;
+                marcosRevisados++;
+                continue;
+            }
+            
+            EntradaDeTabla* entrada = &(tabla->entradas[pxm->nroPagina]);
+            
+            // Verificar que la entrada realmente esté presente y corresponda al marco
+            if(!entrada->bitPresencia || entrada->numeroMarco != indiceMarcoActual) {
+                log_warning(logger, "Clock-M: Inconsistencia en marco %d: esperaba pág %d de %s, "
+                           "pero bitPresencia=%d o marco=%d", 
+                           indiceMarcoActual, pxm->nroPagina, pxm->key, 
+                           entrada->bitPresencia, entrada->numeroMarco);
+                free(nombreFile);
+                free(tag);
+                indiceMarcoActual = (indiceMarcoActual + 1) % cant_marcos;
+                marcosRevisados++;
+                continue;
+            }
+            
+            log_warning(logger, "  Revisando marco %d: %s[pág %d] U=%d M=%d (buscando U=%d M=%d)", 
+                      indiceMarcoActual, pxm->key, pxm->nroPagina,
+                      entrada->bitUso, entrada->bitModificado,
+                      buscarBitUso, buscarBitMod);
+            
+            // Verificar si cumple el criterio buscado
+            if(entrada->bitUso == buscarBitUso && entrada->bitModificado == buscarBitMod) {
+                // ¡Encontramos la víctima!
+                *victima = entrada;
+                *keyOut = pxm->key;
+                
+                log_info(logger, "Clock-M: Víctima seleccionada marco %d: %s[pág %d] (U=%d, M=%d)", 
+                         indiceMarcoActual, pxm->key, pxm->nroPagina,
+                         entrada->bitUso, entrada->bitModificado);
+                
+                // Avanzar el puntero del reloj para la próxima búsqueda
+                punteroClockMod.indiceMarco = (indiceMarcoActual + 1) % cant_marcos;
+                
+                if(punteroClockMod.keyProceso != NULL) {
+                    free(punteroClockMod.keyProceso);
+                }
+                punteroClockMod.keyProceso = strdup(pxm->key);
+                
+                log_debug(logger, "  Puntero Clock avanza a marco %d (%s)", 
+                          punteroClockMod.indiceMarco, punteroClockMod.keyProceso);
+                
+                free(nombreFile);
+                free(tag);
+                return true;
+            }
+            
+            // Limpiar bit de uso si corresponde (paso 2 del algoritmo)
+            if(limpiarBitUso && entrada->bitUso) {
+                log_debug(logger, "  Limpiando bit U de marco %d: %s[pág %d]", 
+                          indiceMarcoActual, pxm->key, pxm->nroPagina);
+                entrada->bitUso = false;
+            }
+            
+            free(nombreFile);
+            free(tag);
         }
         
-        // Si el paso 2 limpió bits pero no encontró (0,1), 
-        // el while vuelve al paso 1 donde ahora SÍ va a encontrar (0,0)
+        // Avanzar al siguiente marco
+        indiceMarcoActual = (indiceMarcoActual + 1) % cant_marcos;
+        marcosRevisados++;
         
-        if(!encontrado) {
-            log_error(logger, "Clock-M: No se encontró víctima en ciclo completo - esto no debería pasar");
-            list_destroy(keys);
-            free(keyReemplazo);
-            pthread_mutex_unlock(&tabla_paginas_mutex);
-            exit(EXIT_FAILURE);
+        // Detectar vuelta completa
+        if(!primeraIteracion && indiceMarcoActual == indiceMarcoInicial) {
+            log_debug(logger, "Clock-M: Vuelta completa (%d marcos revisados), no encontrado (U=%d, M=%d)", 
+                      marcosRevisados, buscarBitUso, buscarBitMod);
+            return false;
         }
+        
+        primeraIteracion = false;
     }
-
-    keyReemplazo->key = strdup(key);
-    keyReemplazo->marco = entradaVictima->numeroMarco;
-    keyReemplazo->pagina = entradaVictima->numeroPagina;
     
-    list_destroy(keys);
-    pthread_mutex_unlock(&tabla_paginas_mutex);
-    
-    log_info(logger, "Clock-M: Víctima encontrada - %s, Página: %d, Frame: %d", 
-              keyReemplazo->key, entradaVictima->numeroPagina, entradaVictima->numeroMarco);
-    
-    return keyReemplazo;
+    log_debug(logger, "Clock-M: Se revisaron todos los %d marcos, no encontrado (U=%d, M=%d)", 
+              marcosRevisados, buscarBitUso, buscarBitMod);
+    return false;
 }
-
 
 void limpiar_puntero_clockM() {
     if(punteroClockMod.keyProceso != NULL) {
         free(punteroClockMod.keyProceso);
         punteroClockMod.keyProceso = NULL;
     }
+    punteroClockMod.indiceMarco = 0; // Resetear a marco 0
 }
 
-bool buscar_victima_clock(t_list* keys, EntradaDeTabla** victima, char** keyOut, 
-                          bool buscarBitUso, bool buscarBitMod, bool limpiarBitUso) {
-    int totalProcesos = list_size(keys);
-    int fileTagActual = encontrar_indice_fileTag(keys, punteroClockMod.keyProceso);
-    int paginaActual = punteroClockMod.indicePagina;
-    
-    int cantidadMarcos = configW->tamMemoria / configW->BLOCK_SIZE;
-    if(cantidadMarcos <= 0) {
-        log_error(logger, "Error: cantidad de marcos es %d", cantidadMarcos);
-        return false;
-    }
-    
-    // Guardar posición inicial para detectar vuelta completa
-    int fileTagInicial = fileTagActual;
-    int paginaInicial = paginaActual;
-    bool primeraIteracion = true;
-    
-    int paginasRevisadas = 0;
-    
-    // Dar una vuelta completa al reloj
-    while(paginasRevisadas < cantidadMarcos) {
-        char* currentKey = list_get(keys, fileTagActual);
-        TablaDePaginas* tabla = dictionary_get(tablasDePaginas, currentKey);
-        
-        if(!tabla) {
-            log_error(logger, "Tabla NULL para key: %s", currentKey);
-            return false;
-        }
-        
-        // Recorrer las páginas de esta tabla desde paginaActual
-        for(int j = paginaActual; j < tabla->capacidadEntradas; j++) {
-            EntradaDeTabla* entrada = &(tabla->entradas[j]);
-            
-            if(entrada->bitPresencia) {
-                paginasRevisadas++;
-                
-                // Verificar si cumple el criterio buscado
-                if(entrada->bitUso == buscarBitUso && entrada->bitModificado == buscarBitMod) {
-                    // ¡Encontramos la víctima!
-                    *victima = entrada;
-                    *keyOut = currentKey;
-                    
-                    // Avanzar el puntero del reloj para la próxima búsqueda
-                    int proximaPagina = j + 1;
-                    int proximoFileTag = fileTagActual;
-                    
-                    if(proximaPagina >= tabla->capacidadEntradas) {
-                        proximoFileTag = (fileTagActual + 1) % totalProcesos;
-                        proximaPagina = 0;
-                    }
-                    
-                    if(punteroClockMod.keyProceso != NULL) {
-                        free(punteroClockMod.keyProceso);
-                    }
-                    punteroClockMod.keyProceso = strdup(list_get(keys, proximoFileTag));
-                    punteroClockMod.indicePagina = proximaPagina;
-                    
-                    log_debug(logger, "Víctima: %s pág %d frame %d (U=%d,M=%d). Puntero → %s:%d", 
-                              currentKey, entrada->numeroPagina, entrada->numeroMarco,
-                              entrada->bitUso, entrada->bitModificado,
-                              punteroClockMod.keyProceso, punteroClockMod.indicePagina);
-                    
-                    return true;
-                }
-                
-                // Limpiar bit de uso si corresponde (paso 2)
-                if(limpiarBitUso) {
-                    entrada->bitUso = false;
-                }
-                
-                // Verificar si completamos la vuelta
-                if(!primeraIteracion && 
-                   fileTagActual == fileTagInicial && 
-                   j >= paginaInicial) {
-                    log_debug(logger, "Vuelta completa - No encontrado (U=%d,M=%d)", 
-                              buscarBitUso, buscarBitMod);
-                    return false;
-                }
-            }
-        }
-        
-        primeraIteracion = false;
-        
-        // Avanzar al siguiente file:tag
-        fileTagActual = (fileTagActual + 1) % totalProcesos;
-        paginaActual = 0;
-        
-        // Si volvimos al file:tag inicial, ajustar paginaActual
-        if(fileTagActual == fileTagInicial) {
-            paginaActual = paginaInicial;
-        }
-    }
-    
-    return false;
-}
 
-bool buscar_victima_clockTrucho(t_list* keys, EntradaDeTabla** victima, char** keyOut, 
-                          bool buscarBitUso, bool buscarBitMod, bool limpiarBitUso) {
-    int totalProcesos = list_size(keys);
-    if(totalProcesos == 0) return false;
-    
-    int fileTagActual = encontrar_indice_fileTag(keys, punteroClockMod.keyProceso);
-    int paginaActual = punteroClockMod.indicePagina;
-    
-    // Contar marcos TOTALES del sistema (no solo presentes)
-    int cantidadMarcos = configW->tamMemoria / configW->BLOCK_SIZE;
-    if(cantidadMarcos <= 0) {
-        log_error(logger, "Error: cantidad de marcos es %d", cantidadMarcos);
-        return false;
-    }
-    
-    int fileTagInicial = fileTagActual;
-    int paginaInicial = paginaActual;
-    int paginasRevisadas = 0;
-    bool primeraVez = true;
-    
-    log_debug(logger, "Clock-M búsqueda: iniciando desde %s:%d (U=%d, M=%d, limpiar=%d)", 
-              list_get(keys, fileTagActual), paginaActual, 
-              buscarBitUso, buscarBitMod, limpiarBitUso);
-    
-    // Dar UNA vuelta completa al reloj
-    while(true) {
-        char* currentKey = list_get(keys, fileTagActual);
-        TablaDePaginas* tabla = dictionary_get(tablasDePaginas, currentKey);
-        
-        if(!tabla) {
-            log_error(logger, "Tabla NULL para key: %s", currentKey);
-            return false;
-        }
-        
-        // Recorrer páginas de esta tabla
-        for(int j = paginaActual; j < tabla->capacidadEntradas; j++) {
-            EntradaDeTabla* entrada = &(tabla->entradas[j]);
-            
-            // Solo considerar páginas PRESENTES en memoria
-            if(entrada->bitPresencia) {
-                paginasRevisadas++;
-                
-                log_debug(logger, "  Revisando %s[%d]: U=%d M=%d (buscando U=%d M=%d)", 
-                          currentKey, j, entrada->bitUso, entrada->bitModificado,
-                          buscarBitUso, buscarBitMod);
-                
-                // Verificar si cumple el criterio buscado
-                if(entrada->bitUso == buscarBitUso && entrada->bitModificado == buscarBitMod) {
-                    // ¡Encontramos la víctima!
-                    *victima = entrada;
-                    *keyOut = currentKey;
-                    
-                    log_info(logger, "Clock-M: Víctima seleccionada %s[%d] marco %d (U=%d, M=%d)", 
-                             currentKey, j, entrada->numeroMarco, 
-                             entrada->bitUso, entrada->bitModificado);
-                    
-                    // Avanzar el puntero del reloj para la próxima búsqueda
-                    int proximaPagina = j + 1;
-                    int proximoFileTag = fileTagActual;
-                    
-                    if(proximaPagina >= tabla->capacidadEntradas) {
-                        proximoFileTag = (fileTagActual + 1) % totalProcesos;
-                        proximaPagina = 0;
-                    }
-                    
-                    if(punteroClockMod.keyProceso != NULL) {
-                        free(punteroClockMod.keyProceso);
-                    }
-                    punteroClockMod.keyProceso = strdup(list_get(keys, proximoFileTag));
-                    punteroClockMod.indicePagina = proximaPagina;
-                    
-                    log_debug(logger, "  Puntero Clock avanza a %s:%d", 
-                              punteroClockMod.keyProceso, punteroClockMod.indicePagina);
-                    
-                    return true;
-                }
-                
-                // Limpiar bit de uso si corresponde (paso 2 del algoritmo)
-                if(limpiarBitUso && entrada->bitUso) {
-                    log_debug(logger, "  Limpiando bit U de %s[%d]", currentKey, j);
-                    entrada->bitUso = false;
-                }
-                
-                // Si ya revisamos todos los marcos, terminamos la vuelta
-                if(paginasRevisadas >= cantidadMarcos) {
-                    log_debug(logger, "Clock-M: Vuelta completa (%d marcos revisados), no encontrado (U=%d, M=%d)", 
-                              paginasRevisadas, buscarBitUso, buscarBitMod);
-                    return false;
-                }
-            }
-            
-            // Detectar vuelta completa (volvimos al punto inicial)
-            if(!primeraVez && fileTagActual == fileTagInicial && j == paginaInicial) {
-                log_debug(logger, "Clock-M: Vuelta completa detectada por posición inicial");
-                return false;
-            }
-        }
-        
-        primeraVez = false;
-        paginaActual = 0; // Al cambiar de file:tag, empezar desde página 0
-        
-        // Avanzar al siguiente file:tag
-        fileTagActual = (fileTagActual + 1) % totalProcesos;
-        
-        // Si volvimos al file:tag inicial, ajustar la página de inicio
-        if(fileTagActual == fileTagInicial) {
-            paginaActual = paginaInicial;
-        }
-    }
-    
-    return false;
-}
 
 int encontrar_indice_fileTag(t_list* keys, char* keyBuscada) {
     for(int i = 0; i < list_size(keys); i++) {
@@ -410,3 +313,38 @@ int encontrar_indice_fileTag(t_list* keys, char* keyBuscada) {
 //     }
 //     return count;
 // }
+
+
+char* ObtenerNombreFileYTagInterna(const char* fileTagText, char** fileOut, char** tagOut) {
+    if (!fileTagText || !fileOut || !tagOut) return NULL;
+
+    char** splitParts = string_split((char*)fileTagText, ":");
+    if (!splitParts) return NULL;
+
+    bool formatoValido =
+        splitParts[0] && splitParts[1] &&
+        string_array_size(splitParts) == 2 &&
+        !string_is_empty(splitParts[0]) &&
+        !string_is_empty(splitParts[1]);
+
+    if (!formatoValido) {
+        string_array_destroy(splitParts);
+        return NULL;
+    }
+
+    char* fileCopy = string_duplicate(splitParts[0]);
+    char* tagCopy  = string_duplicate(splitParts[1]);
+    string_array_destroy(splitParts);
+
+    if (!fileCopy || !tagCopy) {
+        free(fileCopy);
+        free(tagCopy);
+        return NULL;
+    }
+
+    *fileOut = fileCopy;
+    *tagOut  = tagCopy;
+
+    // Éxito: devolvemos un puntero no-NULL sin implicar ownership
+    return (char*)fileTagText;
+}

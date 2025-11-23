@@ -7,9 +7,11 @@ extern configWorker * configW;
 
 extern t_dictionary* tablasDePaginas;
 
+extern VectorPaginaXMarco* vectorPaginaXMarco;
 
 extern pthread_mutex_t tabla_paginas_mutex;
 
+extern int cant_marcos;
 
 typedef struct {
     char* keyProceso;
@@ -29,8 +31,10 @@ key_Reemplazo* ReemplazoLRU();
 key_Reemplazo*ReemplazoCLOCKM();
 char* limpiar_puntero_clock();
 void limpiar_puntero_clockM();
-bool buscar_victima_clock(t_list* keys, EntradaDeTabla** victima, char** keyOut, bool buscarBitUso, bool buscarBitMod, bool limpiarBitUso);
+bool buscar_victima_clock(EntradaDeTabla** victima, char** keyOut, 
+                                       bool buscarBitUso, bool buscarBitMod, bool limpiarBitUso);
 int encontrar_indice_fileTag(t_list* keys, char* keyBuscada);
+char* ObtenerNombreFileYTagInterna(const char* fileTagText, char** fileOut, char** tagOut);
 // int contar_paginas_presentes(t_list* keys);
 
 #endif
