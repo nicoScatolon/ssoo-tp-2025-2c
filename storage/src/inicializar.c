@@ -104,6 +104,9 @@ void inicializarBloqueCero(char* pathPhysicalBlocks) {
 
 void levantarFileSystem(){
     if (configS->freshStart){
+        log_debug(logger, "FRESH_START=TRUE: Formateando FileSystem...");
+        eliminarFileSystemAnterior();
+
         pathBloquesFisicos = inicializarDirectorio(configS->puntoMontaje,"physical_blocks");
         char* pathBitMap = string_from_format("%s/bitmap.bin", configS->puntoMontaje);
         inicializarBitmap(pathBitMap);
@@ -121,10 +124,103 @@ void levantarFileSystem(){
         agregarBloquesLogicos(pathTagBase,configSB->BLOCK_SIZE);
         cambiarEstadoMetaData(pathTagBase, "COMMITED");
         free(pathTagBase);
-
-
+        
+        log_debug(logger, "FileSystem formateado exitosamente");
     }
-    else{
+    else {
+        log_debug(logger, "FRESH_START=FALSE: Cargando FileSystem existente...");
+        
+        pathBloquesFisicos = string_from_format("%s/physical_blocks", configS->puntoMontaje);
+        pathFiles = string_from_format("%s/files", configS->puntoMontaje);
+        
+        char* pathBitMap = string_from_format("%s/bitmap.bin", configS->puntoMontaje);
+        inicializarBitmap(pathBitMap);
+        free(pathBitMap);
+        
+        log_debug(logger, "FileSystem existente cargado correctamente");
+    }
+}
+
+void eliminarFileSystemAnterior(void) {
+    log_debug(logger, "FRESH_START=TRUE: Eliminando FileSystem anterior...");
+    char* pathPhysicalBlocks = string_from_format("%s/physical_blocks", configS->puntoMontaje);
+    char* pathFiles = string_from_format("%s/files", configS->puntoMontaje);
+    char* pathBitmap = string_from_format("%s/bitmap.bin", configS->puntoMontaje);
+    char* pathHashIndex = string_from_format("%s/blocks_hash_index.config", configS->puntoMontaje);
+    
+    eliminarDirectorioRecursivo(pathPhysicalBlocks);
+    eliminarDirectorioRecursivo(pathFiles);
+    
+    // Eliminar bitmap.bin si existe
+    if (access(pathBitmap, F_OK) == 0) {
+        if (remove(pathBitmap) != 0) {
+            log_warning(logger, "Error al eliminar bitmap.bin: %s", strerror(errno));
+        } else {
+            log_debug(logger, "Archivo bitmap.bin eliminado");
+        }
+    }
+    
+    // Eliminar blocks_hash_index.config si existe
+    if (access(pathHashIndex, F_OK) == 0) {
+        if (remove(pathHashIndex) != 0) {
+            log_warning(logger, "Error al eliminar blocks_hash_index.config: %s", strerror(errno));
+        } else {
+            log_debug(logger, "Archivo blocks_hash_index.config eliminado");
+        }
+    }
+    
+    free(pathPhysicalBlocks);
+    free(pathFiles);
+    free(pathBitmap);
+    free(pathHashIndex);
+    
+    log_debug(logger, "FileSystem anterior eliminado correctamente");
+}
+
+void eliminarDirectorioRecursivo(const char* path) {
+    if (access(path, F_OK) != 0) {
+        log_debug(logger, "Directorio %s no existe, no es necesario eliminar", path);
+        return;
+    }
+    
+    DIR* dir = opendir(path);
+    if (dir == NULL) {
+        log_error(logger, "Error al abrir directorio %s para eliminar: %s", path, strerror(errno));
+        return;
+    }
+    
+    struct dirent* entrada;
+    while ((entrada = readdir(dir)) != NULL) {
+        // Ignorar . y ..
+        if (strcmp(entrada->d_name, ".") == 0 || strcmp(entrada->d_name, "..") == 0) {
+            continue;
+        }
+        
+        char* pathCompleto = string_from_format("%s/%s", path, entrada->d_name);
+        
+        struct stat st;
+        if (stat(pathCompleto, &st) == 0) {
+            if (S_ISDIR(st.st_mode)) {
+                // Es un directorio, eliminar recursivamente
+                eliminarDirectorioRecursivo(pathCompleto);
+            } else {
+                // Es un archivo, eliminarlo
+                if (remove(pathCompleto) != 0) {
+                    log_error(logger, "Error al eliminar archivo %s: %s", pathCompleto, strerror(errno));
+                }
+            }
+        }
+        
+        free(pathCompleto);
+    }
+    
+    closedir(dir);
+    
+    // Eliminar el directorio vacío
+    if (rmdir(path) != 0) {
+        log_error(logger, "Error al eliminar directorio %s: %s", path, strerror(errno));
+    } else {
+        log_debug(logger, "Directorio %s eliminado", path);
     }
 }
 
