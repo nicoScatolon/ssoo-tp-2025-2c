@@ -259,8 +259,9 @@ void ejecutar_flush(char* fileName, char* tagFile, int query_id){
         agregarIntAPaquete(paquete, query_id);
         agregarStringAPaquete(paquete, fileName);
         agregarStringAPaquete(paquete, tagFile); 
-        for (int i = 0; i < tabla->capacidadEntradas; i++){
-            if(tabla->entradas[i].bitModificado){
+        for (int i = 0; i < tabla->capacidadEntradas; i++){ // o mandar de a una a la vez
+
+            if(tabla->entradas[i].bitModificado && tabla->entradas[i].bitPresencia){
                 int nroPagina = tabla->entradas[i].numeroPagina;
                 int nroMarco = tabla->entradas[i].numeroMarco;
 
@@ -276,11 +277,11 @@ void ejecutar_flush(char* fileName, char* tagFile, int query_id){
                 
                 tabla->entradas[i].bitModificado = false; //reseteo el bit modificado
 
-                //SUMAR RETARDO Acceso a TP
             }
         }
         enviarOpcode(FLUSH_FILE, socketStorage/*socket storage*/);  
         enviarPaquete(paquete, socketStorage/*socket storage*/);
+
         eliminarPaquete(paquete);
         tabla->hayPaginasModificadas = false;
     }

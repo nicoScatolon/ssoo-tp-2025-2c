@@ -6,9 +6,8 @@ int cant_marcos = 0;
 t_dictionary* tablasDePaginas = NULL; //la key es <FILE>:<TAG>
 t_list* paginasPorMarco = NULL;
 
-VectorPaginaXMarco* vectorPaginaXMarco = NULL;
-
 t_temporal* temp = NULL;
+VectorPaginaXMarco* vectorPaginaXMarco = NULL; // no usa mutex, debería?
 
 
 
@@ -21,7 +20,7 @@ void aplicarRetardoMemoria() {
     usleep(configW->retardoMemoria * 1000);
 }
 
-
+// Inicializa la memoria interna, el bitmap y el vectorPaginaXMarco
 void inicializarMemoriaInterna(void) {
     pthread_mutex_lock(&memoria_mutex);
 
@@ -39,14 +38,9 @@ void inicializarMemoriaInterna(void) {
     }
 
     temp = temporal_create();
-    // log_debug(logger, "Inicializando contador de actualizacion tablas de paginas");
-
     
     cant_marcos = tam_memoria / tam_marco;
-    // log_error(logger, "Tamaño de memoria: %d bytes", tam_memoria); //despues borrar no es un error real
-    // log_error(logger, "Tamaño de marco (BLOCK_SIZE): %d bytes", tam_marco); //despues borrar no es un error real
-    // log_error(logger, "Cantidad de marcos calculada: %d", cant_marcos); //despues borrar no es un error real
-
+    
     if (cant_marcos <= 0) {
         log_error(logger, "Tam memoria insuficiente para pagina de %d bytes", tam_marco);
         pthread_mutex_unlock(&memoria_mutex);
@@ -64,6 +58,7 @@ void inicializarMemoriaInterna(void) {
     void* bitmap_mem = calloc(1, bytes_bitmap);
     if (bitmap_mem == NULL) {
         log_error(logger, "Error calloc bitmap (%d bytes)", bytes_bitmap);
+        free(bitmap_mem); 
         free(memoria);
         memoria = NULL;
         pthread_mutex_unlock(&memoria_mutex);
@@ -71,10 +66,11 @@ void inicializarMemoriaInterna(void) {
     }
     
     bitmap = bitarray_create_with_mode(bitmap_mem, bytes_bitmap, LSB_FIRST); //revisar con valgrind si hay memory leak
+    bitmap_mem = NULL; 
     if (bitmap == NULL) {
         log_error(logger, "Error creando bitarray");
-        free(bitmap_mem);
         free(memoria);
+        free(bitmap_mem); 
         memoria = NULL;
         pthread_mutex_unlock(&memoria_mutex);
         exit(EXIT_FAILURE);
@@ -84,6 +80,7 @@ void inicializarMemoriaInterna(void) {
     if (vectorPaginaXMarco == NULL) {
         log_error(logger, "Error creando vectorPaginaXMarco");
         bitarray_destroy(bitmap);
+        free(bitmap_mem); 
         free(memoria);
         memoria = NULL;
         pthread_mutex_unlock(&memoria_mutex);
@@ -97,6 +94,7 @@ void inicializarMemoriaInterna(void) {
 }
 
 
+// Inicializa el diccionario de tablas de páginas
 void inicializarDiccionarioDeTablas(void) {
     pthread_mutex_lock(&tabla_paginas_mutex);
     if (!tablasDePaginas){
@@ -112,6 +110,37 @@ void inicializarDiccionarioDeTablas(void) {
     }
     pthread_mutex_unlock(&tabla_paginas_mutex);
 }
+
+// Libera toda la memoria interna y las estructuras asociadas
+void eliminarMemoriaInterna(void) {
+    pthread_mutex_lock(&memoria_mutex);
+
+    if (bitmap) {
+        bitarray_destroy(bitmap);
+        bitmap = NULL;
+    }
+
+    if (memoria) {
+        free(memoria);
+        memoria = NULL;
+    }
+
+    temporal_destroy(temp);
+
+    pthread_mutex_lock(&tabla_paginas_mutex);
+    if (tablasDePaginas) {
+        dictionary_destroy_and_destroy_elements(tablasDePaginas, free);
+        tablasDePaginas = NULL;
+    }
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+
+    cant_marcos = 0;
+
+    vector_pxm_destroy(vectorPaginaXMarco);
+
+    pthread_mutex_unlock(&memoria_mutex);
+}
+
 
 // Inicializa y agrega una tabla al diccionario
 TablaDePaginas* agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag){ 
@@ -230,6 +259,10 @@ void actualizarMetadataTablaPagina(TablaDePaginas* tabla){
               tabla->hayPaginasModificadas ? "hay" : "no hay");
 }
 
+
+
+
+
 // Obtiene la tabla de páginas para un <FILE>:<TAG>
 TablaDePaginas* obtenerTablaPorFileYTag(char* nombreFile, char* tag){
     char* key = string_from_format("%s:%s", nombreFile, tag);
@@ -252,140 +285,66 @@ TablaDePaginas* obtenerTablaPorFileYTag(char* nombreFile, char* tag){
     return tabla;
 }
 
-void eliminarMemoriaInterna(void) {
-    pthread_mutex_lock(&memoria_mutex);
-
-    if (bitmap) {
-        bitarray_destroy(bitmap);
-        bitmap = NULL;
-    }
-
-    if (memoria) {
-        free(memoria);
-        memoria = NULL;
-    }
-
-    temporal_destroy(temp);
-
-    pthread_mutex_lock(&tabla_paginas_mutex);
-    if (tablasDePaginas) {
-        dictionary_destroy_and_destroy_elements(tablasDePaginas, free);
-        tablasDePaginas = NULL;
-    }
-    pthread_mutex_unlock(&tabla_paginas_mutex);
-
-    cant_marcos = 0;
-
-    vector_pxm_destroy(vectorPaginaXMarco);
-
-    pthread_mutex_unlock(&memoria_mutex);
-}
-
-//Si hay un marco libre, lo devuelve reservado. Si no hay, ejecuta el algoritmo de reemplazo y devuelve un marco libre y reservado.
-int obtenerMarcoLibreYReservado(char* keyAsignar, int numeroPagina){
+// Si keyVictima tiene keyVictima->key NULL, entonces el marco estaba libre y no se ejecutó reemplazo
+int obtenerMarcoLibre(void){
     pthread_mutex_lock(&memoria_mutex);
 
     for (int i = 0; i < cant_marcos; i++) {
         if (!bitarray_test_bit(bitmap, i)) {
-            bitarray_set_bit(bitmap, i); 
             pthread_mutex_unlock(&memoria_mutex);
-
-            char* tag = NULL;
-            char* nombreFile = NULL;
-            ObtenerNombreFileYTag(keyAsignar, &nombreFile, &tag);
-            asignarMarcoEntradaTabla(nombreFile, tag, numeroPagina, i);
-           
-            log_debug(logger, "Marco libre encontrado: %d", i);
-            
-            bool rta = vector_pxm_addIndex(vectorPaginaXMarco, numeroPagina, keyAsignar, i);
-            if (!rta){
-                log_error(logger, "Error al agregar paginaXMarco en vectorPaginaXMarco para key: %s, nroPagina: %d, nroMarco: %d", keyAsignar, numeroPagina, i);
-                free(nombreFile);
-                free(tag);
-                exit(EXIT_FAILURE);
-            }
-
-            free(nombreFile);
-            free(tag);
-            return i; // Retornar número de marco libre
+            return i;
         }
     }
-    
     pthread_mutex_unlock(&memoria_mutex);
-    log_debug(logger, "No hay marcos libres disponibles, se ejecuta el algoritmo de reemplazo");
-    key_Reemplazo* keyVictima = ejecutarAlgoritmoReemplazo(); //deberia devolver file:tag (key), nro pagina y nro marco
-    if(!keyVictima){
-        log_error(logger, "Error al ejecutar el algoritmo de reemplazo");
-        exit (EXIT_FAILURE);
-        return -1;
-    }
-    int marco = liberarMarcoVictimaYAsignar(keyVictima, keyAsignar, numeroPagina);
-
-    if (marco < 0){
-        log_error(logger, "Error al obtener marco liberado y reservar para keyVictima: %s", keyVictima->key);
-        free(keyVictima->key);
-        free(keyVictima);
-        exit(EXIT_FAILURE);
-        
-        return -1;
-    }
-
-    ocuparMarco(marco);
-    bool rta = vector_pxm_addIndex(vectorPaginaXMarco, numeroPagina, keyAsignar, marco);
-    if (!rta){
-        log_error(logger, "Error al agregar paginaXMarco en vectorPaginaXMarco para key: %s, nroPagina: %d, nroMarco: %d", keyAsignar, numeroPagina, marco);
-        free(keyVictima->key);
-        free(keyVictima);
-        exit(EXIT_FAILURE);
-    }
-
-    free(keyVictima->key);
-    free(keyVictima);
-    return marco; 
+    return -1; // No hay marcos libres
 }
 
-// devuelve un marco liberado por la victima y reservado para el nuevo proceso
-int liberarMarcoVictimaYAsignar(key_Reemplazo* keyVictima, char* keyAsignar, int numeroPagina){
-    char* tagFileVictima = NULL;
-    char* nombreFileVictima = NULL;
-    
-    if (!ObtenerNombreFileYTag(keyVictima->key, &nombreFileVictima, &tagFileVictima)) {
-        log_error(logger, "Error al obtener <FILE>:<TAG> en liberarMarcoVictimaYAsignar. key: %s", keyVictima->key);
-        exit(EXIT_FAILURE);
-    }
+//Si hay un marco libre, lo devuelve reservado. Si no hay, ejecuta el algoritmo de reemplazo y lo devuelve reservado.
+int obtenerMarcoReservado(char* keyAsignar, int numeroPagina){
 
-    
     char* fileNameAsignar = NULL;
     char* tagFileAsignar = NULL;
-  
     if (!ObtenerNombreFileYTag(keyAsignar, &fileNameAsignar, &tagFileAsignar)) {
-        log_error(logger, "Error al obtener <FILE>:<TAG> en liberarMarcoVictimaYAsignar. key: %s", keyVictima->key);
+        log_error(logger, "Error al obtener <FILE>:<TAG> en obtenerMarcoReservado. key: %s", keyAsignar);
         exit(EXIT_FAILURE);
     }
-    int marcoLiberado = keyVictima->marco;
 
-    
+    int marco = obtenerMarcoLibre(); //tiene locks
+    if (marco == -1){
+        log_debug(logger, "No hay marcos libres disponibles, se ejecuta el algoritmo de reemplazo");
+        key_Reemplazo* keyVictima = ejecutarAlgoritmoReemplazo();// tiene locks -  //deberia devolver file:tag (key), nro pagina y nro marco
+        if(!keyVictima){ 
+            log_error(logger, "Error al ejecutar el algoritmo de reemplazo");
+            free(fileNameAsignar);
+            free(tagFileAsignar);
+            exit (EXIT_FAILURE);
+            return -1;
+        }
 
-    int respuesta = enviarPaginaAStorage(nombreFileVictima, tagFileVictima, keyVictima->pagina); // la funcion ya implementa la confirmacion de storage
-    if (respuesta == -1){
-        log_error(logger, "Error al enviar pagina a Storage %s:%s pagina %d", nombreFileVictima, tagFileVictima, keyVictima->pagina);
-        free(nombreFileVictima);
-        free(tagFileVictima);
-        free(fileNameAsignar);
-        free(tagFileAsignar);
-        return -1;
-    } else if (respuesta == 1){
-        TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFileVictima, tagFileVictima); 
-        tabla->entradas[keyVictima->pagina].bitPresencia = false; 
-        tabla->entradas[keyVictima->pagina].bitModificado = false; 
-    }
+        char* tagFileVictima = NULL;
+        char* nombreFileVictima = NULL;
+        if (!ObtenerNombreFileYTag(keyVictima->key, &nombreFileVictima, &tagFileVictima)) {
+            log_error(logger, "Error al obtener <FILE>:<TAG> en obtenerMarcoReservado. key: %s", keyVictima->key);
+            free(fileNameAsignar);
+            free(tagFileAsignar);
+            free(keyVictima->key);
+            free(keyVictima);
+            exit(EXIT_FAILURE);
+        }
 
-    log_info(logger,"“Query <%d>: Se libera el Marco: <%d> perteneciente al - File: <%s> - Tag: <%s>",contexto->query_id,marcoLiberado,nombreFileVictima,tagFileVictima);
-    liberarMarco(marcoLiberado);
-
-    asignarMarcoEntradaTabla(fileNameAsignar, tagFileAsignar, numeroPagina, marcoLiberado);
-
-    log_info(logger,"## Query <%d>: Se reemplaza la página <%s:%s>/<%d> por la <%s:%s><%d>",
+        marco = keyVictima->marco;
+        if(liberarMarcoVictima(nombreFileVictima, tagFileVictima, keyVictima->pagina, marco) != 0){ //tiene locks
+            free(fileNameAsignar);
+            free(tagFileAsignar);
+            free(nombreFileVictima);
+            free(tagFileVictima);
+            free(keyVictima->key);
+            free(keyVictima);
+            return -1;
+        }
+        
+        
+        log_info(logger,"## Query <%d>: Se reemplaza la página <%s:%s>/<%d> por la <%s:%s><%d>",
                                                                                             contexto->query_id,
                                                                                             nombreFileVictima,
                                                                                             tagFileVictima,
@@ -393,14 +352,60 @@ int liberarMarcoVictimaYAsignar(key_Reemplazo* keyVictima, char* keyAsignar, int
                                                                                             fileNameAsignar,
                                                                                             tagFileAsignar,
                                                                                             numeroPagina);
+        free(nombreFileVictima);
+        free(tagFileVictima);
+        free(keyVictima->key);
+        free(keyVictima);
+    }
 
-    free(nombreFileVictima);
-    free(tagFileVictima);
+    asignarMarco(fileNameAsignar, tagFileAsignar, numeroPagina, marco); 
+
     free(fileNameAsignar);
     free(tagFileAsignar);
-
-    return marcoLiberado;
+    return marco;
 }
+
+// Libera el marco de la victima, enviando la pagina a storage si es necesario
+int liberarMarcoVictima(char* nombreFileVictima, char* tagFileVictima, int pagina, int marco){
+    int respuesta = enviarPaginaAStorage(nombreFileVictima, tagFileVictima, pagina); // la funcion ya implementa la confirmacion de storage
+    
+    if (respuesta == -1){
+        log_error(logger, "Error al enviar pagina a Storage %s:%s pagina %d", nombreFileVictima, tagFileVictima, pagina);
+        return -1;
+
+    } else if (respuesta == 1){
+        TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFileVictima, tagFileVictima); 
+        pthread_mutex_lock(&tabla_paginas_mutex);
+        tabla->entradas[pagina].bitPresencia = false; 
+        tabla->entradas[pagina].bitModificado = false; 
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+    }
+
+    log_info(logger,"“Query <%d>: Se libera el Marco: <%d> perteneciente al - File: <%s> - Tag: <%s>",contexto->query_id,marco,nombreFileVictima,tagFileVictima);
+    liberarMarco(marco);
+    return 0;
+}
+
+// Asigna el marco a la pagina del file:tag correspondiente, agregandolo al vectorPaginaXMarco y marcandolo como ocupado
+void asignarMarco(char* fileNameAsignar, char* tagFileAsignar, int pagina, int marco){
+    asignarMarcoEntradaTabla(fileNameAsignar, tagFileAsignar, pagina, marco); // tiene locks
+    
+    char* keyAsignar = string_from_format("%s:%s", fileNameAsignar, tagFileAsignar);
+    bool rta = vector_pxm_addIndex(vectorPaginaXMarco, pagina, keyAsignar, marco);
+    
+    if (!rta){
+        log_error(logger, "Error al agregar paginaXMarco en vectorPaginaXMarco para key: <%s>, nroPagina: %d, nroMarco: %d", 
+                  keyAsignar, pagina, marco);
+        free(keyAsignar);
+        exit(EXIT_FAILURE);
+    }
+    
+    ocuparMarco(marco);
+    log_debug(logger, "Marco %d asignado a <%s> [pág %d]", marco, keyAsignar, pagina);
+    
+    free(keyAsignar);
+}
+
 
 void asignarMarcoEntradaTabla(char* nombreFile, char* tag, int numeroPagina, int numeroMarco){
     TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFile, tag); // (CON lock interno)
@@ -523,7 +528,7 @@ int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina){
         }
         char* key = string_from_format("%s:%s", nombreFile, tag); //Convertir nombreFile y tag en la key
         
-        int marcoLibre = obtenerMarcoLibreYReservado(key, numeroPagina);
+        int marcoLibre = obtenerMarcoReservado(key, numeroPagina);
         if(marcoLibre == -1){
             log_error(logger, "Error al obtener marco libre para cargar pagina %s:%s pagina %d", nombreFile, tag, numeroPagina);
             free(contenido);
