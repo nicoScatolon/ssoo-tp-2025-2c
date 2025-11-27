@@ -213,9 +213,11 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
     
     // 2. Abrir el metadata que se encuentra en files/file/tag/metadata.config
     char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config", configS->puntoMontaje, file, tag);
+    pthread_mutex_lock(&mutex_metadata);
     t_config* metadata = config_create(pathMetadata);
     if (metadata == NULL) {
         log_error(logger, "## <%d> - Error al abrir metadata de <%s:%s>", queryID, file, tag);
+        pthread_mutex_unlock(&mutex_metadata);
         free(pathBloqueLogico);
         free(pathMetadata);
         exit(EXIT_FAILURE);
@@ -226,6 +228,7 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
     if (strcmp(estado, "COMMITTED") == 0) {
         log_debug(logger, "## <%d> - No se puede escribir en <%s:%s>: estado COMMITTED",queryID, file, tag);
         config_destroy(metadata);
+        pthread_mutex_unlock(&mutex_metadata);
         free(pathBloqueLogico);
         free(pathMetadata);
         return false;
@@ -244,6 +247,7 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
             free(pathBloqueFisicoExistente);
             free(hash);
             config_destroy(metadata);
+            pthread_mutex_unlock(&mutex_metadata);
             free(pathBloqueLogico);
             free(pathMetadata);
             exit(EXIT_FAILURE);
@@ -253,6 +257,7 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
         log_info(logger, "##<%d> - <%s>:<%s> Hardlink creado por hash: bloque lógico <%d> -> bloque físico <%d>", queryID, file, tag, numeroBloqueLogico, bloqueConMismoHash);
         free(hash);
         config_destroy(metadata);
+        pthread_mutex_unlock(&mutex_metadata);
         free(pathBloqueLogico);
         free(pathMetadata);
         return true;
@@ -293,6 +298,7 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
             free(pathBloqueFisicoActual);
             free(hash);
             config_destroy(metadata);
+            pthread_mutex_unlock(&mutex_metadata);
             free(pathBloqueLogico);
             free(pathMetadata);
             return false;
@@ -341,10 +347,11 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
         
         log_debug(logger, "##<%d> - <%s>:<%s> Bloque lógico <%d> actualizado directamente (único hardlink)", queryID, file, tag, numeroBloqueLogico);
     }
-    
+    config_destroy(metadata);
+    pthread_mutex_unlock(&mutex_metadata);
+    aplicarRetardoBloque();
     free(pathBloqueFisicoActual);
     free(hash);
-    config_destroy(metadata);
     free(pathBloqueLogico);
     free(pathMetadata);
     return true;
@@ -369,10 +376,11 @@ bool truncarArchivo(char* file, char* tag, int nuevoTamanio, int queryID) {
     free(pathTag);
 
     char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config", configS->puntoMontaje, file, tag);
-    
+    pthread_mutex_lock(&mutex_metadata);
     t_config* metadata = config_create(pathMetadata);
     free(pathMetadata);
     if (!metadata) {
+        pthread_mutex_unlock(&mutex_metadata);
         log_error(logger, "##<%d> - Error al abrir metadata de <%s:%s>", queryID, file, tag);
         return false;
     }
@@ -380,6 +388,7 @@ bool truncarArchivo(char* file, char* tag, int nuevoTamanio, int queryID) {
     // Verificar que no esté COMMITED
     char* estado = config_get_string_value(metadata, "ESTADO");
     if (strcmp(estado, "COMMITED") == 0) {
+        pthread_mutex_unlock(&mutex_metadata);
         log_error(logger, "##<%d> - Error: No se puede truncar <%s:%s> (COMMITED)", queryID, file, tag);
         config_destroy(metadata);
         return false;
@@ -413,6 +422,7 @@ bool truncarArchivo(char* file, char* tag, int nuevoTamanio, int queryID) {
     }
 
     config_destroy(metadata);
+    pthread_mutex_unlock(&mutex_metadata);
     return resultado;
 }
 
@@ -582,14 +592,19 @@ void actualizarMetadataTruncate(t_config* metadata, int nuevoTamanio, int cantid
 // COMMIT:
 void hacerCommited(char* file, char* tag,int queryID) {
     char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config", configS->puntoMontaje, file, tag);
-    
+    pthread_mutex_lock(&mutex_metadata);
     if (esCommited(file, tag, pathMetadata)) {
+        pthread_mutex_unlock(&mutex_metadata);
         free(pathMetadata);
         return;
     }
-    
+    pthread_mutex_unlock(&mutex_metadata);
+
     recorrerBloquesLogicos(file, tag, queryID);
+
+    pthread_mutex_lock(&mutex_metadata);
     cambiarEstadoMetaData(pathMetadata, "COMMITED");
+    pthread_mutex_unlock(&mutex_metadata); 
     
     free(pathMetadata);
     return;
@@ -645,7 +660,7 @@ void recorrerBloquesLogicos(char* file, char* tag, int queryID) {
 
 int obtenerBloqueFisico(char* file, char* tag, int numeroBloqueLogico) {
     char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config", configS->puntoMontaje, file, tag);
-    
+    pthread_mutex_lock(&mutex_metadata);
     t_config* config = config_create(pathMetadata);
     if (config == NULL) {
         log_error(logger, "No se pudo abrir el archivo de metadata: %s", pathMetadata);
@@ -677,6 +692,7 @@ int obtenerBloqueFisico(char* file, char* tag, int numeroBloqueLogico) {
     }
     
     config_destroy(config);
+    pthread_mutex_lock(&mutex_metadata);
     free(pathMetadata);
     return bloqueFisico;
 }
@@ -728,9 +744,10 @@ void reapuntarBloqueLogico(char* file, char *tag, int numeroBloqueLogico,int pre
 
 int obtenerBloqueActual(char* file, char* tag, int numeroBloqueLogico) {
     char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config",configS->puntoMontaje, file, tag);
-    
+    pthread_mutex_lock(&mutex_metadata);
     t_config* config = config_create(pathMetadata);
     if (config == NULL) {
+        pthread_mutex_unlock(&mutex_metadata);
         log_error(logger, "Error al abrir metadata de <%s:%s>", file, tag);
         free(pathMetadata);
         exit(EXIT_FAILURE);
@@ -754,12 +771,14 @@ int obtenerBloqueActual(char* file, char* tag, int numeroBloqueLogico) {
 
     free(arrayBloques);
     config_destroy(config);
+    pthread_mutex_unlock(&mutex_metadata);
     free(pathMetadata);
     return bloqueFisico;
 }
 
 void actualizarMetadataBloques(char* file, char* tag, int numeroBloqueLogico, int numeroNuevoBloqueFisico, int anteriorBloqueFisico, int queryID) {
     char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config",configS->puntoMontaje, file, tag);
+    pthread_mutex_lock(&mutex_metadata);
     t_config* config = config_create(pathMetadata);
     if (config == NULL) {
         log_error(logger, "Error al abrir metadata de <%s:%s>", file, tag);
@@ -790,6 +809,7 @@ void actualizarMetadataBloques(char* file, char* tag, int numeroBloqueLogico, in
     free(pathMetadata);
 
     config_destroy(config);
+    pthread_mutex_unlock(&mutex_metadata);
     log_info(logger,"##<%d> - <%s>:<%s> Bloque Lógico <%d> se reasigna de <%d> a <%d>", queryID, file, tag, numeroBloqueLogico, anteriorBloqueFisico, numeroNuevoBloqueFisico);
 
 }

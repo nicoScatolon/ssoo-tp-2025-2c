@@ -73,8 +73,8 @@ void *operarWorkers(void*socketClienteVoid){
         case CREATE_FILE:{ // HECHO
             t_paquete* paqueteRecibir = recibirPaquete(socketCliente);
             if (!paqueteRecibir) {
-                    log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
-                    exit(EXIT_FAILURE);
+                log_error(logger, "Error recibiendo paquete en socket %d", socketCliente);
+                exit(EXIT_FAILURE);
             }
 
             int offset = 0;
@@ -189,6 +189,37 @@ void *operarWorkers(void*socketClienteVoid){
             eliminarPaquete(paquete);
             break;
         }
+        case FLUSH_FILE: {
+            t_paquete* paqueteAviso = recibirPaquete(socketCliente);
+
+            int offset = 0;
+            int idQuery = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
+            char* file = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
+            char* tag = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
+            int cantidadBloques = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
+            enviarOpcode(RESPUESTA_OK, socketCliente);
+
+            t_paquete* paqueteContenido = recibirPaquete(socketCliente);
+            for (int i = 0; i < cantidadBloques; i++) {
+                offset = 0;
+                int numeroBloque = recibirIntDePaqueteconOffset(paqueteContenido, &offset);
+                char* contenido = recibirStringDePaqueteConOffset(paqueteContenido, &offset);
+
+                aplicarRetardoOperacion();
+                
+                if (!escribirBloque(file, tag, numeroBloque, contenido, idQuery)) {
+                    enviarOpcode(RESPUESTA_ERROR, socketCliente);
+                } else {
+                    enviarOpcode(RESPUESTA_OK, socketCliente);
+                }
+
+                free(contenido);
+            }
+            free(file);
+            free(tag);
+            eliminarPaquete(paqueteAviso);
+            eliminarPaquete(paqueteContenido);
+            break;
         case READ_BLOCK:{ // HECHO
             t_paquete* paqueteRecibido = recibirPaquete(socketCliente);
             int offsetRecibido = 0;

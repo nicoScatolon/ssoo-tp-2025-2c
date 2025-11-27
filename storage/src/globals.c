@@ -23,3 +23,6 @@ int bitmap_fd = -1;
 // Mutexes del bitmap
 pthread_mutex_t mutex_bitmap = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_bitmap_file = PTHREAD_MUTEX_INITIALIZER;
+
+// Mutex para el metadata
+pthread_mutex_t mutex_metadata = PTHREAD_MUTEX_INITIALIZER;

@@ -21,6 +21,7 @@ extern int bitmap_fd;            // fd del archivo bitmap
 
 extern pthread_mutex_t mutex_bitmap; 
 extern pthread_mutex_t mutex_bitmap_file; 
+extern pthread_mutex_t mutex_metadata;
 
 typedef struct {
     int socket;

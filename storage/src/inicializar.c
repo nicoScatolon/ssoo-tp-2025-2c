@@ -128,15 +128,6 @@ void levantarFileSystem(){
         log_debug(logger, "FileSystem formateado exitosamente");
     }
     else {
-        log_debug(logger, "FRESH_START=FALSE: Cargando FileSystem existente...");
-        
-        pathBloquesFisicos = string_from_format("%s/physical_blocks", configS->puntoMontaje);
-        pathFiles = string_from_format("%s/files", configS->puntoMontaje);
-        
-        char* pathBitMap = string_from_format("%s/bitmap.bin", configS->puntoMontaje);
-        inicializarBitmap(pathBitMap);
-        free(pathBitMap);
-        
         log_debug(logger, "FileSystem existente cargado correctamente");
     }
 }

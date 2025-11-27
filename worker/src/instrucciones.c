@@ -207,10 +207,14 @@ void ejecutar_flush(char* fileName, char* tagFile, int query_id){
     }
 
     if(modificadas){
-        t_paquete* paquete = crearPaquete();
-        agregarIntAPaquete(paquete, query_id);
-        agregarStringAPaquete(paquete, fileName);
-        agregarStringAPaquete(paquete, tagFile); 
+        t_paquete* paqueteAviso = crearPaquete();
+        t_paquete* paqueteContenido = crearPaquete();
+        agregarIntAPaquete(paqueteAviso, query_id);
+        agregarStringAPaquete(paqueteAviso, fileName);
+        agregarStringAPaquete(paqueteAviso, tagFile); 
+
+        int contadorPaginasModificadas = 0;
+        
         for (int i = 0; i < tabla->capacidadEntradas; i++){ // o mandar de a una a la vez
 
             if(tabla->entradas[i].bitModificado && tabla->entradas[i].bitPresencia){
@@ -223,20 +227,32 @@ void ejecutar_flush(char* fileName, char* tagFile, int query_id){
                     continue;
                 }
 
-                agregarIntAPaquete(paquete, nroPagina);
-                agregarStringAPaquete(paquete, contenidoPagina); //ver como mandar el bloque entero
+                agregarIntAPaquete(paqueteContenido, nroPagina);
+                agregarStringAPaquete(paqueteContenido, contenidoPagina); //ver como mandar el bloque entero
                 free(contenidoPagina);
                 
                 tabla->entradas[i].bitModificado = false; //reseteo el bit modificado
-
+                contadorPaginasModificadas++;
+                
             }
         }
-        enviarOpcode(FLUSH_FILE, socketStorage/*socket storage*/);  
-        enviarPaquete(paquete, socketStorage/*socket storage*/);
 
-        eliminarPaquete(paquete);
+        agregarIntAPaquete(paqueteAviso, contadorPaginasModificadas); //cantidad de paginas modificadas que se van a mandar
+        enviarOpcode(FLUSH_FILE, socketStorage/*socket storage*/);  
+
+        enviarPaquete(paqueteAviso, socketStorage/*socket storage*/);
+        if(escucharStorage() == -1) { //esperar ok de storage antes de mandar el contenido
+            notificarMasterError();
+            return;
+        }
+        enviarPaquete(paqueteContenido, socketStorage/*socket storage*/);
+        if(escucharStorage() == -1) {
+            notificarMasterError();
+            return;
+        }
         
-        escucharStorage(); //esperar confirmacion de storage
+        eliminarPaquete(paqueteAviso);
+        eliminarPaquete(paqueteContenido);
 
         tabla->hayPaginasModificadas = false;
     }
@@ -244,7 +260,6 @@ void ejecutar_flush(char* fileName, char* tagFile, int query_id){
         log_debug(logger, "No hay páginas modificadas para hacer FLUSH en %s:%s", fileName, tagFile);
     }
 
-    // free(tabla);  NO hacer el free, sino la tabla queda desaparece 
     return;
 }       
 
