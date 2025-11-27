@@ -19,6 +19,22 @@ void inicializarArchivo(const char *rutaBase, const char *nombre, const char *ex
     }
 }
 
+
+// void inicializarBlocksHashIndex(char* path) {
+//     char archivoPath[512];
+//     snprintf(archivoPath, sizeof(archivoPath), "%s/blocks_hash_index.config", path);
+
+//     // Si ya existe, no hacer nada
+//     if (access(archivoPath, F_OK) == 0) {
+//         log_debug(logger, "Archivo blocks_hash_index.config ya existe, no se sobrescribe");
+//         return;
+//     }
+
+//     // Crear archivo vacío
+//     inicializarArchivo(path, "blocks_hash_index", "config", "w");
+//     log_debug(logger, "Archivo blocks_hash_index.config inicializado correctamente");
+// }
+
 char* inicializarDirectorio(char* pathBase, char* nombreDirectorio){ 
     char dirPath[512];
     snprintf(dirPath, sizeof(dirPath), "%s/%s", pathBase, nombreDirectorio);
@@ -104,14 +120,9 @@ void inicializarBloqueCero(char* pathPhysicalBlocks) {
 
 void levantarFileSystem(){
     if (configS->freshStart){
-        log_debug(logger, "FRESH_START=TRUE: Formateando FileSystem...");
-        eliminarFileSystemAnterior();
-
         pathBloquesFisicos = inicializarDirectorio(configS->puntoMontaje,"physical_blocks");
         char* pathBitMap = string_from_format("%s/bitmap.bin", configS->puntoMontaje);
         inicializarBitmap(pathBitMap);
-        free(pathBitMap);
-
         inicializarBlocksHashIndex(configS->puntoMontaje);
         inicializarBloquesFisicos(pathBloquesFisicos);
         inicializarBloqueCero(pathBloquesFisicos);
@@ -120,148 +131,269 @@ void levantarFileSystem(){
         crearFile("initial_file","BASE");
 
         char* pathTagBase = string_from_format("%s/initial_file/BASE", pathFiles);  
-        agregarBloqueMetaData(pathTagBase,0,0);
+        agregarBloqueMetaData(pathTagBase,0);
         agregarBloquesLogicos(pathTagBase,configSB->BLOCK_SIZE);
-        cambiarEstadoMetaData(pathTagBase, "COMMITED");
+        cambiarEstadoMetaData(pathTagBase, "COMMITTED");
         free(pathTagBase);
-        
-        log_debug(logger, "FileSystem formateado exitosamente");
+
+
     }
-    else {
-        log_debug(logger, "FRESH_START=FALSE: Cargando FileSystem existente...");
-        
-        pathBloquesFisicos = string_from_format("%s/physical_blocks", configS->puntoMontaje);
-        pathFiles = string_from_format("%s/files", configS->puntoMontaje);
-        
-        char* pathBitMap = string_from_format("%s/bitmap.bin", configS->puntoMontaje);
-        inicializarBitmap(pathBitMap);
-        free(pathBitMap);
-        
-        log_debug(logger, "FileSystem existente cargado correctamente");
+    else{
     }
 }
 
-void eliminarFileSystemAnterior(void) {
-    log_debug(logger, "FRESH_START=TRUE: Eliminando FileSystem anterior...");
-    char* pathPhysicalBlocks = string_from_format("%s/physical_blocks", configS->puntoMontaje);
-    char* pathFiles = string_from_format("%s/files", configS->puntoMontaje);
-    char* pathBitmap = string_from_format("%s/bitmap.bin", configS->puntoMontaje);
-    char* pathHashIndex = string_from_format("%s/blocks_hash_index.config", configS->puntoMontaje);
-    
-    eliminarDirectorioRecursivo(pathPhysicalBlocks);
-    eliminarDirectorioRecursivo(pathFiles);
-    
-    // Eliminar bitmap.bin si existe
-    if (access(pathBitmap, F_OK) == 0) {
-        if (remove(pathBitmap) != 0) {
-            log_warning(logger, "Error al eliminar bitmap.bin: %s", strerror(errno));
-        } else {
-            log_debug(logger, "Archivo bitmap.bin eliminado");
-        }
-    }
-    
-    // Eliminar blocks_hash_index.config si existe
-    if (access(pathHashIndex, F_OK) == 0) {
-        if (remove(pathHashIndex) != 0) {
-            log_warning(logger, "Error al eliminar blocks_hash_index.config: %s", strerror(errno));
-        } else {
-            log_debug(logger, "Archivo blocks_hash_index.config eliminado");
-        }
-    }
-    
-    free(pathPhysicalBlocks);
-    free(pathFiles);
-    free(pathBitmap);
-    free(pathHashIndex);
-    
-    log_debug(logger, "FileSystem anterior eliminado correctamente");
+void crearFile(char* nombreFile, char* nombreTag){
+    char * path = inicializarDirectorio(pathFiles,nombreFile);
+    crearTag(path,nombreTag);
+    free(path);
 }
 
-void eliminarDirectorioRecursivo(const char* path) {
-    if (access(path, F_OK) != 0) {
-        log_debug(logger, "Directorio %s no existe, no es necesario eliminar", path);
-        return;
-    }
-    
-    DIR* dir = opendir(path);
-    if (dir == NULL) {
-        log_error(logger, "Error al abrir directorio %s para eliminar: %s", path, strerror(errno));
-        return;
-    }
-    
-    struct dirent* entrada;
-    while ((entrada = readdir(dir)) != NULL) {
-        // Ignorar . y ..
-        if (strcmp(entrada->d_name, ".") == 0 || strcmp(entrada->d_name, "..") == 0) {
-            continue;
-        }
-        
-        char* pathCompleto = string_from_format("%s/%s", path, entrada->d_name);
-        
-        struct stat st;
-        if (stat(pathCompleto, &st) == 0) {
-            if (S_ISDIR(st.st_mode)) {
-                // Es un directorio, eliminar recursivamente
-                eliminarDirectorioRecursivo(pathCompleto);
-            } else {
-                // Es un archivo, eliminarlo
-                if (remove(pathCompleto) != 0) {
-                    log_error(logger, "Error al eliminar archivo %s: %s", pathCompleto, strerror(errno));
-                }
-            }
-        }
-        
-        free(pathCompleto);
-    }
-    
-    closedir(dir);
-    
-    // Eliminar el directorio vacío
-    if (rmdir(path) != 0) {
-        log_error(logger, "Error al eliminar directorio %s: %s", path, strerror(errno));
-    } else {
-        log_debug(logger, "Directorio %s eliminado", path);
-    }
-}
-
-bool crearFile(char* nombreFile, char* nombreTag){
-    char* pathFile = string_from_format("%s/%s", pathFiles, nombreFile);
-    struct stat st;
-    if (stat(pathFile, &st) != 0) {
-        if (mkdir(pathFile, 0777) != 0) {
-            log_error(logger, "Error al crear directorio del File ya existe <%s>: %s", nombreFile, strerror(errno));
-            free(pathFile);
-            exit(EXIT_FAILURE);
-        }
-        log_debug(logger, "Directorio del File <%s> creado", nombreFile);
-    }
-
-    if (!crearTag(pathFile, nombreTag)) {
-        free(pathFile);
-        return false;
-    }
-
-    free(pathFile);
-    return true;
-}
-
-bool crearTag(char* pathFile, char* nombreTag){
+void crearTag(char* pathFile,char* nombreTag){
     char *pathTag =  inicializarDirectorio(pathFile,nombreTag);
     char* pathLogicalBlocks = inicializarDirectorio(pathTag,"logical_blocks");
-
-    struct stat st;
-    if (stat(pathTag, &st) == 0) {
-        log_debug(logger, "Error: File:Tag <%s:%s> ya existe (preexistente)", pathFile, nombreTag);
-        free(pathFile);
-        free(pathTag);
-        return false;
-    }
-
     crearMetaData(pathTag);
 
     free(pathTag);
     free(pathLogicalBlocks);
 }
+
+void crearMetaData(char*pathTag){
+    inicializarArchivo(pathTag,"metadata","config","a+");
+    inicializarMetaData(pathTag);
+    
+}
+
+
+void inicializarMetaData(char* pathTag) {
+    char* pathMetadata = string_from_format("%s/metadata.config", pathTag);
+
+    FILE* archivo = fopen(pathMetadata, "w+");
+    if (archivo == NULL) {
+        perror("Error al crear metadata.config");
+        free(pathMetadata);
+        return;
+    }
+
+    int tamanoInicial = 0;
+    char* estadoInicial = "WORK_IN_PROGRESS";
+    char* bloquesIniciales = "[]";
+
+    fprintf(archivo, "TAMAÑO=%d\n", tamanoInicial);
+    fprintf(archivo, "BLOQUES=%s\n", bloquesIniciales);
+    fprintf(archivo, "ESTADO=%s\n", estadoInicial);
+
+    fclose(archivo);
+    free(pathMetadata);
+}
+void cambiarEstadoMetaData(char* pathTag,char* estado) {
+    char* pathMetadata = string_from_format("%s/metadata.config", pathTag);
+
+    t_config* config = config_create(pathMetadata);
+    if (config == NULL) {
+        fprintf(stderr, "Error: no se pudo abrir %s\n", pathMetadata);
+        free(pathMetadata);
+        return;
+    }
+    config_set_value(config, "ESTADO", estado);
+    config_save(config);
+    config_destroy(config);
+    free(pathMetadata);
+}
+// void agregarBloqueMetaData(char* pathTag, int nuevoBloque) {
+//     char* pathMetadata = string_from_format("%s/metadata.config", pathTag);
+//     t_config* config = config_create(pathMetadata);
+
+//     char** bloquesActuales = config_get_array_value(config, "BLOQUES");
+
+//     char* nuevoValor = string_new();
+//     string_append(&nuevoValor, "[");
+
+//     // concatenar bloques existentes
+//     if (bloquesActuales != NULL) {
+//         for (int i = 0; bloquesActuales[i] != NULL; i++) {
+//             string_append(&nuevoValor, bloquesActuales[i]);
+//             //string_append(&nuevoValor, ","); Supuestamente lo agrega
+//         }
+//     }
+
+//     char* numStr = string_from_format("%d", nuevoBloque);
+//     string_append(&nuevoValor, numStr);
+//     string_append(&nuevoValor, "]");
+
+//     config_set_value(config, "BLOQUES", nuevoValor);
+//     config_save(config);
+
+//     free(numStr);
+//     free(nuevoValor);
+//     free(pathMetadata);
+//     config_destroy(config);
+
+// }
+void agregarBloqueMetaData(char* pathTag, int nuevoBloque) {
+    char* pathMetadata = string_from_format("%s/metadata.config", pathTag);
+    
+    t_config* config = config_create(pathMetadata);
+    if (config == NULL) {
+        log_error(logger, "Error al abrir metadata en: %s", pathMetadata);
+        free(pathMetadata);
+        exit(EXIT_FAILURE);
+    }
+    
+    // Obtener el string del array y parsearlo
+    char* bloquesString = config_get_string_value(config, "BLOQUES");
+    char** bloquesActuales = NULL;
+    int cantidadBloques = 0;
+    
+    if (bloquesString != NULL && strlen(bloquesString) > 0) {
+        // Usar string_get_string_as_array para parsear el string "[1,2,3]"
+        bloquesActuales = string_get_string_as_array(bloquesString);
+        
+        // Contar bloques existentes
+        if (bloquesActuales != NULL) {
+            while (bloquesActuales[cantidadBloques] != NULL) {
+                cantidadBloques++;
+            }
+        }
+    }
+    
+    // Crear array para incluir el nuevo bloque
+    int* bloques = malloc(sizeof(int) * (cantidadBloques + 1));
+    
+    // Copiar bloques existentes al array de enteros
+    for (int i = 0; i < cantidadBloques; i++) {
+        bloques[i] = atoi(bloquesActuales[i]);
+    }
+    
+    // Agregar el nuevo bloque
+    bloques[cantidadBloques] = nuevoBloque;
+    cantidadBloques++;
+    
+    // Ordenar de menor a mayor (bubble sort simple)
+    for (int i = 0; i < cantidadBloques - 1; i++) {
+        for (int j = 0; j < cantidadBloques - i - 1; j++) {
+            if (bloques[j] > bloques[j + 1]) {
+                int temp = bloques[j];
+                bloques[j] = bloques[j + 1];
+                bloques[j + 1] = temp;
+            }
+        }
+    }
+    
+    // Construir el string con los bloques ordenados
+    char* nuevoValor = string_new();
+    string_append(&nuevoValor, "[");
+    for (int i = 0; i < cantidadBloques; i++) {
+        char* numStr = string_from_format("%d", bloques[i]);
+        string_append(&nuevoValor, numStr);
+        if (i < cantidadBloques - 1) {
+            string_append(&nuevoValor, ",");
+        }
+        free(numStr);
+    }
+    string_append(&nuevoValor, "]");
+    
+    // Guardar y limpiar
+    config_set_value(config, "BLOQUES", nuevoValor);
+    config_save(config);
+    
+    // Liberar memoria
+    if (bloquesActuales != NULL) {
+        string_iterate_lines(bloquesActuales, (void*)free);
+        free(bloquesActuales);
+    }
+    free(bloques);
+    free(nuevoValor);
+    free(pathMetadata);
+    config_destroy(config);
+    
+    log_debug(logger, "Bloque %d agregado a metadata en %s", nuevoBloque, pathTag);
+}
+// void agregarBloqueMetaData(char* pathTag, int nuevoBloque) {
+//     char* pathMetadata = string_from_format("%s/metadata.config", pathTag);
+//     t_config* config = config_create(pathMetadata);
+    
+//     if (config == NULL) {
+//         log_error(logger, "Error al abrir metadata en: %s", pathMetadata);
+//         free(pathMetadata);
+//         exit(EXIT_FAILURE);
+//     }
+    
+//     char** bloquesActuales = config_get_array_value(config, "BLOQUES");
+    
+//     // Contar bloques existentes
+//     int cantidadBloques = 0;
+//     if (bloquesActuales != NULL) {
+//         while (bloquesActuales[cantidadBloques] != NULL) {
+//             cantidadBloques++;
+//         }
+//     }
+    
+//     int* bloques = malloc(sizeof(int) * (cantidadBloques + 1));
+    
+//     // Copiar bloques existentes al array de enteros
+//     for (int i = 0; i < cantidadBloques; i++) {
+//         bloques[i] = atoi(bloquesActuales[i]);
+//     }
+    
+//     // Agregar el nuevo bloque
+//     bloques[cantidadBloques] = nuevoBloque;
+//     cantidadBloques++;
+    
+//     // Ordenar de menor a mayor (bubble sort simple)
+//     for (int i = 0; i < cantidadBloques - 1; i++) {
+//         for (int j = 0; j < cantidadBloques - i - 1; j++) {
+//             if (bloques[j] > bloques[j + 1]) {
+//                 int temp = bloques[j];
+//                 bloques[j] = bloques[j + 1];
+//                 bloques[j + 1] = temp;
+//             }
+//         }
+//     }
+    
+//     // Construir el string con los bloques ordenados
+//     char* nuevoValor = string_new();
+//     string_append(&nuevoValor, "[");
+    
+//     for (int i = 0; i < cantidadBloques; i++) {
+//         char* numStr = string_from_format("%d", bloques[i]);
+//         string_append(&nuevoValor, numStr);
+        
+//         if (i < cantidadBloques - 1) {  // Agregar coma si NO es el último
+//             string_append(&nuevoValor, ",");
+//         }
+//         free(numStr);
+//     }
+    
+//     string_append(&nuevoValor, "]");
+    
+//     // Guardar y limpiar
+//     config_set_value(config, "BLOQUES", nuevoValor);
+//     config_save(config);
+    
+//     free(bloques);
+//     free(nuevoValor);
+//     free(pathMetadata);
+//     config_destroy(config);
+// }
+
+// void agregarBloquesLogicos(char* pathTag, int tamanioArchivo) {
+//     // calculo de cantidad de bloques logicos
+//     int cantidadBloques = tamanioArchivo / configSB->BLOCK_SIZE;
+//     // creamos path al bloque fisico numero 0
+//     char *pathBloqueFisico0 = string_from_format("%s/block0000.dat", pathFiles);
+//     // Crear cada bloque logico como hardlink
+//     for (int i = 0; i < cantidadBloques; i++) {
+//         char *pathBloqueLogicos = string_from_format("%s/%s/logical_blocks/%06d.dat",pathTag,i);
+
+//         if (link(pathBloqueFisico0, pathBloqueLogicos) != 0) {
+//             log_error(logger, "Error al crear hardlink para bloque %d: %s", i, strerror(errno));
+//             exit(EXIT_FAILURE);
+//         }
+//     }
+//     log_debug(logger, "Agregando <%d> bloques logicos para el file:tag <%s>", cantidadBloques,pathTag);
+// }
+
+
 
 void agregarBloquesLogicos(char* pathTag, int tamanioArchivo) {
 
