@@ -220,6 +220,7 @@ void *operarWorkers(void*socketClienteVoid){
             eliminarPaquete(paqueteAviso);
             eliminarPaquete(paqueteContenido);
             break;
+        }
         case READ_BLOCK:{ // HECHO
             t_paquete* paqueteRecibido = recibirPaquete(socketCliente);
             int offsetRecibido = 0;

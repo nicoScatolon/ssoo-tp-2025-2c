@@ -615,7 +615,6 @@ bool esCommited(char* file, char* tag, char*pathMetaData) {
     t_config* config = config_create(pathMetaData);
     if (config == NULL) {
         log_error(logger, "## - Error al abrir metadata de <%s:%s>", file, tag);
-        free(pathMetaData);
         exit(EXIT_FAILURE);
     }
     
@@ -623,7 +622,6 @@ bool esCommited(char* file, char* tag, char*pathMetaData) {
     if (strcmp(estadoActual, "COMMITED") == 0) {
         log_debug(logger, "## - File:Tag <%s:%s> ya está confirmado (COMMITED)",file, tag);
         config_destroy(config);
-        free(pathMetaData);
         return true;  
     }
     config_destroy(config);
@@ -692,7 +690,7 @@ int obtenerBloqueFisico(char* file, char* tag, int numeroBloqueLogico) {
     }
     
     config_destroy(config);
-    pthread_mutex_lock(&mutex_metadata);
+    pthread_mutex_unlock(&mutex_metadata);
     free(pathMetadata);
     return bloqueFisico;
 }
