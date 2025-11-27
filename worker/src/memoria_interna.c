@@ -541,8 +541,6 @@ int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina){
         free(key);
         free(contenido);
 
-        aplicarRetardoMemoria();
-
         return marcoLibre;
     }
 }
@@ -573,8 +571,6 @@ int obtenerMarcoDesdePagina(char* nombreFile, char* tag, int numeroPagina){
     }
     int marco = entrada->numeroMarco;
     pthread_mutex_unlock(&tabla_paginas_mutex);
-
-    aplicarRetardoMemoria(); 
 
     return marco;
 }
@@ -610,6 +606,7 @@ int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
 
     enviarOpcode(WRITE_BLOCK, socketStorage);
     t_paquete* paquete = crearPaquete();
+    agregarIntAPaquete(paquete, contexto->query_id);
     agregarStringAPaquete(paquete, nombreFile);
     agregarStringAPaquete(paquete, tag);
     agregarIntAPaquete(paquete, numeroPagina);

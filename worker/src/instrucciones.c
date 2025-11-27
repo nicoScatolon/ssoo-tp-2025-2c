@@ -83,67 +83,6 @@ void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
     }
 }
 
-void ejecutar_readVieja(char* fileName, char* tagFile, int direccionBase, int size, contexto_query_t* contexto){
-    int offsetInicial = calcularOffsetDesdeDireccionBase(direccionBase);
-    int primerPagina = calcularPaginaDesdeDireccionBase(direccionBase);
-    int ultimaPagina = (direccionBase + size - 1) / configW->BLOCK_SIZE;
-    
-    int offsetDentroContenido = 0;
-    char* contenidoCompleto = malloc(size + 1); // +1 para el null terminator
-    if (!contenidoCompleto) {
-        log_error(logger, "Error al asignar memoria para READ");
-        notificarMasterError();
-        return;
-    }
-    contenidoCompleto[0] = '\0';
-
-    for (int paginaActual = primerPagina; paginaActual <= ultimaPagina; paginaActual++) {
-        int offsetEnPagina = (paginaActual == primerPagina) ? offsetInicial : 0;
-        
-        int bytesRestantesALeer = size - offsetDentroContenido;
-        int espacioDisponibleEnPagina = configW->BLOCK_SIZE - offsetEnPagina;
-        int bytesALeer = (bytesRestantesALeer <= espacioDisponibleEnPagina) 
-                         ? bytesRestantesALeer 
-                         : espacioDisponibleEnPagina;
-        
-        int marco = obtenerNumeroDeMarco(fileName, tagFile, paginaActual);
-        if (marco == -1) {
-            log_error(logger, "Error al obtener marco para READ en %s:%s direccionBase %d", fileName, tagFile, direccionBase);
-            free(contenidoCompleto);
-            notificarMasterError();
-            return;
-        }
-        
-        char* contenidoPagina = leerContenidoDesdeOffset(fileName, tagFile, paginaActual, marco, offsetEnPagina, bytesALeer);
-        if (!contenidoPagina) {
-            log_error(logger, "Error al leer contenido de página");
-            free(contenidoCompleto);
-            notificarMasterError();
-            return;
-        }
-        
-        // Concatenar el contenido leído
-        strcat(contenidoCompleto, contenidoPagina);
-        
-        log_info(logger, "Query <%d>: Acción: <LEER> - Dirección Física: <%d %d> - Valor: <%s>", contexto->query_id, marco, offsetEnPagina, contenidoPagina);
-        
-        free(contenidoPagina);
-        offsetDentroContenido += bytesALeer;
-    }
-
-    // Enviar el contenido completo al master
-    enviarOpcode(LECTURA_QUERY_CONTROL, socketMaster);
-    t_paquete* paquete = crearPaquete();
-    agregarIntAPaquete(paquete, contexto->query_id);
-    agregarStringAPaquete(paquete, fileName);
-    agregarStringAPaquete(paquete, tagFile);
-    agregarStringAPaquete(paquete, contenidoCompleto);
-    
-    enviarPaquete(paquete, socketMaster);
-
-    eliminarPaquete(paquete);
-    free(contenidoCompleto);
-}
 
 void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, contexto_query_t* contexto){
     int offsetInicial = calcularOffsetDesdeDireccionBase(direccionBase);
@@ -228,6 +167,13 @@ void ejecutar_tag(char* fileNameOrigen, char* tagOrigen, char* fileNameDestino, 
 
     enviarPaquete(paquete, socketStorage/*socket storage*/);
     eliminarPaquete(paquete);
+
+    int resp = escucharStorage(); //esperar confirmacion de storage
+    if (resp == -1)
+    {
+        notificarMasterError();
+    }
+    
 }   
 
 void ejecutar_commit(char* fileName, char* tagFile, int query_id){
@@ -239,6 +185,12 @@ void ejecutar_commit(char* fileName, char* tagFile, int query_id){
     agregarStringAPaquete(paquete, tagFile);
     enviarPaquete(paquete, socketStorage/*socket storage*/);
     eliminarPaquete(paquete);
+
+    int resp = escucharStorage(); //esperar confirmacion de storage
+    if (resp == -1)
+    {
+        notificarMasterError();
+    }
     
 }   
 
@@ -283,6 +235,9 @@ void ejecutar_flush(char* fileName, char* tagFile, int query_id){
         enviarPaquete(paquete, socketStorage/*socket storage*/);
 
         eliminarPaquete(paquete);
+        
+        escucharStorage(); //esperar confirmacion de storage
+
         tabla->hayPaginasModificadas = false;
     }
     else{

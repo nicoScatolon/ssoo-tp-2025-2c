@@ -145,6 +145,13 @@ void *operarWorkers(void*socketClienteVoid){
             enviarOpcode(RESPUESTA_OK, socketCliente);
             break;
         }
+        case FLUSH_FILE: {
+            log_debug(logger,"Se recibio OPCODE");
+            t_paquete* paquete = recibirPaquete(socketCliente);
+            eliminarPaquete(paquete);
+            enviarOpcode(RESPUESTA_OK, socketCliente);
+            break;
+        }
         default:
             break;
         }

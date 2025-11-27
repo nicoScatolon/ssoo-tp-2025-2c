@@ -9,7 +9,6 @@ sem_t sem_hayInterrupcion;
 sem_t sem_interrupcionAtendida;
 
 
-
 void inicializarEstructuras(){
     sem_init(&sem_hayInterrupcion, 0, 0); 
     sem_init(&sem_interrupcionAtendida,1,0);
