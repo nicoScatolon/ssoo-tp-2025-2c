@@ -5,34 +5,20 @@
 #include "utils/logs.h"
 #include <pthread.h>
 #include "utils/paquete.h"
+#include "qControl.h"
+#include "workers.h"
 
-// ------------------- Planificadores (hilos) -------------------
+
 void* planificadorFIFO();
 void* planificadorPrioridad();
 void* evaluarDesalojo();     
-void* aging();            
-// ------------------- Predicados / Sync -------------------
-bool hayWorkerLibre(void);
-bool hay_trabajo_para_planificar(void);
-void despertar_planificador(void);
-
-// ------------------- Helpers de colas/estados -------------------
-worker* obtenerWorkerLibre(void);           // marca ocupado=true
-query*  obtenerQuery(void);                 // saca 1ra de READY (FIFO)
+void* aging(void*arg);            
+query*  obtenerQuery(void);                 
 void    cambioEstado(t_list_mutex* lista, query* elemento);
-query*  obtenerQueryDeMenorPrioridad(void); // menor número = mayor prioridad
-int solicitarDesalojoYObtenerPC(worker* w);
+query* sacarQueryDeMenorPrioridad();
 query* sacarDePorId(t_list_mutex* l,int queryID);
-// ------------------- I/O con Worker -------------------
-void enviarQueryAWorker(worker* workerElegido, char* path, int PC, int queryID);
-
-// ------------------- Búsquedas utilitarias -------------------
-queryControl* buscarQueryControlPorId(int idQuery);
-worker* buscarWorkerPorQueryId(int idQuery);
-int           obtenerPosicionQCPorId(int idBuscado);
-int           obtenerPosicionWPorId(int idBuscado);
-void          liberarWorker(worker* w);
 bool estaEnListaPorId(t_list_mutex * lista, int id);
 query* obtenerQueryMayorPrioridad();
 query* obtenerQueryMenorPrioridad();
+query* obtenerQueryPorID(int idQuery);
 #endif

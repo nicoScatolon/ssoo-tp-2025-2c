@@ -6,14 +6,14 @@ void iniciarConfiguracionWorker(char*nombreConfig ,configWorker* configWorker){
 }
 
 sem_t sem_hayInterrupcion;
+sem_t sem_interrupcionAtendida;
 
 
-
-void inicializarCosas(){
-    pthread_t hilo_desalojo;
-    pthread_create(&hilo_desalojo,NULL,escucharDesalojo,NULL);
-    pthread_detach(hilo_desalojo);
+void inicializarEstructuras(){
     sem_init(&sem_hayInterrupcion, 0, 0); 
-    asignarCant_paginas();
+    sem_init(&sem_interrupcionAtendida,1,0);
+    // asignarCant_paginas();
+    inicializarMemoriaInterna();
+    inicializarDiccionarioDeTablas();
 }
 
