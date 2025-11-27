@@ -27,8 +27,6 @@ extern t_log* logger;
 
 void vaciarMemoria(void);
 void liberarBloqueHash(t_hash_block * bloque);
-bool existeHash(char * hash);
-void escribirHash(char* hash,int numeroBFisico);
 t_hash_block* ocuparBloqueHash(const char *contenido, size_t contenido_len);
 void incrementarNumeroBloque(void);
 
@@ -37,7 +35,7 @@ int bitmapSincronizar(void);
 //void bitmapLiberarBloque(unsigned int index);
 ssize_t bitmapReservarLibre(void);
 int ocuparBloqueBit(int indice_bloque);
-int liberarBloque(int indice_bloque);
+int liberarBloque(int indice_bloque, int queryID);
 bool bitmapBloqueOcupado(unsigned int index);
 void destruirBitmap(void);
 

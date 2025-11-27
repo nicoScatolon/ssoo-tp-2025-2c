@@ -27,7 +27,7 @@ typedef struct {
     int workerId;
 }t_worker;
 
-extern t_list* listadoWorker;
-extern pthread_mutex_t mutexWorkers;
+t_list* listadoWorker;
+pthread_mutex_t mutexWorkers;
 
 #endif
