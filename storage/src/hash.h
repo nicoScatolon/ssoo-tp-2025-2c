@@ -9,4 +9,6 @@ bool existeHash(char *hash);
 void escribirHash(char* hash,int numeroBFisico);
 char* calcularHashArchivo(char* path);
 int obtenerBloquePorHash(char* hash);
+t_hash_block* ocuparBloqueHash(const char *contenido, size_t contenido_len);
+void incrementarNumeroBloque(void);
 #endif
