@@ -11,13 +11,9 @@ int main(int argc, char* argv[]) {
     configM = malloc(sizeof(configMaster));
     iniciarConfiguracionMaster(nombreConfig, configM);
     inicializarListas();
-    inicializarSemaforos();
-
-    
     logger = iniciar_logger("master", configM->logLevel);
     establecerConexiones();
-    
     iniciarPlanificacion();
     pthread_exit(NULL);
-
+    //liberarMaster(logger, configM);
 }

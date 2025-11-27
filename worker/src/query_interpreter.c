@@ -1,8 +1,7 @@
 #include "query_interpreter.h"
 
-#define BUF_SZ 512
-
 contexto_query_t* cargarQuery(char* path, int query_id, int pc_inicial) { 
+    #define BUF_SZ 512
     //la primera vez que se llama es con pc_inicial = 0
     if (path == NULL) {
         log_error(logger, "Ruta de query NULL");
@@ -20,7 +19,7 @@ contexto_query_t* cargarQuery(char* path, int query_id, int pc_inicial) {
         return NULL;
     }
     if (need_slash)
-        snprintf(path_completo, len, "%s/%s", configW->pathQueries, path); //si se rompe volver al sprintf
+        snprintf(path_completo, len, "%s/%s", configW->pathQueries, path);
     else
         snprintf(path_completo, len, "%s%s", configW->pathQueries, path);
 
@@ -145,6 +144,12 @@ char* obtenerNombreTag(const char* file_Y_tag) {
     return strdup(sep + 1);             // después del ':'
 }
 
+
+// void aplicarRetardoMemoria() {
+//     usleep(configW->retardoMemoria * 1000);
+// }
+
+
 char* ObtenerNombreFileYTag(const char* fileTagText, char** fileOut, char** tagOut) {
     if (!fileTagText || !fileOut || !tagOut) return NULL;
 
@@ -193,35 +198,42 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         if (!ObtenerNombreFileYTag(file_Y_tag, &fileName, &tagFile)) {
                 log_error(logger, "Error al parsear <FILE>:<TAG> en CREATE - Formato inválido: %s", file_Y_tag);
                 return;
-        } 
+            } 
     }
     
     switch (instruccion->tipo) {
         case CREATE: { 
             // Formato: CREATE <NOMBRE_FILE>:<TAG>
             // parametro[0] = "CREATE", parametro[1] = "MATERIAS:BASE"
-            ejecutar_create(fileName, tagFile, contexto->query_id);
+        
+            ejecutar_create(fileName, tagFile);
+
             break;
         }
         
         case TRUNCATE: {
             // Formato: TRUNCATE <NOMBRE_FILE>:<TAG> <TAMAÑO>
             // parametro[0] = "TRUNCATE", parametro[1] = "MATERIAS:BASE", parametro[2] = "1024"
-            ejecutar_truncate(fileName, tagFile, atoi(instruccion->parametro[2]), contexto->query_id);
+            ejecutar_truncate(fileName, tagFile, atoi(instruccion->parametro[2]));
+            
             break;
         }
         
         case WRITE: {
             // Formato: WRITE <NOMBRE_FILE>:<TAG> <DIRECCIÓN BASE> <CONTENIDO>
             // parametro[0] = "WRITE", parametro[1] = "MATERIAS:BASE", parametro[2] = "0", parametro[3] = "SISTEMAS_OPERATIVOS"
+
             ejecutar_write(fileName, tagFile, atoi(instruccion->parametro[2]), instruccion->parametro[3], contexto);
+            
             break;
         }
         
         case READ: {
             // Formato: READ <NOMBRE_FILE>:<TAG> <DIRECCIÓN BASE> <TAMAÑO>
             // parametro[0] = "READ", parametro[1] = "MATERIAS:BASE", parametro[2] = "0", parametro[3] = "8"
+
             ejecutar_read(fileName, tagFile, atoi(instruccion->parametro[2]), atoi(instruccion->parametro[3]), contexto); 
+
             break;
         }
         
@@ -231,7 +243,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
             char *fileNameDestino = NULL, *tagFileDestino = NULL;
             ObtenerNombreFileYTag(instruccion->parametro[2], &fileNameDestino, &tagFileDestino);
 
-            ejecutar_tag(fileName, tagFile, fileNameDestino, tagFileDestino, contexto->query_id); 
+            ejecutar_tag(fileName, tagFile, fileNameDestino, fileNameDestino); 
 
             free(fileNameDestino);
             free(tagFileDestino);
@@ -241,8 +253,8 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case COMMIT: {
             // Formato: COMMIT <NOMBRE_FILE>:<TAG>
             // parametro[0] = "COMMIT", parametro[1] = "MATERIAS:BASE"
-            ejecutar_flush(fileName, tagFile, contexto->query_id);
-            ejecutar_commit(fileName, tagFile, contexto->query_id);
+            ejecutar_flush(fileName, tagFile);
+            ejecutar_commit(fileName, tagFile);
 
             break;
         }
@@ -250,7 +262,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case FLUSH: {
             // Formato: FLUSH <NOMBRE_FILE>:<TAG>
             // parametro[0] = "FLUSH", parametro[1] = "MATERIAS:BASE"
-            ejecutar_flush(fileName, tagFile, contexto->query_id);
+            ejecutar_flush(fileName, tagFile);
 
             break;
         }
@@ -258,44 +270,44 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case DELETE: {
             // Formato: DELETE <NOMBRE_FILE>:<TAG>
             // parametro[0] = "DELETE", parametro[1] = "MATERIAS:BASE"
-            ejecutar_delete(fileName, tagFile, contexto->query_id); 
+            ejecutar_delete(fileName, tagFile); 
 
             break;
         }
         
         case END: {
             // parametro[0] = "END"
-            // ejecutar_flush(fileName, tagFile, contexto->query_id);
+            ejecutar_flush(fileName, tagFile);
             ejecutar_end(contexto);
+            log_debug(logger, "Ejecutando END");
+            // implementacion
             break;
         }
         
         case DESCONOCIDO:
         default: {
             log_warning(logger, "Instrucción desconocida en PC %d: %s", contexto->pc, instruccion->parametro[0]);
-            free(fileName);
-            free(tagFile);
-            exit(EXIT_FAILURE);
-            return;
+            break;
         }
     }
 
     log_info(logger, "## Query %d: - Instrucción realizada: %s", contexto->query_id, instruccion->parametro[0]);
+
     
     free(fileName);
     free(tagFile);
 
-    return;
 }
 
 void ejecutarQuery(contexto_query_t* contexto) {
     if (contexto == NULL) {
         log_error(logger, "Contexto de query NULL");
-        exit(EXIT_FAILURE);
+        return;
     }
     
     log_debug(logger, "Iniciando ejecución de query %d desde PC %d", contexto->query_id, contexto->pc);
    
+    
     while (contexto->pc < contexto->total_lineas) {
         
         char* linea_actual = contexto->lineas_query[contexto->pc];
@@ -303,22 +315,22 @@ void ejecutarQuery(contexto_query_t* contexto) {
         instruccion_t* instruccion = parsearInstruccion(linea_actual);
         if (instruccion != NULL) {
             ejecutarInstruccion(instruccion, contexto);
+            
             liberarInstruccion(instruccion);
-        }else{
-            log_error(logger, "Error al parsear la instrucción en la línea %d: %s, La instruccion es NULL", contexto->pc, linea_actual);
-            exit(EXIT_FAILURE);
         }
         
         contexto->pc++;
+        
+        free(linea_actual);
 
         if(sem_trywait(&sem_hayInterrupcion) == 0){
-            sem_post(&sem_interrupcionAtendida); 
-            log_debug(logger, "Query %d interrumpida en PC %d", contexto->query_id, contexto->pc);
-            return; 
+            return;
         }
+        
     }
+    
     log_debug(logger, "Finalizó ejecución de query %d", contexto->query_id);
-    return;
+    
 }
 
 void liberarInstruccion(instruccion_t* instr) {
@@ -331,23 +343,22 @@ void liberarInstruccion(instruccion_t* instr) {
     free(instr);
 }
 
-
-
 void liberarContextoQuery(contexto_query_t* contexto) {
-    if (contexto == NULL)
-        return;
+    if (contexto == NULL) return;
 
+    /* free(NULL) es seguro, las comprobaciones son opcionales */
     free(contexto->path_query);
 
-    if (contexto->lineas_query != NULL) {
+    if (contexto->lineas_query != NULL && contexto->total_lineas > 0) {
         for (int i = 0; i < contexto->total_lineas; i++) {
-            free(contexto->lineas_query[i]);   
+            free(contexto->lineas_query[i]); /* safe si cada entrada fue inicializada o asignada */
         }
         free(contexto->lineas_query);
     }
 
     free(contexto);
 }
+
 
 
 void desalojarQuery(int idQuery, opcode motivo) {
@@ -359,14 +370,12 @@ void desalojarQuery(int idQuery, opcode motivo) {
         char* key = list_get(keys, i);
         char* file = obtenerNombreFile(key);
         char* tag  = obtenerNombreTag(key);
-        ejecutar_flush(file, tag, idQuery);
+        ejecutar_flush(file, tag);
         free(file);
         free(tag);
         free(key);
     }
     list_destroy(keys);
-    
-    log_debug(logger, "Desalojando Query %d en PC %d por motivo %d", idQuery, pc, motivo);
 
     enviarOpcode(motivo, socketMaster/*socket master*/);
     t_paquete* paquete = crearPaquete();
@@ -377,4 +386,3 @@ void desalojarQuery(int idQuery, opcode motivo) {
 
     return;
 }
-

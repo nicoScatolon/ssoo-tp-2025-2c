@@ -23,11 +23,12 @@ void iniciarConexion(char* path, int prioridad){ //Iniciar conexion con cliente 
 void esperarRespuesta(){
     while(1){
         opcode codigo;
-        int recibido = recv(socketMaster,&codigo,sizeof(opcode),0);
-        if (recibido < 0) {
-            log_error(logger, "Cliente desconectado en socket %d", socketMaster);
-            exit(EXIT_FAILURE);
-        
+        int recibido = recv(socketMaster,&codigo,sizeof(opcode),MSG_WAITALL);
+        if (recibido <= 0) {
+            log_warning(logger, "Cliente desconectado en socket %d", socketMaster);
+            close(socketMaster);
+            //finalizarQueryControl();
+            break;
         }
         switch(codigo){
             case FINALIZACION_QUERY:{
@@ -37,10 +38,12 @@ void esperarRespuesta(){
                 log_info(logger,"## Query finalizada - <Motivo> <%s>",motivo);
                 free(motivo);
                 eliminarPaquete(paquete);
+                finalizarQueryControl();
                 exit(EXIT_FAILURE);
                 break;
             }
             case LECTURA_QUERY_CONTROL:{
+                log_debug(logger,"Lectura en queryControl");
                 t_paquete* paquete = recibirPaquete(socketMaster);
                 int offset = 0;
                 char * file = recibirStringDePaqueteConOffset(paquete,&offset);
@@ -55,7 +58,21 @@ void esperarRespuesta(){
             }
             default:
                 log_warning(logger, " ## Respuesta desconocida de Master (opcode=%d)", codigo);
-                exit(EXIT_FAILURE);
+                break;
         }
     }
+}
+
+void finalizarQueryControl(){
+    close(socketMaster);
+    log_destroy(logger);
+}
+void manejar_sigint(int sig) {
+    if (socketMaster > 0) {
+        enviarOpcode(DESCONEXION_QUERY_CONTROL, socketMaster);
+        close(socketMaster);
+    }
+    log_debug(logger, "Desconectando del Master y saliendo...");
+    log_destroy(logger);
+    exit(EXIT_SUCCESS);
 }

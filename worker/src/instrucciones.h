@@ -17,15 +17,15 @@
 
 
 
-void ejecutar_create(char* nombreFile, char* tagFile, int query_id);  
-void ejecutar_truncate(char* nombreFile, char* tagFile, int size, int query_id);
+void ejecutar_create(char* nombreFile, char* tagFile);  
+void ejecutar_truncate(char* nombreFile, char* tagFile, int size);
 void ejecutar_write(char* nombreFile, char* tagFile, int direccionBase, char* contenido, contexto_query_t* contexto);
 void ejecutar_read(char* nombreFile, char* tagFile, int direccionBase, int size, contexto_query_t* contexto);
-void ejecutar_tag(char* nombreFileOrigen, char* tagOrigen, char* nombreFileDestino, char* tagDestino, int query_id);
-void ejecutar_commit(char* nombreFile, char* tagFile, int query_id);
-void ejecutar_flush(char* fileName, char* tagFile, int query_id);
-void ejecutar_delete(char* nombreFile, char* tagFile, int query_id);
-void ejecutar_end(contexto_query_t* contexto);
+void ejecutar_tag(char* nombreFileOrigen, char* tagOrigen, char* nombreFileDestino, char* tagDestino);
+void ejecutar_commit(char* nombreFile, char* tagFile);
+void ejecutar_flush(char* fileName, char* tag);
+void ejecutar_delete(char* nombreFile, char* tagFile);
+void ejecutar_end(contexto_query_t* contexto);    
 
-void notificarMasterError();
+
 #endif

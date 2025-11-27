@@ -17,10 +17,9 @@ pthread_mutex_t mutex_id_queryControl = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_id_worker = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_grado = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_cantidadQueriesControl = PTHREAD_MUTEX_INITIALIZER;
-
+pthread_mutex_t mutex_cv_planif = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cv_planif = PTHREAD_COND_INITIALIZER;
 
 sem_t sem_desalojo;
-sem_t sem_workers_libres; 
-sem_t sem_ready;
 
 

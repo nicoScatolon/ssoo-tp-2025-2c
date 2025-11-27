@@ -55,7 +55,7 @@ int iniciarServidor(char * puerto, t_log* logger, char* modulo)
         perror("Error en listen");
         exit(EXIT_FAILURE);
     }
-	log_debug(logger, "Servidor %s escuchando en el puerto %s",modulo,puerto);
+	log_debug(logger, "Servidor %s escuchando en el puerto%s",modulo,puerto);
 
 	return socket_servidor;
 }
@@ -71,7 +71,7 @@ int esperarCliente(int socket_servidor,t_log* logger)
         perror("Error al aceptar el cliente");
         exit(EXIT_FAILURE);
     }
-    //log_debug(logger, "Se conecto un cliente !");
+    log_debug(logger, "Se conecto un cliente !");
 	return socket_cliente;
 }
 void* recibirBuffer(uint32_t* size, int socket_cliente)

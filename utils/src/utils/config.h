@@ -33,8 +33,8 @@ typedef struct{
     char* algoritmoReemplazo;
     char* pathQueries;
     t_log_level logLevel;
-    int FS_SIZE;
-    int BLOCK_SIZE;
+    uint32_t FS_SIZE;
+    uint32_t BLOCK_SIZE;
 } configWorker;
 
 typedef struct{

@@ -13,13 +13,13 @@ int main(int argc,char*argv[]){
 
     if (prioridad < 0) {
         printf("La prioridad debe ser un numero mayor o igual que 0\n");
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
     configQ = malloc(sizeof(configQuery));
     iniciarConfiguracionQueryControl(nombreConfiguracion,configQ);
     logger = iniciar_logger("queryControl",configQ->logLevel);
+    signal(SIGINT, manejar_sigint);
     iniciarConexion(path,prioridad);
-    //signal(SIGINT, manejar_sigint);
     esperarRespuesta();
     //liberarQuery(logger,config);
 }
