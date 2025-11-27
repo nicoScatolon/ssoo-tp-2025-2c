@@ -23,15 +23,15 @@ int main(int argc, char* argv[]) {
 
     logger = iniciar_logger("worker", configW->logLevel);
 
-    inicializarCosas();
-    // inicializarHilos(workerId);
-    
     conexionConMaster(workerId);
-    conexionConStorage();
-    escucharMaster();
-    escucharStorage();
-
-    return EXIT_SUCCESS;
+    conexionConStorage(workerId);
+    inicializarEstructuras();
+    
+    conexionConMasterDesalojo(workerId);
+    
+    
+    escucharMaster(); 
+    
 
     return 0;
 }

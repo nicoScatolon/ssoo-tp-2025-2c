@@ -2,58 +2,62 @@
 #define MEMORIA_INTERNA_H
 
 #include "utils/config.h"
-#include "globals.h"
 #include "commons/bitarray.h"
 #include "commons/string.h"
 #include "conexiones.h"
-
+#include "algoritmosReemplazo.h"
+#include "globals.h"
 
 // Variables globales
-char* memoria = NULL;        // memoria principal
-t_bitarray* bitmap = NULL;   // bitmap para páginas
-int cant_frames = 0;
-t_dictionary* tablasDePaginas = NULL; //la key es <FILE>:<TAG>
+extern char* memoria;
+extern t_bitarray* bitmap;
+extern int cant_marcos;
+extern t_dictionary* tablasDePaginas;
 
-int cant_paginas;
-void asignarCant_paginas(void);
+// Mutex
+extern pthread_mutex_t memoria_mutex;
+extern pthread_mutex_t tabla_paginas_mutex;
 
+// Inicialización y limpieza
+void inicializarMemoriaInterna(void);
+void inicializarDiccionarioDeTablas(void);
+void eliminarMemoriaInterna(void);
 
-//Mutex
-pthread_mutex_t memoria_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t tabla_paginas_mutex = PTHREAD_MUTEX_INITIALIZER;
+// Gestión de tablas de páginas
+TablaDePaginas* agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag);
+TablaDePaginas* obtenerTablaPorFileYTag(char* nombreFile, char* tag);
+void actualizarMetadataTablaPagina(TablaDePaginas* tabla);
 
-// FUNCIONES
-void inicializarMemoriaInterna(void); // Hecho 
-void inicializarDiccionarioDeTablas(void); // Hecho 
-void eliminarMemoriaInterna(void); // Hecho 
+// Gestión de marcos
+int obtenerMarcoLibre(void);
+int obtenerMarcoReservado(char* keyAsignar, int numeroPagina);  // ← AGREGAR
+int liberarMarcoVictima(char* nombreFileVictima, char* tagFileVictima, int pagina, int marco);
+void asignarMarco(char* fileNameAsignar, char* tagFileAsignar, int pagina, int marco);
+void asignarMarcoEntradaTabla(char* nombreFile, char* tag, int numeroPagina, int numeroMarco);
+void liberarMarco(int nro_marco);
+void ocuparMarco(int nro_marco);
 
-void agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag); // Hecho
-TablaDePaginas* obtenerTablaPorFileYTag(const char* nombreFile, const char* tag); // Hecho
+// Acceso a memoria
+int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina);
+int obtenerMarcoDesdePagina(char* nombreFile, char* tag, int numeroPagina);
+char* obtenerContenidoDelMarco(int nro_marco, int offset, int size);
 
-int obtenerMarcoLibre(void); // Hecho
-void liberarMarco(int nro_marco); // Hecho
-int obtenerMarcoDesdePagina(const char* nombreFile, const char* tag, int numeroPagina); // Hecho
-char* obtenerContenidoDelMarco(int nro_marco); // Hecho
-int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina); // ---Falta---
- 
-char* traerPaginaDeStorage(char* nombreFile, char* tag, int numeroPagina); // ---Falta esperar storage---
-void enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina); // Hecho (a revisar)
+// Comunicación con Storage
+char* traerPaginaDeStorage(char* nombreFile, char* tag, int query_id, int numeroPagina);
+int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina);
 
-int ejecutarAlgoritmoReemplazo();
+// Lectura/Escritura
+char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, int offset, int size);
+void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, char* contenido, int offset, int size);
+void escribirEnMemoriaPaginaCompleta(char* nombreFile, char* tag, int numeroPagina, int marcoLibre, char* contenidoPagina, int size);
+void escribirMarcoConOffset(int numeroMarco, char* contenido, int offset, int size);
 
-// Lectura/Escritura desde la "Memoria Interna" 
-char* leerContenidoDesdeOffset(   const char* nombreFile, const char* tag, int numeroMarco, int offset, int size); //Falta
-void escribirContenidoDesdeOffset(const char* nombreFile, const char* tag, int numeroMarco, char* contenido, int offset, int size); //Falta
-
-void* leerDesdeMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco); //Falta
-void escribirEnMemoriaPaginaCompleta(const char* nombreFile, const char* tag, int numeroMarco, char* contenidoPagina, int size); //Falta
-
-
-// int obtenerNumeroPaginaDeFileTag(const char* nombreFile, const char* tag, int direccionBase); //---No se si es necesario---
-
-
-// Algoritmos de reemplazo (devuelven la página reemplazada)
-int ReemplazoLRU(); //Por Hacer         puede usar obtenerPaginaLibre(), reservarPagina(), liberarPagina(), agregarPaginaAProceso()
-int ReemplazoCLOCKM(); //Por Hacer      puede usar obtenerPaginaLibre(), reservarPagina(), liberarPagina(), agregarPaginaAProceso()
+// Algoritmos y utilidades
+key_Reemplazo* ejecutarAlgoritmoReemplazo();
+void aplicarRetardoMemoria(void);
+int64_t obtener_tiempo_actual();
+void inicializar_entrada(EntradaDeTabla* entrada, int numeroPagina);
+void actualizar_acceso_pagina(EntradaDeTabla* entrada);
+void modificar_pagina(EntradaDeTabla* entrada);
 
 #endif

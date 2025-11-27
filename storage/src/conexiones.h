@@ -18,6 +18,7 @@ void comprobacionModulo(modulo modulo_origen, modulo esperado, char *modulo, voi
 void *operarWorkers(void*socketClienteVoid);
 void incrementarWorkers(int workerId);
 void decrementarWorkers(int workerId);
+
 void registrarWorker(int socket, int workerId);
 int obtenerYRemoverWorker(int socket);
 #endif
