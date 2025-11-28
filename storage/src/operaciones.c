@@ -42,9 +42,9 @@ bool tagFile(char* fileOrigen, char* tagOrigen, char* fileDestino, char* tagDest
     
     struct stat st;
 
-    // Verificacion de existncia del TAG ORIGEN (No existe)
+    // Verificacion de existencia del TAG ORIGEN (No existe)
     if (stat(pathTagOrigen, &st) != 0) {
-        log_debug(logger, "## <%d>- Error: Tag origen <%s:%s> no existe",queryID,fileOrigen, tagOrigen);
+        log_debug(logger, "## <%d>- Error: Tag origen <%s:%s> no existe", queryID, fileOrigen, tagOrigen);
         free(pathTagOrigen);
         free(pathFileDestino);
         free(pathTagDestino);
@@ -53,26 +53,118 @@ bool tagFile(char* fileOrigen, char* tagOrigen, char* fileDestino, char* tagDest
     
     // Verificando de existencia del TAG DESTINO (Ya existe)
     if (stat(pathTagDestino, &st) == 0) {
-        log_debug(logger, "## <%d>- Error: Tag destino <%s:%s> ya existe", queryID,fileDestino, tagDestino);
+        log_debug(logger, "## <%d>- Error: Tag destino <%s:%s> ya existe", queryID, fileDestino, tagDestino);
         free(pathTagOrigen);
         free(pathFileDestino);
         free(pathTagDestino);
         return false;
     }
     
+    // Crear directorio del file destino si no existe
     if (stat(pathFileDestino, &st) != 0) {
         if (mkdir(pathFileDestino, 0777) != 0) {
-            log_error(logger, "## <%d> - Error al crear directorio del file destino: %s", queryID,fileDestino);
+            log_error(logger, "## <%d> - Error al crear directorio del file destino: %s", queryID, fileDestino);
             exit(EXIT_FAILURE);
         }
     }
     
-    // Copiar el directorio completo del tag origen al destino
-    if (!copiarDirectorioRecursivo(pathTagOrigen, pathTagDestino)) {
-        log_error(logger, "##<%d> - Error al copiar directorio de %s:%s a %s:%s",queryID, fileOrigen, tagOrigen, fileDestino, tagDestino);
+    // Crear directorio del tag destino
+    if (mkdir(pathTagDestino, 0777) != 0) {
+        log_error(logger, "## <%d> - Error al crear directorio del tag destino: %s", queryID, pathTagDestino);
         exit(EXIT_FAILURE);
     }
-    cambiarEstadoMetaData(pathTagDestino,"WORK_IN_PROGRESS");
+    
+    // ========== PASO 1: Leer metadata del tag ORIGEN ==========
+    char* metadataOrigenPath = string_from_format("%s/metadata.config", pathTagOrigen);
+    t_config* metadataOrigen = config_create(metadataOrigenPath);
+    
+    if (metadataOrigen == NULL) {
+        log_error(logger, "## <%d> - Error al leer metadata origen: %s", queryID, metadataOrigenPath);
+        free(metadataOrigenPath);
+        exit(EXIT_FAILURE);
+    }
+    
+    // Obtener el array de bloques: BLOQUES=[1,0,0,0,0,0]
+    // Donde posición = bloque lógico, valor = bloque físico
+    char** bloquesStr = config_get_array_value(metadataOrigen, "BLOQUES");
+    
+    // Contar cuántos bloques lógicos hay
+    int cantidadBloques = 0;
+    while (bloquesStr[cantidadBloques] != NULL) {
+        cantidadBloques++;
+    }
+    
+    log_info(logger, "## <%d> - TAG: %s:%s -> %s:%s (%d bloques)", 
+             queryID, fileOrigen, tagOrigen, fileDestino, tagDestino, cantidadBloques);
+    
+    // ========== PASO 2: Copiar metadata al destino ==========
+    char* metadataDestinoPath = string_from_format("%s/metadata.config", pathTagDestino);
+    if (!copiarArchivo(metadataOrigenPath, metadataDestinoPath)) {
+        log_error(logger, "## <%d> - Error al copiar metadata", queryID);
+        exit(EXIT_FAILURE);
+    }
+    free(metadataOrigenPath);
+    free(metadataDestinoPath);
+    
+    // ========== PASO 3: Crear directorio logical_blocks en destino ==========
+    char* logicalBlocksDestino = string_from_format("%s/logical_blocks", pathTagDestino);
+    if (mkdir(logicalBlocksDestino, 0777) != 0) {
+        log_error(logger, "## <%d> - Error al crear directorio logical_blocks", queryID);
+        exit(EXIT_FAILURE);
+    }
+    
+    // ========== PASO 4: Crear hardlinks de bloques lógicos a bloques físicos ==========
+    for (int bloqueLogico = 0; bloqueLogico < cantidadBloques; bloqueLogico++) {
+        int bloqueFisico = atoi(bloquesStr[bloqueLogico]);
+        
+        // Path del bloque físico
+        char* pathBloqueFisico = string_from_format(
+            "%s/physical_blocks/block%04d.dat", 
+            configS->puntoMontaje, 
+            bloqueFisico
+        );
+        
+        // Path del bloque lógico en el tag destino
+        char* pathBloqueLogicoDestino = string_from_format(
+            "%s/%06d.dat", 
+            logicalBlocksDestino, 
+            bloqueLogico
+        );
+        
+        // Log ANTES
+        struct stat stAntes;
+        stat(pathBloqueFisico, &stAntes);
+        
+        // Crear hardlink: bloque lógico destino -> bloque físico
+        if (link(pathBloqueFisico, pathBloqueLogicoDestino) != 0) {
+            log_error(logger, "## <%d> - Error hardlink: %s -> %s: %s", 
+                      queryID, pathBloqueLogicoDestino, pathBloqueFisico, strerror(errno));
+            free(pathBloqueFisico);
+            free(pathBloqueLogicoDestino);
+            exit(EXIT_FAILURE);
+        }
+        
+        // Log DESPUES
+        struct stat stDespues;
+        stat(pathBloqueFisico, &stDespues);
+        
+        log_debug(logger, "## <%d> - logical[%d] -> physical[%d] (nlink: %lu -> %lu)", 
+                  queryID, bloqueLogico, bloqueFisico, 
+                  (unsigned long)stAntes.st_nlink, (unsigned long)stDespues.st_nlink);
+        
+        free(pathBloqueFisico);
+        free(pathBloqueLogicoDestino);
+    }
+    
+    log_info(logger, "## <%d> - TAG completado: %d hardlinks creados", queryID, cantidadBloques);
+    
+    // Cleanup
+    free(logicalBlocksDestino);
+    string_array_destroy(bloquesStr);
+    config_destroy(metadataOrigen);
+    
+    cambiarEstadoMetaData(pathTagDestino, "WORK_IN_PROGRESS");
+    
     free(pathTagOrigen);
     free(pathFileDestino);
     free(pathTagDestino);
