@@ -11,7 +11,6 @@
 #include <stdbool.h>
 
 
-// ✅ SOLO DECLARACIONES con extern - NO definiciones
 extern pthread_mutex_t mutex_id_queryControl;
 extern pthread_mutex_t mutex_id_worker;
 extern pthread_mutex_t mutex_grado;
@@ -30,6 +29,7 @@ extern configMaster* configM;
 extern sem_t sem_ready;
 extern sem_t sem_desalojo;
 extern sem_t sem_workers_libres;
+extern sem_t sem_execute;
 
 extern t_list_mutex listaReady;
 extern t_list_mutex listaExecute;

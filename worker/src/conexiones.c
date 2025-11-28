@@ -68,7 +68,6 @@ void escucharMaster() {
     while(1) {
         opcode codigo;
         
-        // ✅ Bloquear antes de leer
         pthread_mutex_lock(&mutex_socket_master);
         int recibido = recv(socketMaster, &codigo, sizeof(opcode), MSG_WAITALL);
         
@@ -117,6 +116,7 @@ void escucharMaster() {
         }
     }
 }
+
 void* escucharDesalojo() {
     log_debug(logger,"Hilo corriendo");
     while (1) {
@@ -133,27 +133,29 @@ void* escucharDesalojo() {
         switch (codigo) {
             case DESALOJO_QUERY_PLANIFICADOR:{
                 sem_post(&sem_hayInterrupcion); 
+                sem_wait(&sem_interrupcionAtendida);
+                log_warning(logger,"Notificando interrupcion");
+   
                 t_paquete* paquete = recibirPaquete(socketMasterDesalojo);
                 if(!paquete){
                     log_error(logger, "Error recibiendo paquete de DESALOJO_QUERY_PLANIFICADOR");
-                    break;
+                    exit(EXIT_FAILURE);
                 }
                 int offset = 0;
                 int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
-                log_info(logger,"Desalojo de Query: ## Query <%d>: Desalojada por pedido del Master",idQuery);
+                log_info(logger,"Desalojo de Query: ## Query <%d> por pedido de master: Planificador",idQuery);
             
-                //ejecuta el flush y enviar Id y PC actualizado
-                desalojarQuery(idQuery, codigo);
                 eliminarPaquete(paquete);
+                desalojarQuery(idQuery, DESALOJO_QUERY_PLANIFICADOR);
+                //esta bien que aca tambièn se ejecute el flush??
                 
                 break;
             }
             case DESALOJO_QUERY_DESCONEXION:{
                 sem_post(&sem_hayInterrupcion); 
                 sem_wait(&sem_interrupcionAtendida);
-                log_debug(logger,"Notificando interrupcion");
-                log_debug(logger,"socketMasterDesalojo <%d>",socketMasterDesalojo);
-                log_debug(logger,"socketMaster <%d>",socketMaster);
+                log_warning(logger,"Notificando interrupcion");
+    
                 t_paquete* paquete = recibirPaquete(socketMasterDesalojo);
                 if(!paquete){
                     log_error(logger, "Error recibiendo paquete de DESALOJO_QUERY_DESCONEXION");
@@ -161,8 +163,7 @@ void* escucharDesalojo() {
                 }
                 int offset = 0;
                 int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
-                log_info(logger,"Desalojo de Query: ## Query <%d>: Desalojada por desconexión del cliente",idQuery);
-            
+                log_info(logger,"Desalojo de Query: ## Query <%d> por pedido de master: Desconexion ",idQuery);            
                 eliminarPaquete(paquete);
                 desalojarQuery(idQuery, DESALOJO_QUERY_DESCONEXION);
                 //esta bien que aca tambièn se ejecute el flush??

@@ -9,15 +9,16 @@ void* planificadorFIFO() {
         sem_wait(&sem_workers_libres);
         
         worker* workerElegido = obtenerWorkerLibre();
-        if (workerElegido == NULL) {
-            log_error(logger,"El worker es nulo");
-            exit(EXIT_FAILURE);
+        if (workerElegido == NULL) {  // Caso posible, si el worker es null puede ser porq cortò su ejecuciòn, no es error.
+            log_warning(logger, "El worker se desconecto, se replanifica.");
+            continue;
         }
 
         query* queryElegida = obtenerQuery();
-        if (queryElegida == NULL) {
-            log_error(logger,"La query es nulo");
-            exit(EXIT_FAILURE);
+        if (queryElegida == NULL) { // Caso posible, si la query es null puede ser porq el query control cortò su ejecuciòn, no es error.
+            log_warning(logger,"La query se desconecto, se libera worker y se replanifica.");
+            liberarWorker(workerElegido);
+            continue;
         }
 
         cambioEstado(&listaExecute,queryElegida);
@@ -31,22 +32,24 @@ void* planificadorFIFO() {
 void* planificadorPrioridad(){
     while (1)
     {
-
         sem_wait(&sem_ready);
         if (!hayWorkerLibre())
         {
             sem_post(&sem_desalojo);
+             sem_wait(&sem_workers_libres);
+             sem_post(&sem_ready);
             continue;
         }
         worker* workerElegido = obtenerWorkerLibre();
-        if (workerElegido == NULL) {
-             log_error(logger, "ERROR: hayWorkerLibre() true pero obtenerWorkerLibre() NULL");
-             exit(EXIT_FAILURE);
+        if (workerElegido == NULL) { // Caso posible, si el worker es null puede ser porq cortò su ejecuciòn, no es error.
+            log_warning(logger, "El worker se desconecto, se replanifica.");
+            continue;
            }
         query* queryElegida = sacarQueryDeMenorPrioridad(); 
-        if (queryElegida == NULL) {
-            log_error(logger, "ERROR: sem_ready señalizado pero no hay query en READY");
-            exit(EXIT_FAILURE);
+        if (queryElegida == NULL) { // Caso posible, si la query es null puede ser porq el query control cortò su ejecuciòn, no es error.
+            log_warning(logger,"La query se desconecto, se libera worker y se replanifica.");
+            liberarWorker(workerElegido);
+            continue;
         }
         cambioEstado(&listaExecute, queryElegida);
         log_info(logger, "## Se envía la Query <%d> (<%d>) al Worker <%d>", queryElegida->qcb->queryID,queryElegida->qcb->prioridad,workerElegido->workerID);
@@ -59,21 +62,25 @@ void* planificadorPrioridad(){
 // ------------------- Desalojo -------------------
 void* evaluarDesalojo(){
     while(1){
-    sem_wait(&sem_desalojo);
-    query* queryReady = obtenerQueryMayorPrioridad();
-    query* queryExec = obtenerQueryMenorPrioridad();
+        sem_wait(&sem_execute);
+        sem_wait(&sem_desalojo);    
+        query* queryReady = obtenerQueryMayorPrioridad();
+        query* queryExec = obtenerQueryMenorPrioridad();
 
-    if (queryReady && queryExec)
-    {
-        if (queryReady->qcb->prioridad < queryExec->qcb->prioridad)
-        {
-            worker* w = buscarWorkerPorQueryId(queryExec->qcb->queryID);
-            enviarOpcode(DESALOJO_QUERY_PLANIFICADOR,w->socket);
-            log_debug(logger,"Notificando desalojo de Query <%d>",queryExec->qcb->queryID);
+        if (queryReady && queryExec){
+            if (queryReady->qcb->prioridad < queryExec->qcb->prioridad){
+                worker* w = buscarWorkerPorQueryId(queryExec->qcb->queryID);
+                enviarOpcode(DESALOJO_QUERY_PLANIFICADOR,w->socketDesalojo);
+                t_paquete*paquete=crearPaquete();
+                agregarIntAPaquete(paquete,queryExec->qcb->queryID);
+                enviarPaquete(paquete,w->socketDesalojo);
+                eliminarPaquete(paquete);
+                log_debug(logger,"Notificando desalojo de Query <%d>",queryExec->qcb->queryID);
+            }
         }
     }
 }
-}
+
 // ------------------- Aging -------------------
 void* aging(void *arg){
     int idQuery = (intptr_t)arg;
@@ -85,7 +92,7 @@ void* aging(void *arg){
             pthread_mutex_lock(&q->mutex);
             q->qcb->prioridad-=1;
             pthread_mutex_unlock(&q->mutex);
-            log_info(logger,"##<QUERY_ID> Cambio de prioridad: <%d> - <%d>",prioridadVieja,q->qcb->prioridad);
+            log_info(logger,"##<%d> Cambio de prioridad: <%d> - <%d>",q->qcb->queryID,prioridadVieja,q->qcb->prioridad);
             sem_post(&sem_desalojo);
         }
         else if(estaEnListaPorId(&listaExecute,idQuery)){
