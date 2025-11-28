@@ -86,7 +86,7 @@ void *operarWorkers(void*socketClienteVoid){
             char* tag = recibirStringDePaqueteConOffset(paqueteRecibir,&offset);
             eliminarPaquete(paqueteRecibir);
             aplicarRetardoOperacion();
-            if (crearFile(file, tag)) {
+            if (crearFile(file, tag,0)) {
                 log_info(logger, "##<%d> - File Creado <%s>:<%s>", idQuery, file, tag);
                 enviarOpcode(RESPUESTA_OK, socketCliente);
             } else {

@@ -495,8 +495,7 @@ bool truncarArchivo(char* file, char* tag, int nuevoTamanio, int queryID) {
     else if (bloquesNuevos < bloquesActuales){
         reducirTamanioArchivo(file, tag, bloquesActuales, bloquesNuevos, nuevoTamanio, metadata, queryID);
     }
-    config_set_value(metadata, "TAMAÑO", string_itoa(nuevoTamanio));
-    config_save(metadata);
+    // config_save(metadata);
     log_info(logger, "##<%d> - File Truncado <%s:%s> - Tamaño: <%d>", queryID, file, tag, nuevoTamanio);
 
     config_destroy(metadata);
@@ -632,9 +631,7 @@ bool hayEspacioDisponible(int bloquesNecesarios, int queryID) {
 
 void actualizarMetadataTruncate(t_config* metadata, int nuevoTamanio, int cantidadBloques) {
     char* tamanioStr = string_itoa(nuevoTamanio);
-    config_set_value(metadata, "TAMAÑO", tamanioStr);
-    free(tamanioStr);
-
+    
     char** bloquesActuales = config_get_array_value(metadata, "BLOQUES");
     
     // 1. Calculamos cuántos bloques hay realmente ahora para no pasarnos
@@ -642,10 +639,10 @@ void actualizarMetadataTruncate(t_config* metadata, int nuevoTamanio, int cantid
     if (bloquesActuales != NULL) {
         cantidadActuales = string_array_size(bloquesActuales);
     }
-
+    
     char* nuevosBloquesStr = string_new();
     string_append(&nuevosBloquesStr, "[");
-
+    
     for (int i = 0; i < cantidadBloques; i++) {
         char* bloqueStr;
 
@@ -667,15 +664,17 @@ void actualizarMetadataTruncate(t_config* metadata, int nuevoTamanio, int cantid
         
         free(bloqueStr);
     }
-
+    
     string_append(&nuevosBloquesStr, "]");
-
+    
+    config_set_value(metadata, "TAMAÑO", tamanioStr);
     config_set_value(metadata, "BLOQUES", nuevosBloquesStr);
     config_save(metadata);
-
+    
     if (bloquesActuales) {
         string_array_destroy(bloquesActuales);
     }
+    free(tamanioStr);
     free(nuevosBloquesStr);
 }
 
@@ -967,7 +966,7 @@ bool eliminarTag(char* file, char* tag, int queryID) {
         return false;
     }
 
-    if (strcmp(file, "initial_file") == 0) { // && strcmp(tag, "BASE") == 0
+    if (strcmp(file, "initial_file") == 0 && strcmp(tag, "BASE") == 0) {
         log_error(logger, "## <%d> - Error: No se puede eliminar initial_file:BASE (protegido por el sistema)", queryID);
         return false;
     }
