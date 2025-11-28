@@ -52,6 +52,7 @@ void *operarWorkers(void*socketClienteVoid){
             int workerId = obtenerYRemoverWorker(socketCliente);
             decrementarWorkers(workerId);
             close(socketCliente);
+            break;
         }
         switch (codigo)
         {
@@ -62,7 +63,9 @@ void *operarWorkers(void*socketClienteVoid){
 
             incrementarWorkers(workerId);
             registrarWorker(socketCliente,workerId);
+            
             t_paquete* paqueteEnviar = crearPaquete();
+            enviarOpcode(HANDSHAKE_STORAGE_WORKER,socketCliente);
             agregarIntAPaquete(paqueteEnviar,configSB->FS_SIZE);
             agregarIntAPaquete(paqueteEnviar,configSB->BLOCK_SIZE);
             enviarPaquete(paqueteEnviar,socketCliente);
@@ -189,38 +192,55 @@ void *operarWorkers(void*socketClienteVoid){
             eliminarPaquete(paquete);
             break;
         }
-        case FLUSH_FILE: {
-            t_paquete* paqueteAviso = recibirPaquete(socketCliente);
-
-            int offset = 0;
-            int idQuery = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
-            char* file = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
-            char* tag = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
-            int cantidadBloques = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
-            enviarOpcode(RESPUESTA_OK, socketCliente);
-
-            t_paquete* paqueteContenido = recibirPaquete(socketCliente);
-            for (int i = 0; i < cantidadBloques; i++) {
-                offset = 0;
-                int numeroBloque = recibirIntDePaqueteconOffset(paqueteContenido, &offset);
-                char* contenido = recibirStringDePaqueteConOffset(paqueteContenido, &offset);
-
-                aplicarRetardoOperacion();
-                
-                if (!escribirBloque(file, tag, numeroBloque, contenido, idQuery)) {
-                    enviarOpcode(RESPUESTA_ERROR, socketCliente);
-                } else {
-                    enviarOpcode(RESPUESTA_OK, socketCliente);
-                }
-
-                free(contenido);
-            }
-            free(file);
-            free(tag);
-            eliminarPaquete(paqueteAviso);
-            eliminarPaquete(paqueteContenido);
-            break;
+       case FLUSH_FILE: {
+    t_paquete* paqueteAviso = recibirPaquete(socketCliente);
+    int offset = 0;
+    int idQuery = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
+    char* file = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
+    char* tag = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
+    int cantidadBloques = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
+    
+    log_debug(logger, "##<%d> - Iniciando FLUSH de <%s>:<%s> con <%d> bloques", 
+              idQuery, file, tag, cantidadBloques);
+    
+    t_paquete* paqueteContenido = recibirPaquete(socketCliente);
+    
+    bool huboError = false;
+    int i = 0;
+    
+    while (i < cantidadBloques && !huboError) {
+        offset = 0;
+        int numeroBloque = recibirIntDePaqueteconOffset(paqueteContenido, &offset);
+        char* contenido = recibirStringDePaqueteConOffset(paqueteContenido, &offset);
+        
+        log_debug(logger, "##<%d> - FLUSH bloque <%d> con contenido <%s>", 
+                  idQuery, numeroBloque, contenido);
+        
+        aplicarRetardoOperacion();
+        
+        if (!escribirBloque(file, tag, numeroBloque, contenido, idQuery)) {
+            huboError = true;
+        } else {
+            log_debug(logger, "bloque numero <%d> escrito en FLUSH: <%s>", 
+                      numeroBloque, contenido);
         }
+        
+        free(contenido);
+        i++;
+    }
+    
+    if (huboError) {
+        enviarOpcode(RESPUESTA_ERROR, socketCliente);
+    } else {
+        enviarOpcode(RESPUESTA_OK, socketCliente);
+    }
+    
+    free(file);
+    free(tag);
+    eliminarPaquete(paqueteAviso);
+    eliminarPaquete(paqueteContenido);
+    break;
+}
         case READ_BLOCK:{ // HECHO
             t_paquete* paqueteRecibido = recibirPaquete(socketCliente);
             int offsetRecibido = 0;
@@ -233,6 +253,7 @@ void *operarWorkers(void*socketClienteVoid){
             aplicarRetardoOperacion();
             if(contenido == NULL){
                 enviarOpcode(RESPUESTA_ERROR,socketCliente);
+                break;
             }
             log_info(logger,"##<%d> - Bloque Lógico Leído <%s>:<%s> - Número de Bloque: <%d>",idQuery,file,tag,numeroBloque);
             
@@ -273,6 +294,7 @@ void *operarWorkers(void*socketClienteVoid){
             break;
         }
     }
+    return NULL;    
 }
 
 void incrementarWorkers(int workerId){

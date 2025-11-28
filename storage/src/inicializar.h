@@ -1,12 +1,14 @@
 #ifndef INICIALIZAR_H
 #define INICIALIZAR_H
-#include "globals.h"
+
 #include "utils/globales.h"
-#include "estructuras.h"
 #include "bitmap.h"
-#include "estructuras.h"
 #include "hash.h"
 #include "metadata.h"
+#include "estructuras.h"
+#include <dirent.h>
+
+
 void inicializarArchivo(const char *rutaBase, const char *nombre, const char *extension, char* modoApertura);
 char* inicializarDirectorio(char* pathBase, char* nombreDirectorio);
 void inicializarBloquesFisicos(char* pathPhysicalBlocks);
@@ -25,5 +27,6 @@ void cambiarEstadoMetaData(char* pathTag,char* estado);
 void agregarBloqueMetaData(char* pathTag,int bloqueLogico,int nuevoBloqueFisico);
 void agregarBloquesLogicos(char* pathTag, int tamanioArchivo);
 extern int cantidadWorkers;
+void inicializarConexiones(void);
 
 #endif

@@ -1,8 +1,9 @@
 #ifndef HASH_H
 #define HASH_H
 #include "configuracion.h"
-#include "globals.h"
+#include "estructuras.h"
 #include "inicializar.h"
+
 void inicializarBlocksHashIndex(char* path);
 void liberarBloqueHash(t_hash_block *bloque);
 bool existeHash(char *hash);

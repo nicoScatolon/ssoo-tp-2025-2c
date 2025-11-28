@@ -225,8 +225,8 @@ char* escucharStorageContenidoPagina(){
     }
     switch (codigo) {
         case RESPUESTA_ERROR:{
+            log_warning(logger, "Error recibido del Storage al obtener contenido de página");
             return NULL;
-            break;
         }
         case OBTENER_CONTENIDO_PAGINA:{
             t_paquete* paquete = recibirPaquete(socketStorage);

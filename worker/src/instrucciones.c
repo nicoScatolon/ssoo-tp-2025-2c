@@ -1,7 +1,7 @@
 #include "instrucciones.h"  
 
 
-void ejecutar_create(char* fileName, char* tagFile, int query_id){
+bool ejecutar_create(char* fileName, char* tagFile, int query_id){
     enviarOpcode(CREATE_FILE, socketStorage);
 
     t_paquete* paquete = crearPaquete();
@@ -13,13 +13,15 @@ void ejecutar_create(char* fileName, char* tagFile, int query_id){
 
     int respuesta = escucharStorage();
     if (respuesta == -1){
-        notificarMasterError();
+        notificarMasterError("Error al ejecutar CREATE");
+        return false;
     }
     eliminarPaquete(paquete);
+    return true;
 }
 
 // Esperar confirmacion de storage luego de hacer un truncate antes de ejecutar la siguiente instruccion.
-void ejecutar_truncate(char* fileName, char* tagFile, int size, int query_id){
+bool ejecutar_truncate(char* fileName, char* tagFile, int size, int query_id){
     enviarOpcode(TRUNCATE_FILE, socketStorage);
 
     t_paquete* paquete = crearPaquete();
@@ -33,11 +35,13 @@ void ejecutar_truncate(char* fileName, char* tagFile, int size, int query_id){
 
     int respuesta = escucharStorage();
     if (respuesta == -1){
-        notificarMasterError();
+        notificarMasterError("Error al ejecutar TRUNCATE");
+        return false;
     }
+    return true;
 }
 
-void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* contenido, contexto_query_t* contexto){
+bool ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* contenido, contexto_query_t* contexto){
     
     int offsetInicial = calcularOffsetDesdeDireccionBase(direccionBase);
     int primerPagina = calcularPaginaDesdeDireccionBase(direccionBase);
@@ -61,15 +65,15 @@ void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
         int marco = obtenerNumeroDeMarco(fileName, tagFile, paginaActual);
         if (marco == -1) {
             log_error(logger, "Error al obtener marco para WRITE");
-            notificarMasterError();
-            return;
+            notificarMasterError("Error al obtener marco para WRITE");
+            return false;
         }
         
         char* contenidoPagina = string_substring(contenido, offsetDentroContenido, bytesAEscribir);
         if (!contenidoPagina) {
             log_error(logger, "Error al extraer substring");
             exit(EXIT_FAILURE);
-            return;
+            return false;
         }
         
         escribirContenidoDesdeOffset(fileName, tagFile, paginaActual, marco, 
@@ -81,10 +85,12 @@ void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
         free(contenidoPagina);
         offsetDentroContenido += bytesAEscribir;
     }
+
+    return true;
 }
 
 
-void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, contexto_query_t* contexto){
+bool ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, contexto_query_t* contexto){
     int offsetInicial = calcularOffsetDesdeDireccionBase(direccionBase);
     int primerPagina = calcularPaginaDesdeDireccionBase(direccionBase);
     int ultimaPagina = (direccionBase + size - 1) / configW->BLOCK_SIZE;
@@ -93,8 +99,7 @@ void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, c
     char* contenidoCompleto = string_new();
     if (!contenidoCompleto) {
         log_error(logger, "Error al asignar memoria para READ");
-        notificarMasterError();
-        return;
+        exit(EXIT_FAILURE);
     }
     
     int bytesLeidos = 0;
@@ -109,8 +114,8 @@ void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, c
         if (marco == -1) {
             log_error(logger, "Error al obtener marco para página %d", paginaActual);
             free(contenidoCompleto);
-            notificarMasterError();
-            return;
+            notificarMasterError("Error al traer pagina de Storage");
+            return false;
         }
         
         char* contenidoPagina = leerContenidoDesdeOffset(fileName, tagFile, paginaActual, 
@@ -118,8 +123,8 @@ void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, c
         if (!contenidoPagina) {
             log_error(logger, "Error al leer contenido de página");
             free(contenidoCompleto);
-            notificarMasterError();
-            return;
+            notificarMasterError("Error al leer contenido de página");
+            return false;
         }
         
         // Usar string_append para concatenar (maneja la reasignación automáticamente)
@@ -152,10 +157,11 @@ void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, c
     enviarPaquete(paquete, socketMaster);
     eliminarPaquete(paquete);
     free(contenidoCompleto);
+    return true;
 }
 
 
-void ejecutar_tag(char* fileNameOrigen, char* tagOrigen, char* fileNameDestino, char* tagDestino, int query_id){
+bool ejecutar_tag(char* fileNameOrigen, char* tagOrigen, char* fileNameDestino, char* tagDestino, int query_id){
     enviarOpcode(TAG_FILE, socketStorage/*socket storage*/);    
 
     t_paquete* paquete = crearPaquete();
@@ -171,12 +177,13 @@ void ejecutar_tag(char* fileNameOrigen, char* tagOrigen, char* fileNameDestino, 
     int resp = escucharStorage(); //esperar confirmacion de storage
     if (resp == -1)
     {
-        notificarMasterError();
+        notificarMasterError("Error al ejecutar TAG");
+        return false;
     }
-    
+    return true;
 }   
 
-void ejecutar_commit(char* fileName, char* tagFile, int query_id){
+bool ejecutar_commit(char* fileName, char* tagFile, int query_id){
     enviarOpcode(COMMIT_FILE, socketStorage/*socket storage*/);    
 
     t_paquete* paquete = crearPaquete();
@@ -189,12 +196,14 @@ void ejecutar_commit(char* fileName, char* tagFile, int query_id){
     int resp = escucharStorage(); //esperar confirmacion de storage
     if (resp == -1)
     {
-        notificarMasterError();
+        notificarMasterError("Error al ejecutar COMMIT");
+        return false;
     }
     
+    return true;
 }   
 
-void ejecutar_flush(char* fileName, char* tagFile, int query_id){
+bool ejecutar_flush(char* fileName, char* tagFile, int query_id){
     log_debug(logger, "Iniciando FLUSH para %s:%s", fileName, tagFile);
     TablaDePaginas* tabla = obtenerTablaPorFileYTag(fileName, tagFile);
     bool modificadas;
@@ -203,67 +212,71 @@ void ejecutar_flush(char* fileName, char* tagFile, int query_id){
     }
     else{
         log_warning(logger, "No se encontró la tabla para %s:%s", fileName, tagFile);
-        return;
+        return false;
     }
-
+    
     if(modificadas){
+        int contadorPaginasModificadas = 0;
+        for (int i = 0; i < tabla->capacidadEntradas; i++){
+            if(tabla->entradas[i].bitModificado && tabla->entradas[i].bitPresencia){
+                contadorPaginasModificadas++;
+            }
+        }
+        
         t_paquete* paqueteAviso = crearPaquete();
         t_paquete* paqueteContenido = crearPaquete();
+        
         agregarIntAPaquete(paqueteAviso, query_id);
         agregarStringAPaquete(paqueteAviso, fileName);
         agregarStringAPaquete(paqueteAviso, tagFile); 
-
-        int contadorPaginasModificadas = 0;
+        agregarIntAPaquete(paqueteAviso, contadorPaginasModificadas);
         
-        for (int i = 0; i < tabla->capacidadEntradas; i++){ // o mandar de a una a la vez
-
+        for (int i = 0; i < tabla->capacidadEntradas; i++){
             if(tabla->entradas[i].bitModificado && tabla->entradas[i].bitPresencia){
                 int nroPagina = tabla->entradas[i].numeroPagina;
                 int nroMarco = tabla->entradas[i].numeroMarco;
-
-                char* contenidoPagina = obtenerContenidoDelMarco(nroMarco, 0, configW->BLOCK_SIZE); // antes se llamaba a leerDesdeMemoriaPaginaCompleta pero creo q esta bien asi
+                char* contenidoPagina = obtenerContenidoDelMarco(nroMarco, 0, configW->BLOCK_SIZE);
+                
                 if (!contenidoPagina){
-                    log_error(logger, "Error al obtener el contenido del marco %d para hacer FLUSH de %s:%s pagina %d", nroMarco, fileName, tagFile, nroPagina);
+                    log_error(logger, "Error al obtener el contenido del marco %d para hacer FLUSH de %s:%s pagina %d", 
+                              nroMarco, fileName, tagFile, nroPagina);
                     continue;
                 }
-
+                
+                log_debug(logger, "contenidoPagina numero <%d> a mandar en FLUSH: <%s>", nroPagina, contenidoPagina);
                 agregarIntAPaquete(paqueteContenido, nroPagina);
-                agregarStringAPaquete(paqueteContenido, contenidoPagina); //ver como mandar el bloque entero
+                agregarStringAPaquete(paqueteContenido, contenidoPagina);
                 free(contenidoPagina);
-                
-                tabla->entradas[i].bitModificado = false; //reseteo el bit modificado
-                contadorPaginasModificadas++;
-                
+                tabla->entradas[i].bitModificado = false;
             }
         }
-
-        agregarIntAPaquete(paqueteAviso, contadorPaginasModificadas); //cantidad de paginas modificadas que se van a mandar
-        enviarOpcode(FLUSH_FILE, socketStorage/*socket storage*/);  
-
-        enviarPaquete(paqueteAviso, socketStorage/*socket storage*/);
-        if(escucharStorage() == -1) { //esperar ok de storage antes de mandar el contenido
-            notificarMasterError();
-            return;
-        }
-        enviarPaquete(paqueteContenido, socketStorage/*socket storage*/);
+        
+        // Enviar
+        enviarOpcode(FLUSH_FILE, socketStorage);  
+        enviarPaquete(paqueteAviso, socketStorage);
+        
+        log_debug(logger, "Enviando contenido modificado en FLUSH para %s:%s", fileName, tagFile);
+        enviarPaquete(paqueteContenido, socketStorage);
+        
         if(escucharStorage() == -1) {
-            notificarMasterError();
-            return;
+            notificarMasterError("Error al ejecutar FLUSH");
+            eliminarPaquete(paqueteContenido);
+            eliminarPaquete(paqueteAviso);
+            return false;
         }
         
-        eliminarPaquete(paqueteAviso);
+        log_debug(logger, "FLUSH completado para %s:%s", fileName, tagFile);
         eliminarPaquete(paqueteContenido);
-
+        eliminarPaquete(paqueteAviso);
         tabla->hayPaginasModificadas = false;
     }
     else{
         log_debug(logger, "No hay páginas modificadas para hacer FLUSH en %s:%s", fileName, tagFile);
     }
+    return true;
+}
 
-    return;
-}       
-
-void ejecutar_delete(char* fileNam, char* tagFile, int query_id){
+bool ejecutar_delete(char* fileNam, char* tagFile, int query_id){
     enviarOpcode(DELETE_FILE, socketStorage/*socket storage*/);
 
     t_paquete* paquete = crearPaquete();
@@ -272,19 +285,21 @@ void ejecutar_delete(char* fileNam, char* tagFile, int query_id){
     agregarStringAPaquete(paquete, tagFile);
     enviarPaquete(paquete, socketStorage/*socket storage*/);
     eliminarPaquete(paquete);
+    return true;
 }   
 
-void ejecutar_end(contexto_query_t* contexto){
+bool ejecutar_end(contexto_query_t* contexto){
     enviarOpcode(FINALIZACION_QUERY, socketMaster/*socket master*/);
     
     t_paquete* paquete = crearPaquete();
     agregarIntAPaquete(paquete, contexto->query_id);
     enviarPaquete(paquete, socketMaster/*socket master*/);
     eliminarPaquete(paquete);
+    return true;
 }       
 
 //funcion  para todos las querys que llamen a escucharStorage(), se debe loggear el error (con el tipo de error) y finalizar la query
-void notificarMasterError(){
+void notificarMasterError(char* mensajeError){
     enviarOpcode(FINALIZACION_QUERY, socketMaster);
 
     t_paquete* paqueteAMaster = crearPaquete();
@@ -294,6 +309,7 @@ void notificarMasterError(){
     }
 
     agregarIntAPaquete(paqueteAMaster, contexto->query_id);
+    agregarStringAPaquete(paqueteAMaster, mensajeError);
     enviarPaquete(paqueteAMaster, socketMaster);
     eliminarPaquete(paqueteAMaster);
     sem_post(&sem_hayInterrupcion);

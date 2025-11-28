@@ -1,7 +1,6 @@
 #ifndef METADATA_H
 #define METADATA_H
 #include "configuracion.h"
-#include "globals.h"
 #include "inicializar.h"
 void crearMetaData(char* pathTag);
 void inicializarMetaData(char* pathTag);

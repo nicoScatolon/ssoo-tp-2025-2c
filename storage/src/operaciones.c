@@ -8,7 +8,7 @@ char* lecturaBloque(char* file, char* tag, int numeroBloque){
 
     FILE* bloque = fopen(rutaCompleta, "r");
     if (bloque == NULL) {
-        log_debug(logger,"No Existe el bloque logico numero <%d> asociado al file:tag <%s:%s>\n", numeroBloque,file,tag);
+        log_debug(logger,"No Existe el bloque logico numero <%d> asociado al file:tag <%s:%s>", numeroBloque,file,tag);
         return NULL;
     }
     char* contenido = (char*)malloc((configSB->BLOCK_SIZE + 1) * sizeof(char));
@@ -202,7 +202,7 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
     char* pathTag = string_from_format("%s/files/%s/%s", configS->puntoMontaje, file, tag);
     char* pathBloqueLogico = string_from_format("%s/files/%s/%s/logical_blocks/%06d.dat", configS->puntoMontaje, file, tag, numeroBloqueLogico);
     struct stat st;
-    
+    log_debug(logger,"Paso1: Verificando existencia del bloque logico numero <%d> del file:tag <%s:%s>", numeroBloqueLogico,file,tag);
     // 1. Verificar si el bloque lógico no existe
     bool bloqueExiste = (stat(pathBloqueLogico, &st) == 0);
     if (!bloqueExiste){
@@ -210,64 +210,31 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
         free(pathBloqueLogico);
         return false;
     }
-    
+    log_debug(logger,"Paso2: Abriendo metadata del file:tag <%s:%s>",file,tag);
     // 2. Abrir el metadata que se encuentra en files/file/tag/metadata.config
     char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config", configS->puntoMontaje, file, tag);
-    pthread_mutex_lock(&mutex_metadata);
     t_config* metadata = config_create(pathMetadata);
     if (metadata == NULL) {
         log_error(logger, "## <%d> - Error al abrir metadata de <%s:%s>", queryID, file, tag);
-        pthread_mutex_unlock(&mutex_metadata);
         free(pathBloqueLogico);
         free(pathMetadata);
         exit(EXIT_FAILURE);
     }
     
-    // 3. Verificar que el estado NO sea COMMITTED
+    log_debug(logger,"Paso3: Verificando estado del file:tag <%s:%s>",file,tag);
     char* estado = config_get_string_value(metadata, "ESTADO");
-    if (strcmp(estado, "COMMITTED") == 0) {
-        log_debug(logger, "## <%d> - No se puede escribir en <%s:%s>: estado COMMITTED",queryID, file, tag);
+    if (strcmp(estado, "COMMITED") == 0) {
+        log_debug(logger, "## <%d> - No se puede escribir en <%s:%s>: estado COMMITED",queryID, file, tag);
         config_destroy(metadata);
-        pthread_mutex_unlock(&mutex_metadata);
         free(pathBloqueLogico);
         free(pathMetadata);
         return false;
     }
-    // 4. Calcular hash del contenido
-    char* hash = crearHash(contenido);
-    // 5. Verificar si el hash del contenido ya existe
-    int bloqueConMismoHash = obtenerBloquePorHash(hash);
-    if (bloqueConMismoHash >= 0) {
-        // Ya existe un bloque físico con ese contenido, hacer hardlink
-        log_debug(logger, "## <%d> - Bloque físico %d ya existe con hash %s, creando hardlink",queryID, bloqueConMismoHash, hash);
-        char* pathBloqueFisicoExistente = string_from_format("%s/physical_blocks/block%04d.dat", configS->puntoMontaje, bloqueConMismoHash);
-        
-        if (link(pathBloqueFisicoExistente, pathBloqueLogico) != 0) {
-            log_error(logger, "## <%d> - Error al crear hardlink: %s", queryID, strerror(errno));
-            free(pathBloqueFisicoExistente);
-            free(hash);
-            config_destroy(metadata);
-            pthread_mutex_unlock(&mutex_metadata);
-            free(pathBloqueLogico);
-            free(pathMetadata);
-            exit(EXIT_FAILURE);
-        }
-        agregarBloqueMetaData(pathTag,numeroBloqueLogico,bloqueConMismoHash);
-        free(pathBloqueFisicoExistente);
-        log_info(logger, "##<%d> - <%s>:<%s> Hardlink creado por hash: bloque lógico <%d> -> bloque físico <%d>", queryID, file, tag, numeroBloqueLogico, bloqueConMismoHash);
-        free(hash);
-        config_destroy(metadata);
-        pthread_mutex_unlock(&mutex_metadata);
-        free(pathBloqueLogico);
-        free(pathMetadata);
-        return true;
-    }
-    
-    // 6. No existe el hash - obtener el bloque físico actual
+
+    log_debug(logger,"Paso4: Obteniendo numero de bloque fisico actual del bloque logico numero <%d> del file:tag <%s:%s>", numeroBloqueLogico,file,tag);
     int numeroBloqueFisicoActual = obtenerBloqueActual(file, tag, numeroBloqueLogico);
     if (numeroBloqueFisicoActual < 0) {
         log_error(logger, "## <%d> - Error al obtener bloque físico actual", queryID);
-        free(hash);
         config_destroy(metadata);
         free(pathBloqueLogico);
         free(pathMetadata);
@@ -279,7 +246,6 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
     if (stat(pathBloqueFisicoActual, &st) != 0) {
         log_error(logger, "## <%d> - Error al obtener info del bloque físico %d", queryID, numeroBloqueFisicoActual);
         free(pathBloqueFisicoActual);
-        free(hash);
         config_destroy(metadata);
         free(pathBloqueLogico);
         free(pathMetadata);
@@ -296,25 +262,67 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
         if (numeroBloqueFisicoNuevo < 0) {
             log_error(logger, "## <%d> - No hay bloques físicos disponibles", queryID);
             free(pathBloqueFisicoActual);
-            free(hash);
+
             config_destroy(metadata);
-            pthread_mutex_unlock(&mutex_metadata);
             free(pathBloqueLogico);
             free(pathMetadata);
             return false;
         }
         
-        ocuparBloqueBit(numeroBloqueFisicoNuevo);
-        char* pathNuevoBloqueFisico = string_from_format("%s/physical_blocks/%06d.dat", configS->puntoMontaje, numeroBloqueFisicoNuevo);
-        if(link(pathNuevoBloqueFisico,pathBloqueLogico)!=0){
-            exit(EXIT_FAILURE);
+        int resp = ocuparBloqueBit(numeroBloqueFisicoNuevo);
+        
+        // 2. Crear path del nuevo bloque físico
+        char* pathNuevoBloqueFisico = string_from_format("%s/physical_blocks/block%04d.dat", 
+            configS->puntoMontaje, numeroBloqueFisicoNuevo);
+        
+        // 3. PRIMERO: Romper el link al bloque físico viejo
+        if (unlink(pathBloqueLogico) != 0) {
+            log_error(logger, "## <%d> - Error al desvincular bloque lógico: %s", 
+                queryID, strerror(errno));
+            liberarBloque(numeroBloqueFisicoNuevo, queryID);
+            free(pathBloqueFisicoActual);
+
+            config_destroy(metadata);
+            free(pathBloqueLogico);
+            free(pathMetadata);
+            return false;
         }
+        
+        // 4. SEGUNDO: Crear link al nuevo bloque físico
+        if (link(pathNuevoBloqueFisico, pathBloqueLogico) != 0) {
+            log_error(logger, "## <%d> - Error al crear link al nuevo bloque físico: %s", 
+                queryID, strerror(errno));
+            liberarBloque(numeroBloqueFisicoNuevo, queryID);
+            free(pathBloqueFisicoActual);
+
+            config_destroy(metadata);
+            free(pathBloqueLogico);
+            free(pathMetadata);
+            return false;
+        }
+        
+        if (resp != 0) {
+            log_error(logger, "## <%d> - Error al ocupar bloque físico %d en el bitmap", queryID, numeroBloqueFisicoNuevo);
+            liberarBloque(numeroBloqueFisicoNuevo, queryID);
+            free(pathBloqueFisicoActual);
+
+            config_destroy(metadata);
+            free(pathBloqueLogico);
+            free(pathMetadata);
+            return false;
+        }
+
+        log_debug(logger, "## <%d> - Bloque físico nuevo reservado: %d", queryID, numeroBloqueFisicoNuevo);
+        // este log se muestra, el siguiente no
+        // char* pathNuevoBloqueFisico = string_from_format("%s/physical_blocks/%06d.dat", configS->puntoMontaje, numeroBloqueFisicoNuevo);
+        // if(link(pathNuevoBloqueFisico,pathBloqueLogico)!=0){
+        //     exit(EXIT_FAILURE);
+        // }
         FILE* archivo = fopen(pathBloqueLogico, "wb");
         if (archivo == NULL) {
             log_error(logger, "## <%d> - Error al abrir bloque logico %d: %s", queryID, numeroBloqueFisicoNuevo, strerror(errno));
             free(pathBloqueLogico);
             free(pathBloqueFisicoActual);
-            free(hash);
             config_destroy(metadata);
             free(pathMetadata);
             exit(EXIT_FAILURE);
@@ -323,9 +331,8 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
         fwrite(contenido, 1, strlen(contenido), archivo);
         fclose(archivo);
         agregarBloqueMetaData(pathTag, numeroBloqueLogico, numeroBloqueFisicoNuevo);
-        escribirHash(hash, numeroBloqueFisicoNuevo);
         log_debug(logger, "##<%d> - <%s>:<%s> Copy-on-Write: bloque lógico <%d> -> nuevo bloque físico <%d>", queryID, file, tag, numeroBloqueLogico, numeroBloqueFisicoNuevo);
-        
+        link(pathNuevoBloqueFisico,pathBloqueLogico);
         free(pathNuevoBloqueFisico);
         
     } else {
@@ -334,7 +341,6 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
         if (archivo == NULL) {
             log_error(logger, "## <%d> - Error al abrir bloque lógico para escritura: %s", queryID, strerror(errno));
             free(pathBloqueFisicoActual);
-            free(hash);
             config_destroy(metadata);
             free(pathBloqueLogico);
             free(pathMetadata);
@@ -343,28 +349,21 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
         
         fwrite(contenido, 1, strlen(contenido), archivo);
         fclose(archivo);
-        escribirHash(hash, numeroBloqueFisicoActual);
         
         log_debug(logger, "##<%d> - <%s>:<%s> Bloque lógico <%d> actualizado directamente (único hardlink)", queryID, file, tag, numeroBloqueLogico);
     }
     config_destroy(metadata);
-    pthread_mutex_unlock(&mutex_metadata);
     aplicarRetardoBloque();
     free(pathBloqueFisicoActual);
-    free(hash);
     free(pathBloqueLogico);
     free(pathMetadata);
+    log_debug(logger, "se escribio en el bloque numero <%d> del file:tag <%s:%s> el contenido: <%s>", numeroBloqueLogico,file,tag,contenido);
     return true;
 }
 
 
 // TRUNCATE:
 bool truncarArchivo(char* file, char* tag, int nuevoTamanio, int queryID) {
-    // Validar que el tamaño sea múltiplo del tamaño de bloque
-    if (nuevoTamanio % configSB->BLOCK_SIZE != 0) {
-        log_error(logger, "##<%d> - Error: El tamaño <%d> no es múltiplo del tamaño de bloque <%d>", queryID, nuevoTamanio, configSB->BLOCK_SIZE);
-        return false;
-    }
     
     char* pathTag = string_from_format("%s/files/%s/%s", configS->puntoMontaje, file, tag);
     struct stat st;
@@ -376,11 +375,9 @@ bool truncarArchivo(char* file, char* tag, int nuevoTamanio, int queryID) {
     free(pathTag);
 
     char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config", configS->puntoMontaje, file, tag);
-    pthread_mutex_lock(&mutex_metadata);
     t_config* metadata = config_create(pathMetadata);
     free(pathMetadata);
     if (!metadata) {
-        pthread_mutex_unlock(&mutex_metadata);
         log_error(logger, "##<%d> - Error al abrir metadata de <%s:%s>", queryID, file, tag);
         return false;
     }
@@ -388,7 +385,6 @@ bool truncarArchivo(char* file, char* tag, int nuevoTamanio, int queryID) {
     // Verificar que no esté COMMITED
     char* estado = config_get_string_value(metadata, "ESTADO");
     if (strcmp(estado, "COMMITED") == 0) {
-        pthread_mutex_unlock(&mutex_metadata);
         log_error(logger, "##<%d> - Error: No se puede truncar <%s:%s> (COMMITED)", queryID, file, tag);
         config_destroy(metadata);
         return false;
@@ -401,29 +397,18 @@ bool truncarArchivo(char* file, char* tag, int nuevoTamanio, int queryID) {
 
     log_debug(logger, "##<%d> - Truncando <%s:%s>: %d bytes (%d bloques) -> %d bytes (%d bloques)", queryID, file, tag, tamanioActual, bloquesActuales, nuevoTamanio, bloquesNuevos);
 
-    bool resultado = false;
-
-    if (bloquesNuevos > bloquesActuales) {
-        int bloquesNecesarios = bloquesNuevos - bloquesActuales;
-        if (!hayEspacioDisponible(bloquesNecesarios, queryID)) {
-            log_error(logger, "##<%d> - Error: Espacio insuficiente para truncar <%s:%s>", queryID, file, tag);
-            config_destroy(metadata);
-            return false;
-        }
-        resultado = aumentarTamanioArchivo(file, tag, bloquesActuales, bloquesNuevos, nuevoTamanio, metadata, queryID);
-    } else if (bloquesNuevos < bloquesActuales) {
-        resultado = reducirTamanioArchivo(file, tag, bloquesActuales, bloquesNuevos, nuevoTamanio, metadata, queryID);
-    } else {
-        config_set_value(metadata, "TAMAÑO", string_itoa(nuevoTamanio));
-        config_save(metadata);
-        resultado = true;
-        
-        log_info(logger, "##<%d> - File Truncado <%s:%s> - Tamaño: <%d>", queryID, file, tag, nuevoTamanio);
+    if (bloquesNuevos > bloquesActuales ){
+        aumentarTamanioArchivo(file, tag, bloquesActuales, bloquesNuevos, nuevoTamanio, metadata, queryID);
     }
+    else if (bloquesNuevos < bloquesActuales){
+        reducirTamanioArchivo(file, tag, bloquesActuales, bloquesNuevos, nuevoTamanio, metadata, queryID);
+    }
+    config_set_value(metadata, "TAMAÑO", string_itoa(nuevoTamanio));
+    config_save(metadata);
+    log_info(logger, "##<%d> - File Truncado <%s:%s> - Tamaño: <%d>", queryID, file, tag, nuevoTamanio);
 
     config_destroy(metadata);
-    pthread_mutex_unlock(&mutex_metadata);
-    return resultado;
+    return true;
 }
 
 bool aumentarTamanioArchivo(char* file, char* tag, int bloquesActuales, int bloquesNuevos, int nuevoTamanio, t_config* metadata, int queryID) {
@@ -458,7 +443,6 @@ bool aumentarTamanioArchivo(char* file, char* tag, int bloquesActuales, int bloq
 
     actualizarMetadataTruncate(metadata, nuevoTamanio, bloquesNuevos);
 
-    log_info(logger, "##<%d> - File Truncado <%s:%s> - Tamaño: <%d>", queryID, file, tag, nuevoTamanio);
 
     free(pathLogicalBlocks);
     free(pathBloqueFisico0);
@@ -522,7 +506,6 @@ bool reducirTamanioArchivo(char* file, char* tag, int bloquesActuales, int bloqu
 
     actualizarMetadataTruncate(metadata, nuevoTamanio, bloquesNuevos);
 
-    log_info(logger, "##<%d> - File Truncado <%s:%s> - Tamaño: <%d>", queryID, file, tag, nuevoTamanio);
 
     return true;
 }
@@ -561,12 +544,28 @@ void actualizarMetadataTruncate(t_config* metadata, int nuevoTamanio, int cantid
     free(tamanioStr);
 
     char** bloquesActuales = config_get_array_value(metadata, "BLOQUES");
+    
+    // 1. Calculamos cuántos bloques hay realmente ahora para no pasarnos
+    int cantidadActuales = 0;
+    if (bloquesActuales != NULL) {
+        cantidadActuales = string_array_size(bloquesActuales);
+    }
 
     char* nuevosBloquesStr = string_new();
     string_append(&nuevosBloquesStr, "[");
 
     for (int i = 0; i < cantidadBloques; i++) {
-        char* bloqueStr = (bloquesActuales && bloquesActuales[i]) ? string_duplicate(bloquesActuales[i]) : string_itoa(0);
+        char* bloqueStr;
+
+        // 2. Comparamos índices de forma segura
+        if (i < cantidadActuales) {
+            // El bloque existe en el array viejo, lo copiamos
+            bloqueStr = string_duplicate(bloquesActuales[i]);
+        } else {
+            // Es un bloque nuevo (estamos agrandando), ponemos "0"
+            // (Ya se debió hacer el hardlink al bloque 0 en la lógica previa)
+            bloqueStr = string_duplicate("0");
+        }
         
         string_append(&nuevosBloquesStr, bloqueStr);
         
@@ -591,22 +590,20 @@ void actualizarMetadataTruncate(t_config* metadata, int nuevoTamanio, int cantid
 
 // COMMIT:
 void hacerCommited(char* file, char* tag,int queryID) {
+    char* pathTag = string_from_format("%s/files/%s/%s", configS->puntoMontaje, file, tag);
     char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config", configS->puntoMontaje, file, tag);
-    pthread_mutex_lock(&mutex_metadata);
     if (esCommited(file, tag, pathMetadata)) {
-        pthread_mutex_unlock(&mutex_metadata);
         free(pathMetadata);
+        free(pathTag);
         return;
     }
-    pthread_mutex_unlock(&mutex_metadata);
-
+    
     recorrerBloquesLogicos(file, tag, queryID);
 
-    pthread_mutex_lock(&mutex_metadata);
-    cambiarEstadoMetaData(pathMetadata, "COMMITED");
-    pthread_mutex_unlock(&mutex_metadata); 
+    cambiarEstadoMetaData(pathTag, "COMMITED");
     
     free(pathMetadata);
+    free(pathTag);
     return;
 }
 
@@ -625,7 +622,6 @@ bool esCommited(char* file, char* tag, char*pathMetaData) {
         return true;  
     }
     config_destroy(config);
-    log_error(logger,"Esto no deberia pasar");
     return false;
 }
 
@@ -647,7 +643,9 @@ void recorrerBloquesLogicos(char* file, char* tag, int queryID) {
         if (strstr(entrada->d_name, ".dat") == NULL) {
             continue;
         }
+        log_debug(logger, "Archivo encontrado: '%s'", entrada->d_name);
         int numeroBloqueLogico = atoi(entrada->d_name);
+        log_debug(logger, "Procesando bloque lógico %d de <%s:%s>", numeroBloqueLogico, file, tag);
         char* pathBloqueLogico = string_from_format("%s/%s",pathLogicalBlocks, entrada->d_name);
         procesarBloqueLogico(pathBloqueLogico, file, tag, numeroBloqueLogico, queryID);
         free(pathBloqueLogico);
@@ -658,7 +656,6 @@ void recorrerBloquesLogicos(char* file, char* tag, int queryID) {
 
 int obtenerBloqueFisico(char* file, char* tag, int numeroBloqueLogico) {
     char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config", configS->puntoMontaje, file, tag);
-    pthread_mutex_lock(&mutex_metadata);
     t_config* config = config_create(pathMetadata);
     if (config == NULL) {
         log_error(logger, "No se pudo abrir el archivo de metadata: %s", pathMetadata);
@@ -690,7 +687,6 @@ int obtenerBloqueFisico(char* file, char* tag, int numeroBloqueLogico) {
     }
     
     config_destroy(config);
-    pthread_mutex_unlock(&mutex_metadata);
     free(pathMetadata);
     return bloqueFisico;
 }
@@ -710,7 +706,7 @@ void procesarBloqueLogico(char* pathBloqueLogico, char* file, char* tag, int num
             
         }
     } else {
-        // Caso de que el hash no exista
+        // Caso de que el hash no existareapunt
         int bloqueActual = obtenerBloqueActual(file, tag, numeroBloqueLogico);
         log_debug(logger, "Nuevo contenido: agregando hash %s -> bloque físico %d",hashContenido, bloqueActual);
         escribirHash(hashContenido, bloqueActual);
@@ -719,33 +715,71 @@ void procesarBloqueLogico(char* pathBloqueLogico, char* file, char* tag, int num
     free(hashContenido);
 }
 
-void reapuntarBloqueLogico(char* file, char *tag, int numeroBloqueLogico,int previoBloqueFisico ,int nuevoBloqueFisico, int queryID) {
-    char* pathBloqueLogico = string_from_format("%s/files/%s/%s/logical_blocks/block%04d.dat",configS->puntoMontaje,file,tag, numeroBloqueLogico);
+void reapuntarBloqueLogico(char* file, char *tag, int numeroBloqueLogico, int previoBloqueFisico, int nuevoBloqueFisico, int queryID) {
+    char* pathBloqueLogico = string_from_format("%s/files/%s/%s/logical_blocks/%06d.dat",
+                                                 configS->puntoMontaje, file, tag, numeroBloqueLogico);
+    
+    // Obtener información del bloque físico ANTES de eliminar el hardlink
+    char* pathBloqueFisicoPrevio = string_from_format("%s/physical_blocks/block%04d.dat",
+                                                        configS->puntoMontaje, previoBloqueFisico);
+    
+    struct stat statBuf;
+    if (stat(pathBloqueFisicoPrevio, &statBuf) != 0) {
+        log_error(logger, "Error al obtener stat de %s: %s", pathBloqueFisicoPrevio, strerror(errno));
+        free(pathBloqueFisicoPrevio);
+        free(pathBloqueLogico);
+        exit(EXIT_FAILURE);
+    }
+    
+    int cantidadReferencias = statBuf.st_nlink;
+    log_debug(logger, "Bloque físico %d tiene %d referencias antes de eliminar", 
+              previoBloqueFisico, cantidadReferencias);
+    
+    free(pathBloqueFisicoPrevio);
+    
     // Eliminamos Hardlink
     if (unlink(pathBloqueLogico) != 0) {
         log_error(logger, "Error al eliminar hardlink: %s - %s", pathBloqueLogico, strerror(errno));
+        free(pathBloqueLogico);
         exit(EXIT_FAILURE);
     }
-    log_info(logger,"##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d> al bloque físico <%d>",queryID,file,tag,numeroBloqueLogico,previoBloqueFisico);
-    liberarBloque(previoBloqueFisico, queryID);
-    char* pathBloqueFisico = string_from_format("%s/physical_blocks/block%04d.dat",configS->puntoMontaje, nuevoBloqueFisico);
+    
+    log_info(logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d> al bloque físico <%d>",
+             queryID, file, tag, numeroBloqueLogico, previoBloqueFisico);
+    
+    // Solo liberamos el bloque si era la última referencia
+    // Después de unlink, si tenía 2 referencias, ahora tiene 1 (el bloque físico original)
+    if (cantidadReferencias <= 2) {
+        liberarBloque(previoBloqueFisico, queryID);
+        log_debug(logger, "Bloque físico %d liberado (era la última referencia)", previoBloqueFisico);
+    } else {
+        log_debug(logger, "Bloque físico %d NO liberado (aún tiene %d referencias)", 
+                  previoBloqueFisico, cantidadReferencias - 1);
+    }
     
     // Creamos nuevo Hardlink
+    char* pathBloqueFisico = string_from_format("%s/physical_blocks/block%04d.dat",
+                                                 configS->puntoMontaje, nuevoBloqueFisico);
+    
     if (link(pathBloqueFisico, pathBloqueLogico) != 0) {
-        log_error(logger, "Error al crear nuevo hardlink: %s -> %s - %s", pathBloqueLogico, pathBloqueFisico, strerror(errno));
+        log_error(logger, "Error al crear nuevo hardlink: %s -> %s - %s", 
+                  pathBloqueLogico, pathBloqueFisico, strerror(errno));
         free(pathBloqueFisico);
+        free(pathBloqueLogico);
         exit(EXIT_FAILURE);
     }
-    log_info(logger,"##<%d> - <%s>:<%s> Se agregó el hard link del bloque lógico <%d> al bloque físico <%d>",queryID,file,tag,numeroBloqueLogico,nuevoBloqueFisico);
+    
+    log_info(logger, "##<%d> - <%s>:<%s> Se agregó el hard link del bloque lógico <%d> al bloque físico <%d>",
+             queryID, file, tag, numeroBloqueLogico, nuevoBloqueFisico);
+    
     free(pathBloqueFisico);
+    free(pathBloqueLogico);
 }
 
 int obtenerBloqueActual(char* file, char* tag, int numeroBloqueLogico) {
     char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config",configS->puntoMontaje, file, tag);
-    pthread_mutex_lock(&mutex_metadata);
     t_config* config = config_create(pathMetadata);
     if (config == NULL) {
-        pthread_mutex_unlock(&mutex_metadata);
         log_error(logger, "Error al abrir metadata de <%s:%s>", file, tag);
         free(pathMetadata);
         exit(EXIT_FAILURE);
@@ -759,24 +793,22 @@ int obtenerBloqueActual(char* file, char* tag, int numeroBloqueLogico) {
         free(pathMetadata);
         exit(EXIT_FAILURE);
     }
-    
+    log_debug(logger, "Contenido del array en posición %d: '%s'", numeroBloqueLogico, arrayBloques[numeroBloqueLogico]);
     // Obtener el bloque físico en la posición numeroBloqueLogico
     int bloqueFisico = atoi(arrayBloques[numeroBloqueLogico]);
-    
+    log_debug(logger, "Bloque físico actual para bloque lógico %d de <%s:%s> es %d", numeroBloqueLogico, file, tag, bloqueFisico);
     for (int i = 0; arrayBloques[i] != NULL; i++) {
         free(arrayBloques[i]);
     }
 
     free(arrayBloques);
     config_destroy(config);
-    pthread_mutex_unlock(&mutex_metadata);
     free(pathMetadata);
     return bloqueFisico;
 }
 
 void actualizarMetadataBloques(char* file, char* tag, int numeroBloqueLogico, int numeroNuevoBloqueFisico, int anteriorBloqueFisico, int queryID) {
     char* pathMetadata = string_from_format("%s/files/%s/%s/metadata.config",configS->puntoMontaje, file, tag);
-    pthread_mutex_lock(&mutex_metadata);
     t_config* config = config_create(pathMetadata);
     if (config == NULL) {
         log_error(logger, "Error al abrir metadata de <%s:%s>", file, tag);
@@ -807,7 +839,6 @@ void actualizarMetadataBloques(char* file, char* tag, int numeroBloqueLogico, in
     free(pathMetadata);
 
     config_destroy(config);
-    pthread_mutex_unlock(&mutex_metadata);
     log_info(logger,"##<%d> - <%s>:<%s> Bloque Lógico <%d> se reasigna de <%d> a <%d>", queryID, file, tag, numeroBloqueLogico, anteriorBloqueFisico, numeroNuevoBloqueFisico);
 
 }

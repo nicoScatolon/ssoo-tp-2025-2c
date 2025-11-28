@@ -1,5 +1,6 @@
 #include "inicializar.h"
 
+
 char* pathBloquesFisicos;
 char* pathFiles;
 void inicializarArchivo(const char *rutaBase, const char *nombre, const char *extension,char* modoApertura) {
@@ -73,7 +74,7 @@ void inicializarBloqueCero(char* pathPhysicalBlocks) {
         exit(EXIT_FAILURE);
     }
 
-    memset(contenido, '0', configSB->BLOCK_SIZE);
+    memset(contenido, '\0', configSB->BLOCK_SIZE);
 
     char* hash = crearHash(contenido);
     if (!hash) {
@@ -115,9 +116,9 @@ void levantarFileSystem(){
         inicializarBlocksHashIndex(configS->puntoMontaje);
         inicializarBloquesFisicos(pathBloquesFisicos);
         inicializarBloqueCero(pathBloquesFisicos);
-
+        char *nombreInitialFile = "initial_file";
         pathFiles = inicializarDirectorio(configS->puntoMontaje, "files");
-        crearFile("initial_file","BASE");
+        crearFile(nombreInitialFile,"BASE");
 
         char* pathTagBase = string_from_format("%s/initial_file/BASE", pathFiles);  
         agregarBloqueMetaData(pathTagBase,0,0);
@@ -237,21 +238,21 @@ bool crearFile(char* nombreFile, char* nombreTag){
 }
 
 bool crearTag(char* pathFile, char* nombreTag){
-    char *pathTag =  inicializarDirectorio(pathFile,nombreTag);
-    char* pathLogicalBlocks = inicializarDirectorio(pathTag,"logical_blocks");
-
+    char *pathTag = string_from_format("%s/%s", pathFile, nombreTag);
     struct stat st;
     if (stat(pathTag, &st) == 0) {
         log_debug(logger, "Error: File:Tag <%s:%s> ya existe (preexistente)", pathFile, nombreTag);
-        free(pathFile);
         free(pathTag);
         return false;
     }
-
+    pathTag =  inicializarDirectorio(pathFile,nombreTag);
+    
+    char* pathLogicalBlocks = inicializarDirectorio(pathTag,"logical_blocks");
     crearMetaData(pathTag);
 
     free(pathTag);
     free(pathLogicalBlocks);
+    return true;
 }
 
 void agregarBloquesLogicos(char* pathTag, int tamanioArchivo) {

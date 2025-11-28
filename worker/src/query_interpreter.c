@@ -195,33 +195,34 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
                 return;
         } 
     }
+    bool realizada;
     
     switch (instruccion->tipo) {
         case CREATE: { 
             // Formato: CREATE <NOMBRE_FILE>:<TAG>
             // parametro[0] = "CREATE", parametro[1] = "MATERIAS:BASE"
-            ejecutar_create(fileName, tagFile, contexto->query_id);
+            realizada = ejecutar_create(fileName, tagFile, contexto->query_id);
             break;
         }
         
         case TRUNCATE: {
             // Formato: TRUNCATE <NOMBRE_FILE>:<TAG> <TAMAÑO>
             // parametro[0] = "TRUNCATE", parametro[1] = "MATERIAS:BASE", parametro[2] = "1024"
-            ejecutar_truncate(fileName, tagFile, atoi(instruccion->parametro[2]), contexto->query_id);
+            realizada = ejecutar_truncate(fileName, tagFile, atoi(instruccion->parametro[2]), contexto->query_id);
             break;
         }
         
         case WRITE: {
             // Formato: WRITE <NOMBRE_FILE>:<TAG> <DIRECCIÓN BASE> <CONTENIDO>
             // parametro[0] = "WRITE", parametro[1] = "MATERIAS:BASE", parametro[2] = "0", parametro[3] = "SISTEMAS_OPERATIVOS"
-            ejecutar_write(fileName, tagFile, atoi(instruccion->parametro[2]), instruccion->parametro[3], contexto);
+            realizada = ejecutar_write(fileName, tagFile, atoi(instruccion->parametro[2]), instruccion->parametro[3], contexto);
             break;
         }
         
         case READ: {
             // Formato: READ <NOMBRE_FILE>:<TAG> <DIRECCIÓN BASE> <TAMAÑO>
             // parametro[0] = "READ", parametro[1] = "MATERIAS:BASE", parametro[2] = "0", parametro[3] = "8"
-            ejecutar_read(fileName, tagFile, atoi(instruccion->parametro[2]), atoi(instruccion->parametro[3]), contexto); 
+            realizada = ejecutar_read(fileName, tagFile, atoi(instruccion->parametro[2]), atoi(instruccion->parametro[3]), contexto); 
             break;
         }
         
@@ -231,7 +232,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
             char *fileNameDestino = NULL, *tagFileDestino = NULL;
             ObtenerNombreFileYTag(instruccion->parametro[2], &fileNameDestino, &tagFileDestino);
 
-            ejecutar_tag(fileName, tagFile, fileNameDestino, tagFileDestino, contexto->query_id); 
+            realizada = ejecutar_tag(fileName, tagFile, fileNameDestino, tagFileDestino, contexto->query_id); 
 
             free(fileNameDestino);
             free(tagFileDestino);
@@ -241,16 +242,19 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case COMMIT: {
             // Formato: COMMIT <NOMBRE_FILE>:<TAG>
             // parametro[0] = "COMMIT", parametro[1] = "MATERIAS:BASE"
-            ejecutar_flush(fileName, tagFile, contexto->query_id);
-            ejecutar_commit(fileName, tagFile, contexto->query_id);
-
+            bool flushOk = ejecutar_flush(fileName, tagFile, contexto->query_id);
+            if (flushOk) {
+                realizada = ejecutar_commit(fileName, tagFile, contexto->query_id);
+            } else {
+                realizada = false;
+            }
             break;
         }
         
         case FLUSH: {
             // Formato: FLUSH <NOMBRE_FILE>:<TAG>
             // parametro[0] = "FLUSH", parametro[1] = "MATERIAS:BASE"
-            ejecutar_flush(fileName, tagFile, contexto->query_id);
+            realizada = ejecutar_flush(fileName, tagFile, contexto->query_id);
 
             break;
         }
@@ -258,7 +262,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case DELETE: {
             // Formato: DELETE <NOMBRE_FILE>:<TAG>
             // parametro[0] = "DELETE", parametro[1] = "MATERIAS:BASE"
-            ejecutar_delete(fileName, tagFile, contexto->query_id); 
+            realizada = ejecutar_delete(fileName, tagFile, contexto->query_id); 
 
             break;
         }
@@ -266,7 +270,7 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
         case END: {
             // parametro[0] = "END"
             // ejecutar_flush(fileName, tagFile, contexto->query_id);
-            ejecutar_end(contexto);
+            realizada = ejecutar_end(contexto);
             break;
         }
         
@@ -279,8 +283,12 @@ void ejecutarInstruccion(instruccion_t* instruccion, contexto_query_t* contexto)
             return;
         }
     }
-
-    log_info(logger, "## Query %d: - Instrucción realizada: %s", contexto->query_id, instruccion->parametro[0]);
+    if (realizada){
+        log_info(logger, "## Query %d: - Instrucción realizada: %s", contexto->query_id, instruccion->parametro[0]);
+    }
+    else{
+        log_warning(logger, "## Query %d: - No se ejecutó la instrucción: %s", contexto->query_id, instruccion->parametro[0]);
+    }
     
     free(fileName);
     free(tagFile);

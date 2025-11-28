@@ -16,8 +16,9 @@ int main(int argc, char*argv[]){
     configSB = malloc(sizeof(configSuperBlock));
     iniciarConfiguracionSuperBlock(configSB);
     logger = iniciar_logger("storage", configS->logLevel);
+    inicializarConexiones();
     levantarFileSystem();
     establecerConexionesStorage();
     pthread_exit(NULL);
-}
 
+}

@@ -1,15 +1,16 @@
 #ifndef OPERACIONES_H
 #define OPERACIONES_H
-#include "globals.h"
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <errno.h>
 #include <unistd.h>
-
+#include "estructuras.h"
+#include "metadata.h"
+#include "hash.h"
 char* lecturaBloque(char* file, char* tag, int numeroBloque);
 bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* contenido, int queryID);
-void actualizarHashBloque(int numeroBloqueFisico, char* contenido, int queryID);
+// void actualizarHashBloque(int numeroBloqueFisico, char* contenido, int queryID);
 bool truncarArchivo(char* file, char* tag, int nuevoTamanio, int queryID);
 int contarReferenciasBloque(char* pathBloqueLogico, int queryID);
 t_config* obtenerMetadata(char* file, char* tag, int queryID);

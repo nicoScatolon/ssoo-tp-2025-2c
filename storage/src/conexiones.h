@@ -5,7 +5,7 @@
 #include "utils/paquete.h"
 #include "utils/config.h"
 #include "utils/globales.h"
-#include "globals.h"
+#include "estructuras.h"
 #include "operaciones.h"
 
 extern configStorage *configS;
