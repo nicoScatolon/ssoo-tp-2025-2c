@@ -1,0 +1,515 @@
+==10485== Memcheck, a memory error detector
+==10485== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==10485== Using Valgrind-3.18.1 and LibVEX; rerun with -h for copyright info
+==10485== Command: ./bin/master PLANI_2
+==10485== Parent PID: 3687
+==10485== 
+==10485== 
+==10485== Process terminating with default action of signal 2 (SIGINT)
+==10485==    at 0x499C4CF: accept (accept.c:26)
+==10485==    by 0x10E93F: esperarCliente (sockets.c:69)
+==10485==    by 0x10AF18: escucharQueryControl (conexiones.c:111)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== HEAP SUMMARY:
+==10485==     in use at exit: 13,654 bytes in 69 blocks
+==10485==   total heap usage: 947 allocs, 878 frees, 56,331 bytes allocated
+==10485== 
+==10485== 4 bytes in 1 blocks are still reachable in loss record 1 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x491D58E: strdup (strdup.c:42)
+==10485==    by 0x10CE5B: enviarQueryAWorker (workers.c:5)
+==10485==    by 0x10C5F3: planificadorPrioridad (planificadores.c:53)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 4 bytes in 1 blocks are definitely lost in loss record 2 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x491D58E: strdup (strdup.c:42)
+==10485==    by 0x10CE5B: enviarQueryAWorker (workers.c:5)
+==10485==    by 0x10C5F3: planificadorPrioridad (planificadores.c:53)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 7 bytes in 1 blocks are still reachable in loss record 3 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x491D58E: strdup (strdup.c:42)
+==10485==    by 0x486E9A7: string_duplicate (string.c:43)
+==10485==    by 0x486E27C: log_create (log.c:75)
+==10485==    by 0x10DE51: iniciar_logger (logs.c:11)
+==10485==    by 0x10C36D: main (main.c:17)
+==10485== 
+==10485== 8 bytes in 2 blocks are still reachable in loss record 4 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x491D58E: strdup (strdup.c:42)
+==10485==    by 0x10A947: agregarQueryControl (conexiones.c:5)
+==10485==    by 0x10B78B: operarQueryControl (conexiones.c:298)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 8 bytes in 2 blocks are still reachable in loss record 5 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x491D58E: strdup (strdup.c:42)
+==10485==    by 0x10AB69: agregarQuery (conexiones.c:45)
+==10485==    by 0x10AA18: agregarQueryControl (conexiones.c:18)
+==10485==    by 0x10B78B: operarQueryControl (conexiones.c:298)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 12 bytes in 1 blocks are still reachable in loss record 6 of 47
+==10485==    at 0x484DCD3: realloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486EEE3: string_trim_right (string.c:131)
+==10485==    by 0x486EDCC: string_trim (string.c:108)
+==10485==    by 0x486B194: add_cofiguration.0 (config.c:57)
+==10485==    by 0x486F2F8: string_iterate_lines (string.c:200)
+==10485==    by 0x486B38B: config_create (config.c:63)
+==10485==    by 0x10D82A: iniciarConfig (config.c:13)
+==10485==    by 0x10A8C2: iniciarConfiguracionMaster (configuracion.c:3)
+==10485==    by 0x10C33E: main (main.c:12)
+==10485== 
+==10485== 15 bytes in 1 blocks are still reachable in loss record 7 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x491D58E: strdup (strdup.c:42)
+==10485==    by 0x494FC10: tzset_internal (tzset.c:402)
+==10485==    by 0x49505A6: __tz_convert (tzset.c:577)
+==10485==    by 0x486DC63: temporal_get_string_time (temporal.c:44)
+==10485==    by 0x486E800: _log_write_in_level (log.c:146)
+==10485==    by 0x486E45E: log_debug (log.c:95)
+==10485==    by 0x10E8E8: iniciarServidor (sockets.c:58)
+==10485==    by 0x10ADB5: establecerConexiones (conexiones.c:87)
+==10485==    by 0x10C37E: main (main.c:18)
+==10485== 
+==10485== 16 bytes in 1 blocks are still reachable in loss record 8 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486C475: list_create (list.c:37)
+==10485==    by 0x10D390: inicializarListas (inicializar.c:5)
+==10485==    by 0x10C348: main (main.c:13)
+==10485== 
+==10485== 16 bytes in 1 blocks are still reachable in loss record 9 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486C475: list_create (list.c:37)
+==10485==    by 0x10D3B0: inicializarListas (inicializar.c:8)
+==10485==    by 0x10C348: main (main.c:13)
+==10485== 
+==10485== 16 bytes in 1 blocks are still reachable in loss record 10 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486C475: list_create (list.c:37)
+==10485==    by 0x10D3D0: inicializarListas (inicializar.c:11)
+==10485==    by 0x10C348: main (main.c:13)
+==10485== 
+==10485== 16 bytes in 1 blocks are still reachable in loss record 11 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486C475: list_create (list.c:37)
+==10485==    by 0x10D3F0: inicializarListas (inicializar.c:14)
+==10485==    by 0x10C348: main (main.c:13)
+==10485== 
+==10485== 16 bytes in 1 blocks are still reachable in loss record 12 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486D6C9: list_create_element (list.c:379)
+==10485==    by 0x486D617: list_iterator_add (list.c:359)
+==10485==    by 0x486C4EA: list_add (list.c:46)
+==10485==    by 0x10DF01: listaAdd (listas.c:12)
+==10485==    by 0x10AAA3: agregarWorker (conexiones.c:31)
+==10485==    by 0x10BB28: operarWorker (conexiones.c:375)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 17 bytes in 1 blocks are still reachable in loss record 13 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x4950AC2: __tzfile_read (tzfile.c:275)
+==10485==    by 0x494FC23: tzset_internal (tzset.c:405)
+==10485==    by 0x49505A6: __tz_convert (tzset.c:577)
+==10485==    by 0x486DC63: temporal_get_string_time (temporal.c:44)
+==10485==    by 0x486E800: _log_write_in_level (log.c:146)
+==10485==    by 0x486E45E: log_debug (log.c:95)
+==10485==    by 0x10E8E8: iniciarServidor (sockets.c:58)
+==10485==    by 0x10ADB5: establecerConexiones (conexiones.c:87)
+==10485==    by 0x10C37E: main (main.c:18)
+==10485== 
+==10485== 20 bytes in 1 blocks are still reachable in loss record 14 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x494F917: __tzstring_len (tzset.c:98)
+==10485==    by 0x494F917: __tzstring (tzset.c:121)
+==10485==    by 0x4951264: __tzfile_read (tzfile.c:408)
+==10485==    by 0x494FC23: tzset_internal (tzset.c:405)
+==10485==    by 0x49505A6: __tz_convert (tzset.c:577)
+==10485==    by 0x486DC63: temporal_get_string_time (temporal.c:44)
+==10485==    by 0x486E800: _log_write_in_level (log.c:146)
+==10485==    by 0x486E45E: log_debug (log.c:95)
+==10485==    by 0x10E8E8: iniciarServidor (sockets.c:58)
+==10485==    by 0x10ADB5: establecerConexiones (conexiones.c:87)
+==10485==    by 0x10C37E: main (main.c:18)
+==10485== 
+==10485== 24 bytes in 2 blocks are still reachable in loss record 15 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x10AB7D: agregarQuery (conexiones.c:46)
+==10485==    by 0x10AA18: agregarQueryControl (conexiones.c:18)
+==10485==    by 0x10B78B: operarQueryControl (conexiones.c:298)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 24 bytes in 1 blocks are indirectly lost in loss record 16 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486B7BB: dictionary_create (dictionary.c:38)
+==10485==    by 0x486B2C3: config_create (config.c:39)
+==10485==    by 0x10D82A: iniciarConfig (config.c:13)
+==10485==    by 0x10A8C2: iniciarConfiguracionMaster (configuracion.c:3)
+==10485==    by 0x10C33E: main (main.c:12)
+==10485== 
+==10485== 26 bytes in 5 blocks are indirectly lost in loss record 17 of 47
+==10485==    at 0x484DCD3: realloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486EEE3: string_trim_right (string.c:131)
+==10485==    by 0x486EDCC: string_trim (string.c:108)
+==10485==    by 0x486B194: add_cofiguration.0 (config.c:57)
+==10485==    by 0x486F2F8: string_iterate_lines (string.c:200)
+==10485==    by 0x486B38B: config_create (config.c:63)
+==10485==    by 0x10D82A: iniciarConfig (config.c:13)
+==10485==    by 0x10A8C2: iniciarConfiguracionMaster (configuracion.c:3)
+==10485==    by 0x10C33E: main (main.c:12)
+==10485== 
+==10485== 32 bytes in 1 blocks are still reachable in loss record 18 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x10C321: main (main.c:11)
+==10485== 
+==10485== 32 bytes in 1 blocks are still reachable in loss record 19 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486E181: log_create (log.c:47)
+==10485==    by 0x10DE51: iniciar_logger (logs.c:11)
+==10485==    by 0x10C36D: main (main.c:17)
+==10485== 
+==10485== 32 bytes in 2 blocks are still reachable in loss record 20 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486D6C9: list_create_element (list.c:379)
+==10485==    by 0x486D617: list_iterator_add (list.c:359)
+==10485==    by 0x486C4EA: list_add (list.c:46)
+==10485==    by 0x10DF01: listaAdd (listas.c:12)
+==10485==    by 0x10A9A3: agregarQueryControl (conexiones.c:11)
+==10485==    by 0x10B78B: operarQueryControl (conexiones.c:298)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 32 bytes in 2 blocks are still reachable in loss record 21 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486D6C9: list_create_element (list.c:379)
+==10485==    by 0x486D617: list_iterator_add (list.c:359)
+==10485==    by 0x486C4EA: list_add (list.c:46)
+==10485==    by 0x10DF01: listaAdd (listas.c:12)
+==10485==    by 0x10CA75: cambioEstado (planificadores.c:151)
+==10485==    by 0x10C590: planificadorPrioridad (planificadores.c:51)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 36 bytes in 1 blocks are still reachable in loss record 22 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x40271DF: malloc (rtld-malloc.h:56)
+==10485==    by 0x40271DF: strdup (strdup.c:42)
+==10485==    by 0x4016A66: _dl_load_cache_lookup (dl-cache.c:527)
+==10485==    by 0x400A981: _dl_map_object (dl-load.c:2193)
+==10485==    by 0x400E9A8: dl_open_worker_begin (dl-open.c:534)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x400DF99: dl_open_worker (dl-open.c:782)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x400E34D: _dl_open (dl-open.c:883)
+==10485==    by 0x49E9E70: do_dlopen (dl-libc.c:95)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x49E9BD2: _dl_catch_error (dl-error-skeleton.c:227)
+==10485== 
+==10485== 36 bytes in 1 blocks are still reachable in loss record 23 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x400DD20: malloc (rtld-malloc.h:56)
+==10485==    by 0x400DD20: _dl_new_object (dl-object.c:199)
+==10485==    by 0x4008C82: _dl_map_object_from_fd (dl-load.c:1063)
+==10485==    by 0x400A600: _dl_map_object (dl-load.c:2327)
+==10485==    by 0x400E9A8: dl_open_worker_begin (dl-open.c:534)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x400DF99: dl_open_worker (dl-open.c:782)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x400E34D: _dl_open (dl-open.c:883)
+==10485==    by 0x49E9E70: do_dlopen (dl-libc.c:95)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x49E9BD2: _dl_catch_error (dl-error-skeleton.c:227)
+==10485== 
+==10485== 56 bytes in 1 blocks are still reachable in loss record 24 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x4003F51: malloc (rtld-malloc.h:56)
+==10485==    by 0x4003F51: _dl_map_object_deps (dl-deps.c:479)
+==10485==    by 0x400EA0E: dl_open_worker_begin (dl-open.c:592)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x400DF99: dl_open_worker (dl-open.c:782)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x400E34D: _dl_open (dl-open.c:883)
+==10485==    by 0x49E9E70: do_dlopen (dl-libc.c:95)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x49E9BD2: _dl_catch_error (dl-error-skeleton.c:227)
+==10485==    by 0x49E9FA6: dlerror_run (dl-libc.c:45)
+==10485==    by 0x49E9FA6: __libc_dlopen_mode (dl-libc.c:162)
+==10485==    by 0x499A680: __libc_unwind_link_get (unwind-link.c:50)
+==10485==    by 0x499A680: __libc_unwind_link_get (unwind-link.c:40)
+==10485== 
+==10485== 70 bytes in 1 blocks are indirectly lost in loss record 25 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x491D58E: strdup (strdup.c:42)
+==10485==    by 0x486B2B1: config_create (config.c:38)
+==10485==    by 0x10D82A: iniciarConfig (config.c:13)
+==10485==    by 0x10A8C2: iniciarConfiguracionMaster (configuracion.c:3)
+==10485==    by 0x10C33E: main (main.c:12)
+==10485== 
+==10485== 72 bytes in 1 blocks are still reachable in loss record 26 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x10AA37: agregarWorker (conexiones.c:22)
+==10485==    by 0x10BB28: operarWorker (conexiones.c:375)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 112 bytes in 2 blocks are still reachable in loss record 27 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x10AB59: agregarQuery (conexiones.c:44)
+==10485==    by 0x10AA18: agregarQueryControl (conexiones.c:18)
+==10485==    by 0x10B78B: operarQueryControl (conexiones.c:298)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 121 bytes in 6 blocks are indirectly lost in loss record 28 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x491D58E: strdup (strdup.c:42)
+==10485==    by 0x486B907: dictionary_put (dictionary.c:73)
+==10485==    by 0x486B1B8: add_cofiguration.0 (config.c:58)
+==10485==    by 0x486F2F8: string_iterate_lines (string.c:200)
+==10485==    by 0x486B38B: config_create (config.c:63)
+==10485==    by 0x10D82A: iniciarConfig (config.c:13)
+==10485==    by 0x10A8C2: iniciarConfiguracionMaster (configuracion.c:3)
+==10485==    by 0x10C33E: main (main.c:12)
+==10485== 
+==10485== 128 bytes in 2 blocks are still reachable in loss record 29 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x10A937: agregarQueryControl (conexiones.c:4)
+==10485==    by 0x10B78B: operarQueryControl (conexiones.c:298)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 160 bytes in 1 blocks are indirectly lost in loss record 30 of 47
+==10485==    at 0x484DA83: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486B7E0: dictionary_create (dictionary.c:40)
+==10485==    by 0x486B2C3: config_create (config.c:39)
+==10485==    by 0x10D82A: iniciarConfig (config.c:13)
+==10485==    by 0x10A8C2: iniciarConfiguracionMaster (configuracion.c:3)
+==10485==    by 0x10C33E: main (main.c:12)
+==10485== 
+==10485== 192 bytes in 6 blocks are indirectly lost in loss record 31 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486C018: dictionary_create_element (dictionary.c:249)
+==10485==    by 0x486B91B: dictionary_put (dictionary.c:73)
+==10485==    by 0x486B1B8: add_cofiguration.0 (config.c:58)
+==10485==    by 0x486F2F8: string_iterate_lines (string.c:200)
+==10485==    by 0x486B38B: config_create (config.c:63)
+==10485==    by 0x10D82A: iniciarConfig (config.c:13)
+==10485==    by 0x10A8C2: iniciarConfiguracionMaster (configuracion.c:3)
+==10485==    by 0x10C33E: main (main.c:12)
+==10485== 
+==10485== 272 bytes in 1 blocks are possibly lost in loss record 32 of 47
+==10485==    at 0x484DA83: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x40147D9: calloc (rtld-malloc.h:44)
+==10485==    by 0x40147D9: allocate_dtv (dl-tls.c:375)
+==10485==    by 0x40147D9: _dl_allocate_tls (dl-tls.c:634)
+==10485==    by 0x490A7B4: allocate_stack (allocatestack.c:430)
+==10485==    by 0x490A7B4: pthread_create@@GLIBC_2.34 (pthread_create.c:647)
+==10485==    by 0x10AE3F: establecerConexiones (conexiones.c:97)
+==10485==    by 0x10C37E: main (main.c:18)
+==10485== 
+==10485== 272 bytes in 1 blocks are possibly lost in loss record 33 of 47
+==10485==    at 0x484DA83: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x40147D9: calloc (rtld-malloc.h:44)
+==10485==    by 0x40147D9: allocate_dtv (dl-tls.c:375)
+==10485==    by 0x40147D9: _dl_allocate_tls (dl-tls.c:634)
+==10485==    by 0x490A7B4: allocate_stack (allocatestack.c:430)
+==10485==    by 0x490A7B4: pthread_create@@GLIBC_2.34 (pthread_create.c:647)
+==10485==    by 0x10AE62: establecerConexiones (conexiones.c:98)
+==10485==    by 0x10C37E: main (main.c:18)
+==10485== 
+==10485== 272 bytes in 1 blocks are possibly lost in loss record 34 of 47
+==10485==    at 0x484DA83: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x40147D9: calloc (rtld-malloc.h:44)
+==10485==    by 0x40147D9: allocate_dtv (dl-tls.c:375)
+==10485==    by 0x40147D9: _dl_allocate_tls (dl-tls.c:634)
+==10485==    by 0x490A7B4: allocate_stack (allocatestack.c:430)
+==10485==    by 0x490A7B4: pthread_create@@GLIBC_2.34 (pthread_create.c:647)
+==10485==    by 0x10AE85: establecerConexiones (conexiones.c:99)
+==10485==    by 0x10C37E: main (main.c:18)
+==10485== 
+==10485== 272 bytes in 1 blocks are possibly lost in loss record 35 of 47
+==10485==    at 0x484DA83: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x40147D9: calloc (rtld-malloc.h:44)
+==10485==    by 0x40147D9: allocate_dtv (dl-tls.c:375)
+==10485==    by 0x40147D9: _dl_allocate_tls (dl-tls.c:634)
+==10485==    by 0x490A7B4: allocate_stack (allocatestack.c:430)
+==10485==    by 0x490A7B4: pthread_create@@GLIBC_2.34 (pthread_create.c:647)
+==10485==    by 0x10D4A2: iniciarPlanificacion (inicializar.c:25)
+==10485==    by 0x10C388: main (main.c:20)
+==10485== 
+==10485== 272 bytes in 1 blocks are possibly lost in loss record 36 of 47
+==10485==    at 0x484DA83: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x40147D9: calloc (rtld-malloc.h:44)
+==10485==    by 0x40147D9: allocate_dtv (dl-tls.c:375)
+==10485==    by 0x40147D9: _dl_allocate_tls (dl-tls.c:634)
+==10485==    by 0x490A7B4: allocate_stack (allocatestack.c:430)
+==10485==    by 0x490A7B4: pthread_create@@GLIBC_2.34 (pthread_create.c:647)
+==10485==    by 0x10D4CB: iniciarPlanificacion (inicializar.c:28)
+==10485==    by 0x10C388: main (main.c:20)
+==10485== 
+==10485== 272 bytes in 1 blocks are possibly lost in loss record 37 of 47
+==10485==    at 0x484DA83: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x40147D9: calloc (rtld-malloc.h:44)
+==10485==    by 0x40147D9: allocate_dtv (dl-tls.c:375)
+==10485==    by 0x40147D9: _dl_allocate_tls (dl-tls.c:634)
+==10485==    by 0x490A7B4: allocate_stack (allocatestack.c:430)
+==10485==    by 0x490A7B4: pthread_create@@GLIBC_2.34 (pthread_create.c:647)
+==10485==    by 0x10B319: comprobacionModulo (conexiones.c:209)
+==10485==    by 0x10B026: escucharWorker (conexiones.c:128)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 272 bytes in 1 blocks are possibly lost in loss record 38 of 47
+==10485==    at 0x484DA83: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x40147D9: calloc (rtld-malloc.h:44)
+==10485==    by 0x40147D9: allocate_dtv (dl-tls.c:375)
+==10485==    by 0x40147D9: _dl_allocate_tls (dl-tls.c:634)
+==10485==    by 0x490A7B4: allocate_stack (allocatestack.c:430)
+==10485==    by 0x490A7B4: pthread_create@@GLIBC_2.34 (pthread_create.c:647)
+==10485==    by 0x10B319: comprobacionModulo (conexiones.c:209)
+==10485==    by 0x10B0DA: escucharWorkerDesalojo (conexiones.c:142)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 272 bytes in 1 blocks are possibly lost in loss record 39 of 47
+==10485==    at 0x484DA83: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x40147D9: calloc (rtld-malloc.h:44)
+==10485==    by 0x40147D9: allocate_dtv (dl-tls.c:375)
+==10485==    by 0x40147D9: _dl_allocate_tls (dl-tls.c:634)
+==10485==    by 0x490A7B4: allocate_stack (allocatestack.c:430)
+==10485==    by 0x490A7B4: pthread_create@@GLIBC_2.34 (pthread_create.c:647)
+==10485==    by 0x10B319: comprobacionModulo (conexiones.c:209)
+==10485==    by 0x10AF72: escucharQueryControl (conexiones.c:115)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 456 bytes in 1 blocks are still reachable in loss record 40 of 47
+==10485==    at 0x484DA83: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x40162DC: calloc (rtld-malloc.h:44)
+==10485==    by 0x40162DC: _dl_check_map_versions (dl-version.c:273)
+==10485==    by 0x400ED13: dl_open_worker_begin (dl-open.c:600)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x400DF99: dl_open_worker (dl-open.c:782)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x400E34D: _dl_open (dl-open.c:883)
+==10485==    by 0x49E9E70: do_dlopen (dl-libc.c:95)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x49E9BD2: _dl_catch_error (dl-error-skeleton.c:227)
+==10485==    by 0x49E9FA6: dlerror_run (dl-libc.c:45)
+==10485==    by 0x49E9FA6: __libc_dlopen_mode (dl-libc.c:162)
+==10485==    by 0x499A680: __libc_unwind_link_get (unwind-link.c:50)
+==10485==    by 0x499A680: __libc_unwind_link_get (unwind-link.c:40)
+==10485== 
+==10485== 472 bytes in 1 blocks are still reachable in loss record 41 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x48F464D: __fopen_internal (iofopen.c:65)
+==10485==    by 0x48F464D: fopen@@GLIBC_2.2.5 (iofopen.c:86)
+==10485==    by 0x486DAB1: txt_open_for_append (txt.c:23)
+==10485==    by 0x486E210: log_create (log.c:62)
+==10485==    by 0x10DE51: iniciar_logger (logs.c:11)
+==10485==    by 0x10C36D: main (main.c:17)
+==10485== 
+==10485== 544 bytes in 2 blocks are possibly lost in loss record 42 of 47
+==10485==    at 0x484DA83: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x40147D9: calloc (rtld-malloc.h:44)
+==10485==    by 0x40147D9: allocate_dtv (dl-tls.c:375)
+==10485==    by 0x40147D9: _dl_allocate_tls (dl-tls.c:634)
+==10485==    by 0x490A7B4: allocate_stack (allocatestack.c:430)
+==10485==    by 0x490A7B4: pthread_create@@GLIBC_2.34 (pthread_create.c:647)
+==10485==    by 0x10AC6C: agregarQuery (conexiones.c:59)
+==10485==    by 0x10AA18: agregarQueryControl (conexiones.c:18)
+==10485==    by 0x10B78B: operarQueryControl (conexiones.c:298)
+==10485==    by 0x4909AC2: start_thread (pthread_create.c:442)
+==10485==    by 0x499AA73: clone (clone.S:100)
+==10485== 
+==10485== 609 (16 direct, 593 indirect) bytes in 1 blocks are definitely lost in loss record 43 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x486B29B: config_create (config.c:36)
+==10485==    by 0x10D82A: iniciarConfig (config.c:13)
+==10485==    by 0x10A8C2: iniciarConfiguracionMaster (configuracion.c:3)
+==10485==    by 0x10C33E: main (main.c:12)
+==10485== 
+==10485== 1,024 bytes in 1 blocks are still reachable in loss record 44 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x48F3BA3: _IO_file_doallocate (filedoalloc.c:101)
+==10485==    by 0x4902CDF: _IO_doallocbuf (genops.c:347)
+==10485==    by 0x4901F5F: _IO_file_overflow@@GLIBC_2.2.5 (fileops.c:744)
+==10485==    by 0x49006D4: _IO_new_file_xsputn (fileops.c:1243)
+==10485==    by 0x49006D4: _IO_file_xsputn@@GLIBC_2.2.5 (fileops.c:1196)
+==10485==    by 0x48EC00B: outstring_func (vfprintf-internal.c:239)
+==10485==    by 0x48EC00B: __vfprintf_internal (vfprintf-internal.c:1517)
+==10485==    by 0x48D579E: printf (printf.c:33)
+==10485==    by 0x486DB14: txt_write_in_stdout (txt.c:32)
+==10485==    by 0x486E8CF: _log_write_in_level (log.c:166)
+==10485==    by 0x486E45E: log_debug (log.c:95)
+==10485==    by 0x10E8E8: iniciarServidor (sockets.c:58)
+==10485==    by 0x10ADB5: establecerConexiones (conexiones.c:87)
+==10485== 
+==10485== 1,206 bytes in 1 blocks are still reachable in loss record 45 of 47
+==10485==    at 0x484DA83: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x400DA02: calloc (rtld-malloc.h:44)
+==10485==    by 0x400DA02: _dl_new_object (dl-object.c:92)
+==10485==    by 0x4008C82: _dl_map_object_from_fd (dl-load.c:1063)
+==10485==    by 0x400A600: _dl_map_object (dl-load.c:2327)
+==10485==    by 0x400E9A8: dl_open_worker_begin (dl-open.c:534)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x400DF99: dl_open_worker (dl-open.c:782)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x400E34D: _dl_open (dl-open.c:883)
+==10485==    by 0x49E9E70: do_dlopen (dl-libc.c:95)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x49E9BD2: _dl_catch_error (dl-error-skeleton.c:227)
+==10485== 
+==10485== 2,304 bytes in 1 blocks are possibly lost in loss record 46 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x4005D97: malloc (rtld-malloc.h:56)
+==10485==    by 0x4005D97: _dlfo_mappings_segment_allocate (dl-find_object.c:217)
+==10485==    by 0x4005D97: _dl_find_object_update_1 (dl-find_object.c:671)
+==10485==    by 0x4005D97: _dl_find_object_update (dl-find_object.c:804)
+==10485==    by 0x400ECCF: dl_open_worker_begin (dl-open.c:735)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x400DF99: dl_open_worker (dl-open.c:782)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x400E34D: _dl_open (dl-open.c:883)
+==10485==    by 0x49E9E70: do_dlopen (dl-libc.c:95)
+==10485==    by 0x49E9B07: _dl_catch_exception (dl-error-skeleton.c:208)
+==10485==    by 0x49E9BD2: _dl_catch_error (dl-error-skeleton.c:227)
+==10485==    by 0x49E9FA6: dlerror_run (dl-libc.c:45)
+==10485==    by 0x49E9FA6: __libc_dlopen_mode (dl-libc.c:162)
+==10485==    by 0x499A680: __libc_unwind_link_get (unwind-link.c:50)
+==10485==    by 0x499A680: __libc_unwind_link_get (unwind-link.c:40)
+==10485== 
+==10485== 4,096 bytes in 1 blocks are still reachable in loss record 47 of 47
+==10485==    at 0x4848899: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==10485==    by 0x48F3BA3: _IO_file_doallocate (filedoalloc.c:101)
+==10485==    by 0x4902CDF: _IO_doallocbuf (genops.c:347)
+==10485==    by 0x4901F5F: _IO_file_overflow@@GLIBC_2.2.5 (fileops.c:744)
+==10485==    by 0x49006D4: _IO_new_file_xsputn (fileops.c:1243)
+==10485==    by 0x49006D4: _IO_file_xsputn@@GLIBC_2.2.5 (fileops.c:1196)
+==10485==    by 0x48F4A9C: fputs (iofputs.c:38)
+==10485==    by 0x486DADA: txt_write_in_file (txt.c:27)
+==10485==    by 0x486E881: _log_write_in_level (log.c:158)
+==10485==    by 0x486E45E: log_debug (log.c:95)
+==10485==    by 0x10E8E8: iniciarServidor (sockets.c:58)
+==10485==    by 0x10ADB5: establecerConexiones (conexiones.c:87)
+==10485==    by 0x10C37E: main (main.c:18)
+==10485== 
+==10485== LEAK SUMMARY:
+==10485==    definitely lost: 20 bytes in 2 blocks
+==10485==    indirectly lost: 593 bytes in 20 blocks
+==10485==      possibly lost: 5,024 bytes in 11 blocks
+==10485==    still reachable: 8,017 bytes in 36 blocks
+==10485==         suppressed: 0 bytes in 0 blocks
+==10485== 
+==10485== For lists of detected and suppressed errors, rerun with: -s
+==10485== ERROR SUMMARY: 12 errors from 12 contexts (suppressed: 0 from 0)

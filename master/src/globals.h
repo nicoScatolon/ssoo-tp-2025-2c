@@ -30,6 +30,7 @@ extern configMaster* configM;
 extern sem_t sem_ready;
 extern sem_t sem_desalojo;
 extern sem_t sem_workers_libres;
+extern sem_t sem_execute;
 
 extern t_list_mutex listaReady;
 extern t_list_mutex listaExecute;

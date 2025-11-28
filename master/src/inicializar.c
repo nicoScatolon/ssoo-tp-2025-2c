@@ -34,6 +34,7 @@ void iniciarPlanificacion() {
 }
 void inicializarSemaforos(){
     sem_init(&sem_ready,0,0);
+    sem_init(&sem_execute,0,0);
     sem_init(&sem_workers_libres,0,0);
     sem_init(&sem_desalojo,0,0);
 }
