@@ -1,12 +1,12 @@
 #include "metadata.h"
 
-void crearMetaData(char* pathTag){
+void crearMetaData(char* pathTag,int tamanioInicial) {
     inicializarArchivo(pathTag,"metadata","config","a+");
-    inicializarMetaData(pathTag);
+    inicializarMetaData(pathTag,tamanioInicial);
     
 }
 
-void inicializarMetaData(char* pathTag) {
+void inicializarMetaData(char* pathTag,int tamanioInicial) {
     char* pathMetadata = string_from_format("%s/metadata.config", pathTag);
 
     FILE* archivo = fopen(pathMetadata, "w+");
@@ -16,11 +16,11 @@ void inicializarMetaData(char* pathTag) {
         return;
     }
 
-    int tamanoInicial = 0;
+    // int tamanoInicial = 0;
     char* estadoInicial = "WORK_IN_PROGRESS";
     char* bloquesIniciales = "[]";
 
-    fprintf(archivo, "TAMAÑO=%d\n", tamanoInicial);
+    fprintf(archivo, "TAMAÑO=%d\n", tamanioInicial);
     fprintf(archivo, "BLOQUES=%s\n", bloquesIniciales);
     fprintf(archivo, "ESTADO=%s\n", estadoInicial);
 

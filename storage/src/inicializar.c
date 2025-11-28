@@ -118,7 +118,7 @@ void levantarFileSystem(){
         inicializarBloqueCero(pathBloquesFisicos);
         char *nombreInitialFile = "initial_file";
         pathFiles = inicializarDirectorio(configS->puntoMontaje, "files");
-        crearFile(nombreInitialFile,"BASE");
+        crearFile(nombreInitialFile,"BASE", configSB->BLOCK_SIZE);
 
         char* pathTagBase = string_from_format("%s/initial_file/BASE", pathFiles);  
         agregarBloqueMetaData(pathTagBase,0,0);
@@ -216,7 +216,7 @@ void eliminarDirectorioRecursivo(const char* path) {
     }
 }
 
-bool crearFile(char* nombreFile, char* nombreTag){
+bool crearFile(char* nombreFile, char* nombreTag,int tamanioArchivo){
     char* pathFile = string_from_format("%s/%s", pathFiles, nombreFile);
     struct stat st;
     if (stat(pathFile, &st) != 0) {
@@ -228,7 +228,7 @@ bool crearFile(char* nombreFile, char* nombreTag){
         log_debug(logger, "Directorio del File <%s> creado", nombreFile);
     }
 
-    if (!crearTag(pathFile, nombreTag)) {
+    if (!crearTag(pathFile, nombreTag, tamanioArchivo)) {
         free(pathFile);
         return false;
     }
@@ -237,7 +237,7 @@ bool crearFile(char* nombreFile, char* nombreTag){
     return true;
 }
 
-bool crearTag(char* pathFile, char* nombreTag){
+bool crearTag(char* pathFile, char* nombreTag,int tamanioArchivo){
     char *pathTag = string_from_format("%s/%s", pathFile, nombreTag);
     struct stat st;
     if (stat(pathTag, &st) == 0) {
@@ -248,7 +248,7 @@ bool crearTag(char* pathFile, char* nombreTag){
     pathTag =  inicializarDirectorio(pathFile,nombreTag);
     
     char* pathLogicalBlocks = inicializarDirectorio(pathTag,"logical_blocks");
-    crearMetaData(pathTag);
+    crearMetaData(pathTag,tamanioArchivo);
 
     free(pathTag);
     free(pathLogicalBlocks);
