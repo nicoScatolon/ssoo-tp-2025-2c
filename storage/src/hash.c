@@ -118,3 +118,27 @@ int obtenerBloquePorHash(char* hash) {
     
     return bloque;
 }
+
+
+void eliminarDelHashIndex(char* hash, int queryID) {
+    char* pathHashIndex = string_from_format("%s/blocks_hash_index.config", configS->puntoMontaje);
+    pthread_mutex_lock(&mutex_hash_block);
+    t_config* hashIndex = config_create(pathHashIndex);
+    if (hashIndex == NULL) {
+        log_error(logger, "## <%d> - Error al abrir blocks_hash_index.config", queryID);
+        free(pathHashIndex);
+        return;
+    }
+    
+    // Verificar si existe la clave
+    if (config_has_property(hashIndex, hash)) {
+        config_remove_key(hashIndex, hash);
+        config_save(hashIndex);
+        log_debug(logger, "## <%d> - Se eliminó entrada del hash_index: %s", queryID, hash);
+    } else {
+        log_debug(logger, "## <%d> - Hash %s no encontrado en hash_index", queryID, hash);
+    }
+    pthread_mutex_unlock(&mutex_hash_block);
+    config_destroy(hashIndex);
+    free(pathHashIndex);
+}

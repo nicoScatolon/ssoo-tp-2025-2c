@@ -1024,16 +1024,37 @@ void eliminarBloqueLogico(char* pathBloqueLogico, char* file, char* tag, int num
     
     nlink_t numHardlinks = st.st_nlink;
     
+    // Si es el último hardlink, calcular hash ANTES de eliminar
+    char* hashContenido = NULL;
+    if (numHardlinks-1 == 1) {
+        // Leer contenido desde el bloque lógico
+        void* contenido = malloc(configSB->BLOCK_SIZE);
+        aplicarRetardoBloque();
+        FILE* f = fopen(pathBloqueLogico, "rb");  // <-- Leés del bloque lógico
+        if (f != NULL) {
+            fread(contenido, 1, configSB->BLOCK_SIZE, f);
+            fclose(f);
+            hashContenido = calcularHashArchivo(pathBloqueLogico);
+        }
+        free(contenido);
+    }
+    
+    // Eliminar el hardlink (bloque lógico)
     if (unlink(pathBloqueLogico) != 0) {
         log_error(logger, "## <%d> - Error al eliminar bloque lógico %s: %s", queryID, pathBloqueLogico, strerror(errno));
         free(pathBloqueFisico);
+        if (hashContenido) free(hashContenido);
         exit(EXIT_FAILURE);
     }
     
     log_info(logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d> al bloque físico <%d>", queryID, file, tag, numeroBloqueLogico, numeroBloqueFisico);
     
-    if (numHardlinks == 1) {
-        liberarBloque(numeroBloqueFisico, queryID);
+    if ((numHardlinks - 1) == 1) {
+        if (hashContenido != NULL) {
+            eliminarDelHashIndex(hashContenido, queryID);
+            liberarBloque(numeroBloqueFisico, queryID);
+            free(hashContenido);
+        }
     } else {
         log_debug(logger, "## <%d> - Bloque físico %d aún tiene %ld hardlinks, no se libera", queryID, numeroBloqueFisico, (long)(numHardlinks - 1));
     }

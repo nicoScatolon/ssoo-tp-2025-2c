@@ -10,4 +10,5 @@ bool existeHash(char *hash);
 void escribirHash(char* hash,int numeroBFisico);
 char* calcularHashArchivo(char* path);
 int obtenerBloquePorHash(char* hash);
+void eliminarDelHashIndex(char* hash, int queryID);
 #endif

@@ -332,6 +332,7 @@ int obtenerMarcoReservado(char* keyAsignar, int numeroPagina){
             exit(EXIT_FAILURE);
         }
 
+        
         marco = keyVictima->marco;
         if(liberarMarcoVictima(nombreFileVictima, tagFileVictima, keyVictima->pagina, marco) != 0){ //tiene locks
             free(fileNameAsignar);
@@ -365,21 +366,31 @@ int obtenerMarcoReservado(char* keyAsignar, int numeroPagina){
     return marco;
 }
 
+
+
 // Libera el marco de la victima, enviando la pagina a storage si es necesario
 int liberarMarcoVictima(char* nombreFileVictima, char* tagFileVictima, int pagina, int marco){
-    int respuesta = enviarPaginaAStorage(nombreFileVictima, tagFileVictima, pagina); // la funcion ya implementa la confirmacion de storage
-    
-    if (respuesta == -1){
-        log_error(logger, "Error al enviar pagina a Storage %s:%s pagina %d", nombreFileVictima, tagFileVictima, pagina);
-        return -1;
 
-    } else if (respuesta == 1){
-        TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFileVictima, tagFileVictima); 
+    TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFileVictima, tagFileVictima); 
+    if (!tabla) {
+        log_error(logger, "Error al obtener tabla de paginas para %s:%s al liberar marco victima", nombreFileVictima, tagFileVictima);
+        return -1;
+    }
+    if(tabla->entradas[pagina].bitModificado){
+        int respuesta = enviarPaginaAStorage(nombreFileVictima, tagFileVictima, pagina); // la funcion ya implementa la confirmacion de storage
+        if (respuesta == -1){
+            log_error(logger, "Error al enviar pagina a Storage %s:%s pagina %d", nombreFileVictima, tagFileVictima, pagina);
+            return -1;
+        } 
         pthread_mutex_lock(&tabla_paginas_mutex);
-        tabla->entradas[pagina].bitPresencia = false; 
         tabla->entradas[pagina].bitModificado = false; 
         pthread_mutex_unlock(&tabla_paginas_mutex);
+        
     }
+    pthread_mutex_lock(&tabla_paginas_mutex);
+    tabla->entradas[pagina].bitPresencia = false; 
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+    
 
     log_info(logger,"“Query <%d>: Se libera el Marco: <%d> perteneciente al - File: <%s> - Tag: <%s>",contexto->query_id,marco,nombreFileVictima,tagFileVictima);
     liberarMarco(marco);
@@ -769,7 +780,7 @@ void escribirEnMemoriaPaginaCompleta(char* nombreFile, char* tag, int numeroPagi
 key_Reemplazo* ejecutarAlgoritmoReemplazo() {
     if (string_equals_ignore_case(configW->algoritmoReemplazo, "LRU")) {
         return ReemplazoLRU(); 
-    } 
+    }
     else if (string_equals_ignore_case(configW->algoritmoReemplazo, "CLOCK-M")) {
         return ReemplazoCLOCKM();
     } 

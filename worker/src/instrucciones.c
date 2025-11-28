@@ -295,6 +295,7 @@ bool ejecutar_end(contexto_query_t* contexto){
     
     t_paquete* paquete = crearPaquete();
     agregarIntAPaquete(paquete, contexto->query_id);
+    agregarStringAPaquete(paquete, "Finalizacion de ejecucion de la query");
     enviarPaquete(paquete, socketMaster/*socket master*/);
     eliminarPaquete(paquete);
     return true;
