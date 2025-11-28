@@ -224,15 +224,24 @@ bool ejecutar_flush(char* fileName, char* tagFile, int query_id){
         }
         
         t_paquete* paqueteAviso = crearPaquete();
-        t_paquete* paqueteContenido = crearPaquete();
+        
         
         agregarIntAPaquete(paqueteAviso, query_id);
         agregarStringAPaquete(paqueteAviso, fileName);
         agregarStringAPaquete(paqueteAviso, tagFile); 
         agregarIntAPaquete(paqueteAviso, contadorPaginasModificadas);
         
+        enviarOpcode(FLUSH_FILE, socketStorage);  
+        enviarPaquete(paqueteAviso, socketStorage);
+        eliminarPaquete(paqueteAviso);
+        
+        
         for (int i = 0; i < tabla->capacidadEntradas; i++){
+            
             if(tabla->entradas[i].bitModificado && tabla->entradas[i].bitPresencia){
+                t_paquete* paqueteContenido = crearPaquete();
+
+
                 int nroPagina = tabla->entradas[i].numeroPagina;
                 int nroMarco = tabla->entradas[i].numeroMarco;
                 char* contenidoPagina = obtenerContenidoDelMarco(nroMarco, 0, configW->BLOCK_SIZE);
@@ -248,26 +257,19 @@ bool ejecutar_flush(char* fileName, char* tagFile, int query_id){
                 agregarStringAPaquete(paqueteContenido, contenidoPagina);
                 free(contenidoPagina);
                 tabla->entradas[i].bitModificado = false;
+                
+                enviarPaquete(paqueteContenido, socketStorage);
+                
+                if(escucharStorage() == -1) {
+                    eliminarPaquete(paqueteContenido);
+                    notificarMasterError("Error al ejecutar FLUSH");
+                    return false;
+                }
+                eliminarPaquete(paqueteContenido);
             }
-        }
-        
-        // Enviar
-        enviarOpcode(FLUSH_FILE, socketStorage);  
-        enviarPaquete(paqueteAviso, socketStorage);
-        
-        log_debug(logger, "Enviando contenido modificado en FLUSH para %s:%s", fileName, tagFile);
-        enviarPaquete(paqueteContenido, socketStorage);
-        
-        if(escucharStorage() == -1) {
-            notificarMasterError("Error al ejecutar FLUSH");
-            eliminarPaquete(paqueteContenido);
-            eliminarPaquete(paqueteAviso);
-            return false;
-        }
+        }        
         
         log_debug(logger, "FLUSH completado para %s:%s", fileName, tagFile);
-        eliminarPaquete(paqueteContenido);
-        eliminarPaquete(paqueteAviso);
         tabla->hayPaginasModificadas = false;
     }
     else{
@@ -304,9 +306,11 @@ void notificarMasterError(char* mensajeError){
 
     t_paquete* paqueteAMaster = crearPaquete();
     if(!paqueteAMaster){
-        log_error(logger, "Error recibiendo paquete de RESPUESTA_ERROR");
+        log_error(logger, "Error al crear paquete para notificar error al Master");
         return;
     }
+
+    log_debug(logger, "Notificando al Master el error: %s", mensajeError);
 
     agregarIntAPaquete(paqueteAMaster, contexto->query_id);
     agregarStringAPaquete(paqueteAMaster, mensajeError);

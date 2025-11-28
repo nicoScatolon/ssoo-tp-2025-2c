@@ -193,22 +193,22 @@ void *operarWorkers(void*socketClienteVoid){
             break;
         }
        case FLUSH_FILE: {
-    t_paquete* paqueteAviso = recibirPaquete(socketCliente);
-    int offset = 0;
-    int idQuery = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
-    char* file = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
-    char* tag = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
-    int cantidadBloques = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
-    
+        t_paquete* paqueteAviso = recibirPaquete(socketCliente);
+        int offset = 0;
+        int idQuery = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
+        char* file = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
+        char* tag = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
+        int cantidadBloques = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
+        
     log_debug(logger, "##<%d> - Iniciando FLUSH de <%s>:<%s> con <%d> bloques", 
               idQuery, file, tag, cantidadBloques);
     
-    t_paquete* paqueteContenido = recibirPaquete(socketCliente);
     
     bool huboError = false;
     int i = 0;
     
     while (i < cantidadBloques && !huboError) {
+        t_paquete* paqueteContenido = recibirPaquete(socketCliente);
         offset = 0;
         int numeroBloque = recibirIntDePaqueteconOffset(paqueteContenido, &offset);
         char* contenido = recibirStringDePaqueteConOffset(paqueteContenido, &offset);
@@ -225,20 +225,19 @@ void *operarWorkers(void*socketClienteVoid){
                       numeroBloque, contenido);
         }
         
+        eliminarPaquete(paqueteContenido);
         free(contenido);
         i++;
+        if (huboError) {
+            enviarOpcode(RESPUESTA_ERROR, socketCliente);
+            break;
+        } else {
+            enviarOpcode(RESPUESTA_OK, socketCliente);
+        }
     }
-    
-    if (huboError) {
-        enviarOpcode(RESPUESTA_ERROR, socketCliente);
-    } else {
-        enviarOpcode(RESPUESTA_OK, socketCliente);
-    }
-    
     free(file);
     free(tag);
     eliminarPaquete(paqueteAviso);
-    eliminarPaquete(paqueteContenido);
     break;
 }
         case READ_BLOCK:{ // HECHO

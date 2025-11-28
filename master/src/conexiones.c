@@ -55,6 +55,7 @@ void agregarQuery(char* path,int prioridad,int id){
     sem_post(&sem_ready);
     
     if(strcmp(configM->algoritmoPlanificacion,"PRIORIDADES") == 0 && configM->tiempoAging > 0 ){
+        log_debug(logger,"Iniciando Aging para Query <%d>",id);
         pthread_t hiloAging;
         pthread_create(&hiloAging,NULL,aging,(void*)(intptr_t)id);
         pthread_detach(hiloAging);
@@ -429,6 +430,11 @@ void *operarWorker(void*socketClienteVoid){
                 char*motivo= recibirStringDePaqueteConOffset(paqueteReceptor,&offset);
                 queryControl* queryC = buscarQueryControlPorId(idQuery);
                 worker* workerA = buscarWorkerPorQueryId(idQuery);
+                log_debug(logger,"Motivo de finalizacion recibido: <%s>",motivo);
+                
+                if(motivo == NULL){
+                    log_error(logger,"El motivo es de finalizacion de query es NULL");
+                }
 
                 log_info(logger, "## Se terminó la Query %d en el Worker %d", idQuery, workerA->workerID);
                 liberarWorker(workerA);
