@@ -131,6 +131,11 @@ void levantarFileSystem(){
     }
     else {
         log_debug(logger, "FileSystem existente cargado correctamente");
+        pathBloquesFisicos = string_from_format("%s/physical_blocks", configS->puntoMontaje);
+        pathFiles = string_from_format("%s/files", configS->puntoMontaje);
+        char*pathBitMap=string_from_format("%s/bitmap.bin",configS->puntoMontaje);
+        inicializarBitmap(pathBitMap);
+        free(pathBitMap);
     }
 }
 
@@ -219,6 +224,7 @@ void eliminarDirectorioRecursivo(const char* path) {
 
 bool crearFile(char* nombreFile, char* nombreTag,int tamanioArchivo){
     char* pathFile = string_from_format("%s/%s", pathFiles, nombreFile);
+    // log_info(logger,"PathFile <%s>",pathFile);
     struct stat st;
     if (stat(pathFile, &st) != 0) {
         if (mkdir(pathFile, 0777) != 0) {
