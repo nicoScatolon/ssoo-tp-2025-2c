@@ -19,7 +19,6 @@ char* lecturaBloque(char* file, char* tag, int numeroBloque){
     log_debug(logger,"Contenido del bloque <%d> asociado al file:tag <%s:%s>: %s",numeroBloque,file,tag,contenido);
     free(rutaCompleta);
     return contenido;
-    
 }
 
 
@@ -94,7 +93,7 @@ bool tagFile(char* fileOrigen, char* tagOrigen, char* fileDestino, char* tagDest
         cantidadBloques++;
     }
     
-    log_info(logger, "## <%d> - TAG: %s:%s -> %s:%s (%d bloques)", 
+    log_debug(logger, "## <%d> - TAG: %s:%s -> %s:%s (%d bloques)", 
              queryID, fileOrigen, tagOrigen, fileDestino, tagDestino, cantidadBloques);
     
     // ========== PASO 2: Copiar metadata al destino ==========
@@ -152,11 +151,13 @@ bool tagFile(char* fileOrigen, char* tagOrigen, char* fileDestino, char* tagDest
                   queryID, bloqueLogico, bloqueFisico, 
                   (unsigned long)stAntes.st_nlink, (unsigned long)stDespues.st_nlink);
         
+        log_info(logger, "##<%d> - <%s>:<%s> Se agregó el hard link del bloque lógico <%d> al bloque físico <%d>", queryID, fileDestino, tagDestino, bloqueLogico, bloqueFisico);
+
         free(pathBloqueFisico);
         free(pathBloqueLogicoDestino);
     }
     
-    log_info(logger, "## <%d> - TAG completado: %d hardlinks creados", queryID, cantidadBloques);
+    log_debug(logger, "## <%d> - TAG completado: %d hardlinks creados", queryID, cantidadBloques);
     
     // Cleanup
     free(logicalBlocksDestino);
@@ -380,6 +381,9 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
             return false;
         }
         
+        log_info(logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d> al bloque físico <%d>", 
+            queryID, file, tag, numeroBloqueLogico, numeroBloqueFisicoActual);
+
         // 4. SEGUNDO: Crear link al nuevo bloque físico
         if (link(pathNuevoBloqueFisico, pathBloqueLogico) != 0) {
             log_error(logger, "## <%d> - Error al crear link al nuevo bloque físico: %s", 
@@ -393,6 +397,9 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
             return false;
         }
         
+        log_info(logger, "##<%d> - <%s>:<%s> Se agregó el hard link del bloque lógico <%d> al bloque físico <%d>", 
+            queryID, file, tag, numeroBloqueLogico, numeroBloqueFisicoNuevo);
+
         if (resp != 0) {
             log_error(logger, "## <%d> - Error al ocupar bloque físico %d en el bitmap", queryID, numeroBloqueFisicoNuevo);
             liberarBloque(numeroBloqueFisicoNuevo, queryID);
@@ -405,6 +412,7 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
         }
 
         log_debug(logger, "## <%d> - Bloque físico nuevo reservado: %d", queryID, numeroBloqueFisicoNuevo);
+        log_info(logger,"##<%d> - Bloque Físico Reservado <%s>:<%s> - Número de Bloque: <%d>", queryID, file, tag, numeroBloqueFisicoNuevo);
         // este log se muestra, el siguiente no
         // char* pathNuevoBloqueFisico = string_from_format("%s/physical_blocks/%06d.dat", configS->puntoMontaje, numeroBloqueFisicoNuevo);
         // if(link(pathNuevoBloqueFisico,pathBloqueLogico)!=0){
@@ -449,7 +457,8 @@ bool escribirBloque(char* file, char* tag, int numeroBloqueLogico, char* conteni
     free(pathBloqueFisicoActual);
     free(pathBloqueLogico);
     free(pathMetadata);
-    log_debug(logger, "se escribio en el bloque numero <%d> del file:tag <%s:%s> el contenido: <%s>", numeroBloqueLogico,file,tag,contenido);
+    // log_debug(logger, "se escribio en el bloque numero <%d> del file:tag <%s:%s> el contenido: <%s>", numeroBloqueLogico,file,tag,contenido);
+    // log_info(logger,"##<%d> - Bloque Lógico Escrito <%s>:<%s> - Número de Bloque: <%d>", queryID, file, tag, numeroBloque);
     return true;
 }
 
@@ -522,7 +531,7 @@ bool aumentarTamanioArchivo(char* file, char* tag, int bloquesActuales, int bloq
             return false;
         }
 
-        log_info(logger, "##<%d> - <%s:%s> Se agregó el hard link del bloque lógico <%d> al bloque físico <0>", queryID, file, tag, i);
+        log_info(logger, "##<%d> - <%s>:<%s> Se agregó el hard link del bloque lógico <%d> al bloque físico <0>", queryID, file, tag, i);
 
         char* pathTag = string_from_format("%s/files/%s/%s", configS->puntoMontaje, file, tag);
         agregarBloqueMetaData(pathTag, i, 0);
@@ -584,7 +593,7 @@ bool reducirTamanioArchivo(char* file, char* tag, int bloquesActuales, int bloqu
             return false;
         }
 
-        log_info(logger, "##<%d> - <%s:%s> Se eliminó el hard link del bloque lógico <%d> al bloque físico <%d>", queryID, file, tag, i, bloqueFisico);
+        log_info(logger, "##<%d> - <%s>:<%s> Se eliminó el hard link del bloque lógico <%d> al bloque físico <%d>", queryID, file, tag, i, bloqueFisico);
 
         if (referencias == 1) {
             liberarBloque(bloqueFisico, queryID);
@@ -849,8 +858,7 @@ void reapuntarBloqueLogico(char* file, char *tag, int numeroBloqueLogico, int pr
     }
     
     // Creamos nuevo Hardlink
-    char* pathBloqueFisico = string_from_format("%s/physical_blocks/block%04d.dat",
-                                                 configS->puntoMontaje, nuevoBloqueFisico);
+    char* pathBloqueFisico = string_from_format("%s/physical_blocks/block%04d.dat", configS->puntoMontaje, nuevoBloqueFisico);
     
     if (link(pathBloqueFisico, pathBloqueLogico) != 0) {
         log_error(logger, "Error al crear nuevo hardlink: %s -> %s - %s", 
@@ -860,8 +868,7 @@ void reapuntarBloqueLogico(char* file, char *tag, int numeroBloqueLogico, int pr
         exit(EXIT_FAILURE);
     }
     
-    log_info(logger, "##<%d> - <%s>:<%s> Se agregó el hard link del bloque lógico <%d> al bloque físico <%d>",
-             queryID, file, tag, numeroBloqueLogico, nuevoBloqueFisico);
+    log_info(logger, "##<%d> - <%s>:<%s> Se agregó el hard link del bloque lógico <%d> al bloque físico <%d>", queryID, file, tag, numeroBloqueLogico, nuevoBloqueFisico);
     
     free(pathBloqueFisico);
     free(pathBloqueLogico);

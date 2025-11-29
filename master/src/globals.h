@@ -64,6 +64,7 @@ typedef struct {
     int PC;
     int prioridad;
     int queryID;
+    bool desalojoEnCurso;
 } qcb_t;
 
 typedef struct {

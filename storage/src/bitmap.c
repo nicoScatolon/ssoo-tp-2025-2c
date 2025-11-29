@@ -73,7 +73,7 @@ int inicializarBitmap(const char* bitmap_path) {
     fclose(archivo);
     pthread_mutex_unlock(&mutex_bitmap_file);
 
-    log_info(logger, "Bitmap inicializado correctamente: %zu bloques (%zu bytes en archivo '%s')",
+    log_debug(logger, "Bitmap inicializado correctamente: %zu bloques (%zu bytes en archivo '%s')",
              cant_bloques, size_bytes, bitmap_path);
 
     return 0;

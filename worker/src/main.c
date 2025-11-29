@@ -20,8 +20,8 @@ int main(int argc, char* argv[]) {
 
     configW = malloc(sizeof(configWorker));
     iniciarConfiguracionWorker(archivoConfig,configW);
-
-    logger = iniciar_logger("worker", configW->logLevel);
+    char* nombreLog = string_from_format("worker_%d", workerId);
+    logger = iniciar_logger(nombreLog, configW->logLevel);
 
     conexionConMaster(workerId);
     conexionConStorage(workerId);

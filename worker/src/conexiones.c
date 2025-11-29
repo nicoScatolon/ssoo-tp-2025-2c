@@ -144,11 +144,10 @@ void* escucharDesalojo() {
                 int offset = 0;
                 int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
                 log_info(logger,"Desalojo de Query: ## Query <%d> por pedido de master: Planificador",idQuery);
-            
+                
                 eliminarPaquete(paquete);
                 desalojarQuery(idQuery, DESALOJO_QUERY_PLANIFICADOR);
-                //esta bien que aca tambièn se ejecute el flush??
-                
+
                 break;
             }
             case DESALOJO_QUERY_DESCONEXION:{
@@ -166,7 +165,6 @@ void* escucharDesalojo() {
                 log_info(logger,"Desalojo de Query: ## Query <%d> por pedido de master: Desconexion ",idQuery);            
                 eliminarPaquete(paquete);
                 desalojarQuery(idQuery, DESALOJO_QUERY_DESCONEXION);
-                //esta bien que aca tambièn se ejecute el flush??
                 
                 break;
             }

@@ -48,6 +48,7 @@ void agregarQuery(char* path,int prioridad,int id){
     nuevaQuery->qcb->prioridad = prioridad;
     nuevaQuery->qcb->queryID = id;
     nuevaQuery->qcb->PC = 0;
+    nuevaQuery->qcb->desalojoEnCurso=false;
     pthread_mutex_init(&nuevaQuery->mutex,NULL);
 
     listaAdd(nuevaQuery,&listaReady);
@@ -507,10 +508,11 @@ void *operarWorker(void*socketClienteVoid){
         eliminarPaquete(paquete);
         break;
     }
-                // pthread_mutex_lock(&queryDesalojada->mutex);
+                pthread_mutex_lock(&queryDesalojada->mutex);
                 queryDesalojada->qcb->PC = pcActualizado;
+                queryDesalojada->qcb->desalojoEnCurso=false;
                 listaAdd(queryDesalojada,&listaReady);
-                // pthread_mutex_unlock(&queryDesalojada->mutex);
+                pthread_mutex_unlock(&queryDesalojada->mutex);
                 log_info(logger,"## Se desaloja la Query <%d> (<%d>)-del Worker <%d>Motivo:<Planificacicon>",idQuery, queryDesalojada->qcb->prioridad, w->workerID);
                 liberarWorker(w);
                 sem_post(&sem_ready);

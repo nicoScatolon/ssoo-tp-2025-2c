@@ -515,7 +515,7 @@ char* obtenerContenidoDelMarco(int nro_marco, int offset, int size){ //El limite
     
     //SUMAR RETARDO DE MEMORIA (marco accedido)
     // log_info(logger,"“Query <QUERY_ID>: Acción: <LEER / ESCRIBIR> - Dirección Física: <DIRECCION_FISICA> - Valor: <VALOR LEIDO / ESCRITO>");
-    aplicarRetardoMemoria();
+    // aplicarRetardoMemoria(); //lo sacamos despues de prueba de fifo
     return contenido; // caller debe free(contenido)
 }
 
@@ -666,7 +666,7 @@ char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, in
 
     pthread_mutex_unlock(&tabla_paginas_mutex);
     
-    
+    aplicarRetardoMemoria(); //este no estaba, lo agregamos despues de prueba de fifo.
     return contenido;
 }
 
@@ -710,6 +710,12 @@ void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina,
 
 void escribirMarcoConOffset(int numeroMarco, char* contenido, int offset, int size){
     pthread_mutex_lock(&memoria_mutex);
+
+    if (offset == 0)
+    {
+        memset(memoria + (numeroMarco * configW->BLOCK_SIZE), 0, configW->BLOCK_SIZE);
+    }
+    
     memcpy(memoria + (numeroMarco * configW->BLOCK_SIZE) + offset, contenido, size);
     pthread_mutex_unlock(&memoria_mutex);
     return;
@@ -751,7 +757,7 @@ void escribirEnMemoriaPaginaCompleta(char* nombreFile, char* tag, int numeroPagi
     // Escribir en memoria fisica
     escribirMarcoConOffset(marcoLibre, contenidoPagina,0,size);
 
-    aplicarRetardoMemoria();
+    // aplicarRetardoMemoria(); //lo sacamos despues de prueba de fifo
     
     actualizarMetadataTablaPagina(tabla);
     

@@ -106,7 +106,8 @@ void inicializarBloqueCero(char* pathPhysicalBlocks) {
 void levantarFileSystem(){
     if (configS->freshStart){
         log_debug(logger, "FRESH_START=TRUE: Formateando FileSystem...");
-        // eliminarFileSystemAnterior();
+        
+        eliminarFileSystemAnterior();
 
         pathBloquesFisicos = inicializarDirectorio(configS->puntoMontaje,"physical_blocks");
         char* pathBitMap = string_from_format("%s/bitmap.bin", configS->puntoMontaje);

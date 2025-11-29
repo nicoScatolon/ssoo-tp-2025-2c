@@ -18,8 +18,46 @@ pthread_mutex_t mutexWorkers = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_bitmap = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_bitmap_file = PTHREAD_MUTEX_INITIALIZER;
 
-// Mutex para el metadata
-pthread_mutex_t mutex_metadata = PTHREAD_MUTEX_INITIALIZER;
+
+// Mutex por File:Tag
+t_dictionary* mutex_file_tags = NULL;
+pthread_mutex_t mutex_diccionario_file_tags = PTHREAD_MUTEX_INITIALIZER;
+
+void inicializarMutexFileTag(void) {
+    mutex_file_tags = dictionary_create();
+}
+
+pthread_mutex_t* obtenerMutexFileTag(char* file, char* tag) {
+    char* key = string_from_format("%s:%s", file, tag);
+    
+    pthread_mutex_lock(&mutex_diccionario_file_tags);
+    
+    pthread_mutex_t* mutex = dictionary_get(mutex_file_tags, key);
+    if (mutex == NULL) {
+        mutex = malloc(sizeof(pthread_mutex_t));
+        pthread_mutex_init(mutex, NULL);
+        dictionary_put(mutex_file_tags, strdup(key), mutex);
+    }
+    
+    pthread_mutex_unlock(&mutex_diccionario_file_tags);
+    free(key);
+    return mutex;
+}
+
+void liberarMutexFileTag(char* file, char* tag) {
+    char* key = string_from_format("%s:%s", file, tag);
+    
+    pthread_mutex_lock(&mutex_diccionario_file_tags);
+    
+    pthread_mutex_t* mutex = dictionary_remove(mutex_file_tags, key);
+    if (mutex != NULL) {
+        pthread_mutex_destroy(mutex);
+        free(mutex);
+    }
+    
+    pthread_mutex_unlock(&mutex_diccionario_file_tags);
+    free(key);
+}
 
 
 // crear/ocupar un bloque a partir de contenido: ahora recibe el contenido y su longitud.

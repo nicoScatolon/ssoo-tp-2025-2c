@@ -41,8 +41,18 @@ extern size_t bitmap_num_bits;     // cantidad total de bits (equal a cantidad d
 extern int bitmap_fd;            // fd del archivo bitmap
 
 extern pthread_mutex_t mutex_bitmap; 
-extern pthread_mutex_t mutex_bitmap_file; 
-extern pthread_mutex_t mutex_metadata;
+extern pthread_mutex_t mutex_bitmap_file;
+
+
+// Mutex por File:Tag
+extern t_dictionary* mutex_file_tags;
+extern pthread_mutex_t mutex_diccionario_file_tags;
+
+pthread_mutex_t* obtenerMutexFileTag(char* file, char* tag);
+void liberarMutexFileTag(char* file, char* tag);
+void inicializarMutexFileTag(void);
+void destruirMutexFileTag(void);
+
 
 typedef struct {
     int socket;

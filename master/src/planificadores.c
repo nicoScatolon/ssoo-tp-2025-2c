@@ -34,8 +34,7 @@ void* planificadorPrioridad(){
     {
         sem_wait(&sem_ready);
         if (!hayWorkerLibre())
-        {
-            sem_post(&sem_desalojo);
+        {   sem_post(&sem_desalojo);    
              sem_wait(&sem_workers_libres);
              sem_post(&sem_ready);
             continue;
@@ -62,20 +61,26 @@ void* planificadorPrioridad(){
 // ------------------- Desalojo -------------------
 void* evaluarDesalojo(){
     while(1){
-        sem_wait(&sem_execute);
+        // sem_wait(&sem_execute);
         sem_wait(&sem_desalojo);    
         query* queryReady = obtenerQueryMayorPrioridad();
         query* queryExec = obtenerQueryMenorPrioridad();
 
         if (queryReady && queryExec){
-            if (queryReady->qcb->prioridad < queryExec->qcb->prioridad){
+            pthread_mutex_lock(&queryExec->mutex);
+            if (queryReady->qcb->prioridad < queryExec->qcb->prioridad && !queryExec->qcb->desalojoEnCurso){
+                queryExec->qcb->desalojoEnCurso = true;
+                pthread_mutex_unlock(&queryExec->mutex);
                 worker* w = buscarWorkerPorQueryId(queryExec->qcb->queryID);
                 enviarOpcode(DESALOJO_QUERY_PLANIFICADOR,w->socketDesalojo);
                 t_paquete*paquete=crearPaquete();
-                agregarIntAPaquete(paquete,queryExec->qcb->queryID);
+                agregarIntAPaquete(paquete,w->idActual);
                 enviarPaquete(paquete,w->socketDesalojo);
                 eliminarPaquete(paquete);
                 log_debug(logger,"Notificando desalojo de Query <%d>",queryExec->qcb->queryID);
+            }
+            else{
+                pthread_mutex_unlock(&queryExec->mutex);
             }
         }
     }
@@ -93,7 +98,7 @@ void* aging(void *arg){
             q->qcb->prioridad-=1;
             pthread_mutex_unlock(&q->mutex);
             log_info(logger,"##<%d> Cambio de prioridad: <%d> - <%d>",q->qcb->queryID,prioridadVieja,q->qcb->prioridad);
-            sem_post(&sem_desalojo);
+            sem_post(&sem_desalojo);    
         }
         else if(estaEnListaPorId(&listaExecute,idQuery)){
             log_debug(logger,"Query <%d> esta en EXEC no se reduce prioridad",idQuery);

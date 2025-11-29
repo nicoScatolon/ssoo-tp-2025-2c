@@ -1,5 +1,7 @@
 #include "query_interpreter.h"
 
+
+
 #define BUF_SZ 512
 
 contexto_query_t* cargarQuery(char* path, int query_id, int pc_inicial) { 
@@ -362,15 +364,14 @@ void desalojarQuery(int idQuery, opcode motivo) {
     int pc = contexto->pc;
 
     t_list* keys = dictionary_keys(tablasDePaginas);
-
-    for (int i = 0; i < list_size(keys); i++) {
+    for (int i = 0; i < dictionary_size(tablasDePaginas); i++) {
         char* key = list_get(keys, i);
         char* file = obtenerNombreFile(key);
         char* tag  = obtenerNombreTag(key);
+        log_debug(logger,"key <%s> file <%s> tag<%s>",key,file,tag);
         ejecutar_flush(file, tag, idQuery);
         free(file);
         free(tag);
-        free(key);
     }
     list_destroy(keys);
     

@@ -75,6 +75,7 @@ bool ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* cont
             exit(EXIT_FAILURE);
             return false;
         }
+        log_debug(logger, "ESTO ES EL CONTENIDO ESCRITO EN LA PAGINA: <%s>", contenidoPagina);
         
         escribirContenidoDesdeOffset(fileName, tagFile, paginaActual, marco, 
                                       contenidoPagina, offsetEnPagina, bytesAEscribir);
@@ -287,6 +288,12 @@ bool ejecutar_delete(char* fileNam, char* tagFile, int query_id){
     agregarStringAPaquete(paquete, tagFile);
     enviarPaquete(paquete, socketStorage/*socket storage*/);
     eliminarPaquete(paquete);
+
+    if (escucharStorage() == -1) {
+        notificarMasterError("Error al ejecutar DELETE");
+        return false;
+    }
+
     return true;
 }   
 

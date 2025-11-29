@@ -183,6 +183,7 @@ void *operarWorkers(void*socketClienteVoid){
             if (!escribirBloque(file, tag, numeroBloque, contenido, idQuery)) {
                 enviarOpcode(RESPUESTA_ERROR, socketCliente);
             } else {
+                log_info(logger,"##<%d> - Bloque Lógico Escrito <%s>:<%s> - Número de Bloque: <%d>", idQuery, file, tag, numeroBloque);
                 enviarOpcode(RESPUESTA_OK, socketCliente);
             }
 
@@ -192,54 +193,50 @@ void *operarWorkers(void*socketClienteVoid){
             eliminarPaquete(paquete);
             break;
         }
-       case FLUSH_FILE: {
-        t_paquete* paqueteAviso = recibirPaquete(socketCliente);
-        int offset = 0;
-        int idQuery = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
-        char* file = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
-        char* tag = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
-        int cantidadBloques = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
+        case FLUSH_FILE: {
+            t_paquete* paqueteAviso = recibirPaquete(socketCliente);
+            int offset = 0;
+            int idQuery = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
+            char* file = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
+            char* tag = recibirStringDePaqueteConOffset(paqueteAviso, &offset);
+            int cantidadBloques = recibirIntDePaqueteconOffset(paqueteAviso, &offset);
         
-    log_debug(logger, "##<%d> - Iniciando FLUSH de <%s>:<%s> con <%d> bloques", 
-              idQuery, file, tag, cantidadBloques);
+            log_debug(logger, "##<%d> - Iniciando FLUSH de <%s>:<%s> con <%d> bloques", idQuery, file, tag, cantidadBloques);
     
-    
-    bool huboError = false;
-    int i = 0;
-    
-    while (i < cantidadBloques && !huboError) {
-        t_paquete* paqueteContenido = recibirPaquete(socketCliente);
-        offset = 0;
-        int numeroBloque = recibirIntDePaqueteconOffset(paqueteContenido, &offset);
-        char* contenido = recibirStringDePaqueteConOffset(paqueteContenido, &offset);
-        
-        log_debug(logger, "##<%d> - FLUSH bloque <%d> con contenido <%s>", 
-                  idQuery, numeroBloque, contenido);
-        
-        aplicarRetardoOperacion();
-        
-        if (!escribirBloque(file, tag, numeroBloque, contenido, idQuery)) {
-            huboError = true;
-        } else {
-            log_debug(logger, "bloque numero <%d> escrito en FLUSH: <%s>", 
-                      numeroBloque, contenido);
-        }
-        
-        eliminarPaquete(paqueteContenido);
-        free(contenido);
-        i++;
-        if (huboError) {
-            enviarOpcode(RESPUESTA_ERROR, socketCliente);
+            bool huboError = false;
+            int i = 0;
+            
+            while (i < cantidadBloques && !huboError) {
+                t_paquete* paqueteContenido = recibirPaquete(socketCliente);
+                offset = 0;
+                int numeroBloque = recibirIntDePaqueteconOffset(paqueteContenido, &offset);
+                char* contenido = recibirStringDePaqueteConOffset(paqueteContenido, &offset);
+                
+                log_debug(logger, "##<%d> - FLUSH bloque <%d> con contenido <%s>", idQuery, numeroBloque, contenido);
+                
+                aplicarRetardoOperacion();
+                
+                if (!escribirBloque(file, tag, numeroBloque, contenido, idQuery)) {
+                    huboError = true;
+                } else {
+                    log_debug(logger, "bloque numero <%d> escrito en FLUSH: <%s>", numeroBloque, contenido);
+                }
+                
+                eliminarPaquete(paqueteContenido);
+                free(contenido);
+                i++;
+                if (huboError) {
+                    enviarOpcode(RESPUESTA_ERROR, socketCliente);
+                    break;
+                } else {
+                    enviarOpcode(RESPUESTA_OK, socketCliente);
+                }
+            }
+            free(file);
+            free(tag);
+            eliminarPaquete(paqueteAviso);
             break;
-        } else {
-            enviarOpcode(RESPUESTA_OK, socketCliente);
         }
-    }
-    free(file);
-    free(tag);
-    eliminarPaquete(paqueteAviso);
-    break;
-}
         case READ_BLOCK:{ // HECHO
             t_paquete* paqueteRecibido = recibirPaquete(socketCliente);
             int offsetRecibido = 0;
@@ -254,7 +251,7 @@ void *operarWorkers(void*socketClienteVoid){
                 enviarOpcode(RESPUESTA_ERROR,socketCliente);
                 break;
             }
-            log_info(logger,"##<%d> - Bloque Lógico Leído <%s>:<%s> - Número de Bloque: <%d>",idQuery,file,tag,numeroBloque);
+            log_info(logger,"##<%d> - Bloque Lógico Leído <%s>:<%s> - Número de Bloque: <%d>", idQuery, file, tag, numeroBloque);
             
             enviarOpcode(OBTENER_CONTENIDO_PAGINA,socketCliente); //Agregarlo al hacer el merge
             t_paquete* paqueteEnviar = crearPaquete();
@@ -281,6 +278,7 @@ void *operarWorkers(void*socketClienteVoid){
             if (!eliminarTag(file, tag, idQuery)) {
                 enviarOpcode(RESPUESTA_ERROR, socketCliente);
             } else {
+                log_info(logger, "##<%d> - Tag Eliminado <%s>:<%s>", idQuery, file, tag);
                 enviarOpcode(RESPUESTA_OK, socketCliente);
             }
 
@@ -299,14 +297,14 @@ void *operarWorkers(void*socketClienteVoid){
 void incrementarWorkers(int workerId){
     pthread_mutex_lock(&mutex_cantidad_workers);
     cantidadWorkers++;
-    log_info(logger," ##Se conecta el Worker <%d> - Cantidad de Workers: <%d>",workerId,cantidadWorkers);
+    log_info(logger,"##Se conecta el Worker <%d> - Cantidad de Workers: <%d>", workerId, cantidadWorkers);
     pthread_mutex_unlock(&mutex_cantidad_workers);
 }
 
 void decrementarWorkers(int workerId){
     pthread_mutex_lock(&mutex_cantidad_workers);
     cantidadWorkers--;
-    log_info(logger,"##Se desconecta el Worker <%d> - Cantidad de Workers: <%d>",workerId,cantidadWorkers);
+    log_info(logger,"##Se desconecta el Worker <%d> - Cantidad de Workers: <%d>", workerId, cantidadWorkers);
     pthread_mutex_unlock(&mutex_cantidad_workers);
 }
 

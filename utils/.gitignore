@@ -1,7 +1,6 @@
 # Generated files
 lib/
 obj/
-configs/
 *.log
 
 # Eclipse files
