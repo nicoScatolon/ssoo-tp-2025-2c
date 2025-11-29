@@ -5,7 +5,7 @@ int socketMasterDesalojo;
 int socketStorage;
 
 contexto_query_t* contexto = NULL;
-
+pthread_mutex_t mutex_socket_master;
 void conexionConMaster(int workerId) {
     char* puertoMaster = string_itoa(configW->puertoMaster);
     socketMaster = crearConexion(configW->IPMaster, puertoMaster, logger);
@@ -20,15 +20,30 @@ void conexionConMaster(int workerId) {
 
     eliminarPaquete(paquete);
     free(puertoMaster);
+
+    // pthread_t hilo_query;
+    // pthread_create(&hilo_query,NULL,escucharMaster,NULL);
+    // pthread_detach(hilo_query);
 }
-void conexionConMasterDesalojo() {
+
+void conexionConMasterDesalojo(int workerId) {
     char* puertoMasterDesalojo = string_itoa(configW->puertoMasterDesalojo);
     socketMasterDesalojo = crearConexion(configW->IPMaster, puertoMasterDesalojo, logger);
     comprobarSocket(socketMasterDesalojo, "Worker", "Master_Desalojo", logger);
-    log_debug(logger," ## Conexión al Master_Desalojo exitosa. IP: <%s>, Puerto: <%d>", configW->IPMaster,configW->puertoMasterDesalojo);
+    log_info(logger," ## Conexión al Master_Desalojo exitosa. IP: <%s>, Puerto: <%d>", configW->IPMaster,configW->puertoMasterDesalojo);
     
-    enviarHandshake(socketMasterDesalojo, WORKER);
+    t_paquete* paquete = crearPaquete();
+    enviarHandshake(socketMasterDesalojo, WORKER_DESALOJO);
+    enviarOpcode(CONEXION_DESALOJO,socketMasterDesalojo); 
+    agregarIntAPaquete(paquete,workerId);
+    enviarPaquete(paquete,socketMasterDesalojo); //No estaba
+
+    eliminarPaquete(paquete);
     free(puertoMasterDesalojo);
+    
+    pthread_t hilo_desalojo;
+    pthread_create(&hilo_desalojo,NULL,escucharDesalojo,NULL);
+    pthread_detach(hilo_desalojo);
 }
 
 void conexionConStorage(int workerId) {
@@ -50,107 +65,117 @@ void conexionConStorage(int workerId) {
 }
 
 void escucharMaster() {
-    while(1){
+    while(1) {
         opcode codigo;
-        int recibido = recv(socketMaster,&codigo,sizeof(opcode),MSG_WAITALL);
+        
+        pthread_mutex_lock(&mutex_socket_master);
+        int recibido = recv(socketMaster, &codigo, sizeof(opcode), MSG_WAITALL);
+        
         if (recibido <= 0) {
+            pthread_mutex_unlock(&mutex_socket_master);
             log_warning(logger, "## Desconexión del Master en socket <%d>", socketMaster);
             close(socketMaster);
-            return;
+            exit(EXIT_FAILURE);
         }
+        
         switch (codigo) {
-            case NUEVA_QUERY: { // NUEVO opcode
+            case NUEVA_QUERY: {
                 t_paquete* paquete = recibirPaquete(socketMaster);
+                pthread_mutex_unlock(&mutex_socket_master);  // Desbloquear después de leer
+                
                 if (!paquete) {
                     log_error(logger, "Error recibiendo paquete de NUEVA_QUERY");
-                    break;
+                    exit(EXIT_FAILURE);
                 }
 
                 int offset = 0;
                 char* path = recibirStringDePaqueteConOffset(paquete, &offset);
-                int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
-                int pc = recibirIntDePaqueteconOffset(paquete,&offset);
-                log_info(logger, "Recepción de Query: ## Query <%d>: Se recibe la Query. El path de operaciones es: <%s>",idQuery,path);
-                // log_debug(logger,"Se rompe antes del memset");
+                int idQuery = recibirIntDePaqueteconOffset(paquete, &offset);
+                int pc = recibirIntDePaqueteconOffset(paquete, &offset);
+                
+                log_info(logger, "Recepción de Query: ## Query <%d>: Se recibe la Query. El path de operaciones es: <%s>", idQuery, path);
 
-                // memset(contexto, 0, sizeof(contexto_query_t));
-                contexto = cargarQuery(path, idQuery, pc);
+                contexto = cargarQuery(path, idQuery, pc); 
 
                 if (!contexto) {
                     log_error(logger, "Error al cargar query %d", idQuery);
                     free(path);
                     eliminarPaquete(paquete);
-                    break;
+                    exit(EXIT_FAILURE);
                 }
-
-                // log_debug(logger,"Se rompe despues del memset");
-                ejecutarQuery(contexto); //hay que lanzar un hilo para esto.
-
-                liberarContextoQuery(contexto);
-                contexto = NULL;
                 
-                free(path);
+                ejecutarQuery(contexto);
+                liberarContextoQuery(contexto);
                 eliminarPaquete(paquete);
                 break;
             }
             default:
+                pthread_mutex_unlock(&mutex_socket_master);
                 log_warning(logger, "Opcode desconocido recibido del Master: %d", codigo);
                 break;
         }
     }
 }
+
 void* escucharDesalojo() {
+    log_debug(logger,"Hilo corriendo");
     while (1) {
         opcode codigo;
         int recibido = recv(socketMasterDesalojo,&codigo,sizeof(opcode),MSG_WAITALL);
+        log_debug(logger,"Opcode recibido <%d>",recibido);
         if (recibido < 0) {
             log_warning(logger, "## Desconexión del MasterDesalojo en socket <%d>", socketMasterDesalojo);
             close(socketMasterDesalojo);
             pthread_exit(NULL);
         }
-
+        log_warning(logger,"Recibido codigo <%d> en hilo desalojo", codigo);
+        
         switch (codigo) {
             case DESALOJO_QUERY_PLANIFICADOR:{
                 sem_post(&sem_hayInterrupcion); 
+                sem_wait(&sem_interrupcionAtendida);
+                log_warning(logger,"Notificando interrupcion");
+   
                 t_paquete* paquete = recibirPaquete(socketMasterDesalojo);
                 if(!paquete){
                     log_error(logger, "Error recibiendo paquete de DESALOJO_QUERY_PLANIFICADOR");
-                    break;
+                    exit(EXIT_FAILURE);
                 }
                 int offset = 0;
                 int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
-                log_info(logger,"Desalojo de Query: ## Query <%d>: Desalojada por pedido del Master",idQuery);
-            
-                //ejecutar flush y enviar Id y PC actualizado (creo que conviene hacer todo esto en el query interpreter)
-                desalojarQuery(idQuery, DESALOJO_QUERY_PLANIFICADOR);
+                log_info(logger,"Desalojo de Query: ## Query <%d> por pedido de master: Planificador",idQuery);
                 
                 eliminarPaquete(paquete);
+                desalojarQuery(idQuery, DESALOJO_QUERY_PLANIFICADOR);
+
                 break;
             }
             case DESALOJO_QUERY_DESCONEXION:{
                 sem_post(&sem_hayInterrupcion); 
+                sem_wait(&sem_interrupcionAtendida);
+                log_warning(logger,"Notificando interrupcion");
+    
                 t_paquete* paquete = recibirPaquete(socketMasterDesalojo);
                 if(!paquete){
                     log_error(logger, "Error recibiendo paquete de DESALOJO_QUERY_DESCONEXION");
-                    break;
+                    exit(EXIT_FAILURE);
                 }
                 int offset = 0;
                 int idQuery = recibirIntDePaqueteconOffset(paquete,&offset);
-                log_info(logger,"Desalojo de Query: ## Query <%d>: Desalojada por desconexión del cliente",idQuery);
-            
-                //ejecutar flush y enviar Id y PC actualizado (creo que conviene hacer todo esto en el query interpreter)
+                log_info(logger,"Desalojo de Query: ## Query <%d> por pedido de master: Desconexion ",idQuery);            
+                eliminarPaquete(paquete);
                 desalojarQuery(idQuery, DESALOJO_QUERY_DESCONEXION);
                 
-                eliminarPaquete(paquete);
                 break;
             }
             default:
                 log_warning(logger, "Opcode desconocido recibido del MasterDesalojo: %d", codigo);
-                break;
+                exit(EXIT_FAILURE);
         }
     }
     return NULL;
 }
+
 
 int escucharStorage() {
     opcode codigo;
@@ -162,7 +187,7 @@ int escucharStorage() {
     }
     switch (codigo) {
         case RESPUESTA_OK: { 
-            log_debug(logger,"Se ejecuto la instruccion correctamente");
+            //log_debug(logger,"Se ejecuto la instruccion correctamente");
             return 0; //no hay error
             break;
         }
@@ -199,8 +224,8 @@ char* escucharStorageContenidoPagina(){
     }
     switch (codigo) {
         case RESPUESTA_ERROR:{
+            log_warning(logger, "Error recibido del Storage al obtener contenido de página");
             return NULL;
-            break;
         }
         case OBTENER_CONTENIDO_PAGINA:{
             t_paquete* paquete = recibirPaquete(socketStorage);

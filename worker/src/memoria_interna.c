@@ -2,21 +2,25 @@
 
 char *memoria = NULL;        // memoria principal
 t_bitarray* bitmap = NULL;   // bitmap para páginas
-int cant_frames = 0;
+int cant_marcos = 0;
 t_dictionary* tablasDePaginas = NULL; //la key es <FILE>:<TAG>
+t_list* paginasPorMarco = NULL;
 
-int cant_paginas;
-void asignarCant_paginas(void);
+t_temporal* temp = NULL;
+VectorPaginaXMarco* vectorPaginaXMarco = NULL; // no usa mutex, debería?
+
 
 
 //Mutex
 pthread_mutex_t memoria_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t tabla_paginas_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void asignarCant_paginas(void){
-    cant_paginas = configW->tamMemoria / configW->BLOCK_SIZE;
+void aplicarRetardoMemoria() {
+    log_debug(logger, "Retardo de memoria aplicado: %d ms", configW->retardoMemoria);
+    usleep(configW->retardoMemoria * 1000);
 }
 
+// Inicializa la memoria interna, el bitmap y el vectorPaginaXMarco
 void inicializarMemoriaInterna(void) {
     pthread_mutex_lock(&memoria_mutex);
 
@@ -26,16 +30,19 @@ void inicializarMemoriaInterna(void) {
     }
 
     int tam_memoria = configW->tamMemoria;
-    int tam_frame  = configW->BLOCK_SIZE;
-    if (tam_frame <= 0) {
-        log_error(logger, "BLOCK_SIZE invalido: %d", tam_frame);
+    int tam_marco  = configW->BLOCK_SIZE;
+    if (tam_marco <= 0) {
+        log_error(logger, "BLOCK_SIZE invalido: %d", tam_marco);
         pthread_mutex_unlock(&memoria_mutex);
         exit(EXIT_FAILURE);
     }
 
-    cant_frames = tam_memoria / tam_frame;
-    if (cant_frames <= 0) {
-        log_error(logger, "Tam memoria insuficiente para pagina de %d bytes", tam_frame);
+    temp = temporal_create();
+    
+    cant_marcos = tam_memoria / tam_marco;
+    
+    if (cant_marcos <= 0) {
+        log_error(logger, "Tam memoria insuficiente para pagina de %d bytes", tam_marco);
         pthread_mutex_unlock(&memoria_mutex);
         exit(EXIT_FAILURE);
     }
@@ -47,10 +54,11 @@ void inicializarMemoriaInterna(void) {
         exit(EXIT_FAILURE);
     }
 
-    int bytes_bitmap = (cant_frames + 7) / 8; // redondeo hacia arriba
+    int bytes_bitmap = (cant_marcos + CHAR_BIT - 1) / CHAR_BIT; // redondeo hacia arriba
     void* bitmap_mem = calloc(1, bytes_bitmap);
     if (bitmap_mem == NULL) {
         log_error(logger, "Error calloc bitmap (%d bytes)", bytes_bitmap);
+        free(bitmap_mem); 
         free(memoria);
         memoria = NULL;
         pthread_mutex_unlock(&memoria_mutex);
@@ -58,23 +66,35 @@ void inicializarMemoriaInterna(void) {
     }
     
     bitmap = bitarray_create_with_mode(bitmap_mem, bytes_bitmap, LSB_FIRST); //revisar con valgrind si hay memory leak
+    bitmap_mem = NULL; 
     if (bitmap == NULL) {
         log_error(logger, "Error creando bitarray");
-        free(bitmap_mem);
+        free(memoria);
+        free(bitmap_mem); 
+        memoria = NULL;
+        pthread_mutex_unlock(&memoria_mutex);
+        exit(EXIT_FAILURE);
+    }
+    
+    vectorPaginaXMarco = vector_pxm_create(cant_marcos);
+    if (vectorPaginaXMarco == NULL) {
+        log_error(logger, "Error creando vectorPaginaXMarco");
+        bitarray_destroy(bitmap);
+        free(bitmap_mem); 
         free(memoria);
         memoria = NULL;
         pthread_mutex_unlock(&memoria_mutex);
         exit(EXIT_FAILURE);
     }
 
-    log_debug(logger, "Memoria interna inicializada: %d bytes, %d paginas, bitmap de %d bytes",
-              tam_memoria, cant_frames, bytes_bitmap);
-    
-
+    log_debug(logger, "Memoria interna inicializada: %d bytes, %d marcos, bitmap de %d bytes",
+              tam_memoria, cant_marcos, bytes_bitmap);
 
     pthread_mutex_unlock(&memoria_mutex);
 }
 
+
+// Inicializa el diccionario de tablas de páginas
 void inicializarDiccionarioDeTablas(void) {
     pthread_mutex_lock(&tabla_paginas_mutex);
     if (!tablasDePaginas){
@@ -91,103 +111,7 @@ void inicializarDiccionarioDeTablas(void) {
     pthread_mutex_unlock(&tabla_paginas_mutex);
 }
 
-
-void agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag){ 
-    pthread_mutex_lock(&tabla_paginas_mutex);
-
-    char* key = string_from_format("%s:%s", nombreFile, tag);
-    if (!key) {
-        log_error(logger, "Sin memoria para clave");
-        pthread_mutex_unlock(&tabla_paginas_mutex);
-        return;
-    }
-
-    if (dictionary_has_key(tablasDePaginas, key)) {
-        log_warning(logger, "La tabla de paginas para %s ya existe", key);
-        free(key);
-        pthread_mutex_unlock(&tabla_paginas_mutex);
-        return;
-    }
-
-    TablaDePaginas* tabla = calloc(1, sizeof(TablaDePaginas));
-    if (!tabla) {
-        log_error(logger, "Error al asignar memoria para la tabla de paginas de %s", key);
-        free(key);
-        pthread_mutex_unlock(&tabla_paginas_mutex);
-        return;
-    }
-
-    tabla->keyProceso = strdup(key);
-    if (!tabla->keyProceso) {
-        log_error(logger, "Error al duplicar key para tabla");
-        free(tabla);
-        free(key);
-        pthread_mutex_unlock(&tabla_paginas_mutex);
-        return;
-    }
-
-    int maxPaginas = (configW->FS_SIZE / configW->BLOCK_SIZE);
-    if (maxPaginas <= 0) {
-        log_error(logger, "Error: maxPaginas calculado es %d", maxPaginas);
-        free(tabla->keyProceso);
-        free(tabla);
-        free(key);
-        pthread_mutex_unlock(&tabla_paginas_mutex);
-        return;
-    }
-
-    tabla->entradas = calloc(maxPaginas, sizeof(EntradaDeTabla));
-    if (!tabla->entradas) {
-        log_error(logger, "Error al asignar memoria para entradas de %s", key);
-        free(tabla->keyProceso);
-        free(tabla);
-        free(key);
-        pthread_mutex_unlock(&tabla_paginas_mutex);
-        return;
-    }
-
-    for (int i = 0; i < maxPaginas; i++) {
-        inicializar_entrada(&tabla->entradas[i], i);
-    }
-
-    tabla->cantidadEntradasUsadas = 0;
-    tabla->capacidadEntradas = maxPaginas;
-    tabla->paginasPresentes = 0;
-    tabla->hayPaginasModificadas = false;
-
-    // Agregar al diccionario
-    dictionary_put(tablasDePaginas, key, tabla);
-    
-    log_debug(logger, "Tabla de paginas creada para %s con capacidad de %d páginas", 
-              key, maxPaginas);
-
-    free(key);
-    pthread_mutex_unlock(&tabla_paginas_mutex);
-}
-
-// Obtiene la tabla de páginas para un <FILE>:<TAG>
-TablaDePaginas* obtenerTablaPorFileYTag(char* nombreFile, char* tag){
-    char* key = string_from_format("%s:%s", nombreFile, tag);
-    if (!key) {
-        log_error(logger, "Sin memoria para crear la clave file:tag");
-        return NULL;
-    }
-    pthread_mutex_lock(&tabla_paginas_mutex);
-    TablaDePaginas* tabla = dictionary_get(tablasDePaginas, key);
-    if(tabla == NULL){
-            free(key);
-            free(tabla);
-            pthread_mutex_unlock(&tabla_paginas_mutex);
-            return NULL;
-        }
-    //Se hace la validacion si no existe afuera con un log warning
-    pthread_mutex_unlock(&tabla_paginas_mutex);
-    free(key);
-    log_debug(logger, "Tabla de paginas obtenida para %s:%s", nombreFile, tag);
-    return tabla;
-}
-
-
+// Libera toda la memoria interna y las estructuras asociadas
 void eliminarMemoriaInterna(void) {
     pthread_mutex_lock(&memoria_mutex);
 
@@ -201,6 +125,8 @@ void eliminarMemoriaInterna(void) {
         memoria = NULL;
     }
 
+    temporal_destroy(temp);
+
     pthread_mutex_lock(&tabla_paginas_mutex);
     if (tablasDePaginas) {
         dictionary_destroy_and_destroy_elements(tablasDePaginas, free);
@@ -208,30 +134,335 @@ void eliminarMemoriaInterna(void) {
     }
     pthread_mutex_unlock(&tabla_paginas_mutex);
 
-    cant_frames = 0;
+    cant_marcos = 0;
+
+    vector_pxm_destroy(vectorPaginaXMarco);
 
     pthread_mutex_unlock(&memoria_mutex);
 }
 
-//Reserva y libera marcos en el bitmap
+
+// Inicializa y agrega una tabla al diccionario
+TablaDePaginas* agreagarTablaPorFileTagADicionario(char* nombreFile, char* tag){ 
+    pthread_mutex_lock(&tabla_paginas_mutex);
+
+    char* key = string_from_format("%s:%s", nombreFile, tag);
+    if (!key) {
+        log_error(logger, "Sin memoria para clave");
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        return NULL;
+    }
+
+    if (dictionary_has_key(tablasDePaginas, key)) {
+        log_warning(logger, "La tabla de paginas para %s ya existe", key);
+        free(key);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        return NULL;
+    }
+
+    TablaDePaginas* tabla = calloc(1, sizeof(TablaDePaginas));
+    if (!tabla) {
+        log_error(logger, "Error al asignar memoria para la tabla de paginas de %s", key);
+        free(key);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        return NULL;
+    }
+
+    tabla->keyProceso = strdup(key);
+    log_debug(logger, "Creando tabla de paginas para %s, lo guardado en tabla->keyProceso: %s", key, tabla->keyProceso);
+    if (!tabla->keyProceso) {
+        log_error(logger, "Error al duplicar key para tabla");
+        free(tabla->keyProceso);
+        free(tabla);
+        free(key);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        return NULL;
+    }
+
+    int maxPaginas = (configW->FS_SIZE / configW->BLOCK_SIZE);
+    if (maxPaginas <= 0) {
+        log_error(logger, "Error: maxPaginas calculado es %d", maxPaginas);
+        free(tabla->keyProceso);
+        free(tabla);
+        free(key);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        return NULL;
+    }
+
+    tabla->entradas = calloc(maxPaginas, sizeof(EntradaDeTabla));
+    if (!tabla->entradas) {
+        log_error(logger, "Error al asignar memoria para entradas de %s", key);
+        free(tabla->keyProceso);
+        free(tabla);
+        free(key);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        return NULL;
+    }
+
+    for (int i = 0; i < maxPaginas; i++) {
+        inicializar_entrada(&tabla->entradas[i], i);
+    }
+
+    tabla->capacidadEntradas = maxPaginas;
+    tabla->paginasPresentes = 0;
+    tabla->hayPaginasModificadas = false;
+
+    // Agregar al diccionario
+    dictionary_put(tablasDePaginas, key, tabla);
+    
+    log_debug(logger, "Tabla de paginas creada para %s con capacidad de %d páginas", 
+              tabla->keyProceso, maxPaginas);
+
+    free(key);
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+
+    return tabla;
+}
+
+void actualizarMetadataTablaPagina(TablaDePaginas* tabla){
+    if (!tabla) {
+        log_error(logger, "Error: tabla NULL al actualizar metadata");
+        return;
+    }
+    
+    pthread_mutex_lock(&tabla_paginas_mutex);
+    
+    // Resetear contadores
+    int paginasPresentes = 0;
+    bool hayPaginasModificadas = false;
+    
+    // Recorrer todas las entradas de la tabla
+    for (int i = 0; i < tabla->capacidadEntradas; i++) {
+        EntradaDeTabla* entrada = &tabla->entradas[i];
+        
+        // Contar paginas presentes
+        if (entrada->bitPresencia) {
+            paginasPresentes++;
+            
+            // Verificar si hay paginas modificadas
+            if (entrada->bitModificado) {
+                hayPaginasModificadas = true;
+            }
+        }
+    
+    }
+    
+    // Actualizar metadata de la tabla
+    tabla->paginasPresentes = paginasPresentes;
+    tabla->hayPaginasModificadas = hayPaginasModificadas;
+    
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+    
+    log_debug(logger, "Metadata actualizada para %s: %d páginas presentes, %s páginas modificadas",
+              tabla->keyProceso, 
+              tabla->paginasPresentes,
+              tabla->hayPaginasModificadas ? "hay" : "no hay");
+}
+
+
+
+
+
+// Obtiene la tabla de páginas para un <FILE>:<TAG>
+TablaDePaginas* obtenerTablaPorFileYTag(char* nombreFile, char* tag){
+    char* key = string_from_format("%s:%s", nombreFile, tag);
+    if (!key) {
+        log_error(logger, "Sin memoria para crear la clave file:tag");
+        return NULL;
+    }
+    pthread_mutex_lock(&tabla_paginas_mutex);
+    TablaDePaginas* tabla = dictionary_get(tablasDePaginas, key);
+    if(tabla == NULL){
+        log_debug(logger, "Entro aca, No existe tabla de paginas para %s:%s", nombreFile, tag);
+        free(key);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        return NULL;
+    }
+    //Se hace la validacion si no existe afuera con un log warning
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+    free(key);
+    log_debug(logger, "Tabla de paginas obtenida para %s:%s", nombreFile, tag);
+    return tabla;
+}
+
+// Si keyVictima tiene keyVictima->key NULL, entonces el marco estaba libre y no se ejecutó reemplazo
 int obtenerMarcoLibre(void){
     pthread_mutex_lock(&memoria_mutex);
 
-    for (int i = 0; i < cant_paginas; i++) {
-        if (!bitarray_test_bit(bitmap, i)) { // Página libre
-            bitarray_set_bit(bitmap, i); // Marcar como usada
+    for (int i = 0; i < cant_marcos; i++) {
+        if (!bitarray_test_bit(bitmap, i)) {
             pthread_mutex_unlock(&memoria_mutex);
-            return i; // Retornar número de página libre
+            return i;
         }
     }
     pthread_mutex_unlock(&memoria_mutex);
-    log_debug(logger, "No hay marcos libres disponibles");
-    int marco = ejecutarAlgoritmoReemplazo();
-    if(marco < 0){
-        log_error(logger, "Error al ejecutar el algoritmo de reemplazo");
+    return -1; // No hay marcos libres
+}
+
+//Si hay un marco libre, lo devuelve reservado. Si no hay, ejecuta el algoritmo de reemplazo y lo devuelve reservado.
+int obtenerMarcoReservado(char* keyAsignar, int numeroPagina){
+
+    char* fileNameAsignar = NULL;
+    char* tagFileAsignar = NULL;
+    if (!ObtenerNombreFileYTag(keyAsignar, &fileNameAsignar, &tagFileAsignar)) {
+        log_error(logger, "Error al obtener <FILE>:<TAG> en obtenerMarcoReservado. key: %s", keyAsignar);
+        exit(EXIT_FAILURE);
+    }
+
+    int marco = obtenerMarcoLibre(); //tiene locks
+    if (marco == -1){
+        log_debug(logger, "No hay marcos libres disponibles, se ejecuta el algoritmo de reemplazo");
+        key_Reemplazo* keyVictima = ejecutarAlgoritmoReemplazo();// tiene locks -  //deberia devolver file:tag (key), nro pagina y nro marco
+        if(!keyVictima){ 
+            log_error(logger, "Error al ejecutar el algoritmo de reemplazo");
+            free(fileNameAsignar);
+            free(tagFileAsignar);
+            exit (EXIT_FAILURE);
+            return -1;
+        }
+
+        char* tagFileVictima = NULL;
+        char* nombreFileVictima = NULL;
+        if (!ObtenerNombreFileYTag(keyVictima->key, &nombreFileVictima, &tagFileVictima)) {
+            log_error(logger, "Error al obtener <FILE>:<TAG> en obtenerMarcoReservado. key: %s", keyVictima->key);
+            free(fileNameAsignar);
+            free(tagFileAsignar);
+            free(keyVictima->key);
+            free(keyVictima);
+            exit(EXIT_FAILURE);
+        }
+
+        
+        marco = keyVictima->marco;
+        if(liberarMarcoVictima(nombreFileVictima, tagFileVictima, keyVictima->pagina, marco) != 0){ //tiene locks
+            free(fileNameAsignar);
+            free(tagFileAsignar);
+            free(nombreFileVictima);
+            free(tagFileVictima);
+            free(keyVictima->key);
+            free(keyVictima);
+            return -1;
+        }
+        
+        
+        log_info(logger,"## Query <%d>: Se reemplaza la página <%s:%s>/<%d> por la <%s:%s><%d>",
+                                                                                            contexto->query_id,
+                                                                                            nombreFileVictima,
+                                                                                            tagFileVictima,
+                                                                                            keyVictima->pagina, 
+                                                                                            fileNameAsignar,
+                                                                                            tagFileAsignar,
+                                                                                            numeroPagina);
+        free(nombreFileVictima);
+        free(tagFileVictima);
+        free(keyVictima->key);
+        free(keyVictima);
+    }
+
+    asignarMarco(fileNameAsignar, tagFileAsignar, numeroPagina, marco); 
+
+    free(fileNameAsignar);
+    free(tagFileAsignar);
+    return marco;
+}
+
+
+
+// Libera el marco de la victima, enviando la pagina a storage si es necesario
+int liberarMarcoVictima(char* nombreFileVictima, char* tagFileVictima, int pagina, int marco){
+
+    TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFileVictima, tagFileVictima); 
+    if (!tabla) {
+        log_error(logger, "Error al obtener tabla de paginas para %s:%s al liberar marco victima", nombreFileVictima, tagFileVictima);
         return -1;
     }
-    return marco; // No hay páginas libres
+    if(tabla->entradas[pagina].bitModificado){
+        int respuesta = enviarPaginaAStorage(nombreFileVictima, tagFileVictima, pagina); // la funcion ya implementa la confirmacion de storage
+        if (respuesta == -1){
+            log_error(logger, "Error al enviar pagina a Storage %s:%s pagina %d", nombreFileVictima, tagFileVictima, pagina);
+            return -1;
+        } 
+        pthread_mutex_lock(&tabla_paginas_mutex);
+        tabla->entradas[pagina].bitModificado = false; 
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        
+    }
+    pthread_mutex_lock(&tabla_paginas_mutex);
+    tabla->entradas[pagina].bitPresencia = false; 
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+    
+
+    log_info(logger,"“Query <%d>: Se libera el Marco: <%d> perteneciente al - File: <%s> - Tag: <%s>",contexto->query_id,marco,nombreFileVictima,tagFileVictima);
+    liberarMarco(marco);
+    return 0;
+}
+
+// Asigna el marco a la pagina del file:tag correspondiente, agregandolo al vectorPaginaXMarco y marcandolo como ocupado
+void asignarMarco(char* fileNameAsignar, char* tagFileAsignar, int pagina, int marco){
+    asignarMarcoEntradaTabla(fileNameAsignar, tagFileAsignar, pagina, marco); // tiene locks
+    
+    char* keyAsignar = string_from_format("%s:%s", fileNameAsignar, tagFileAsignar);
+    bool rta = vector_pxm_addIndex(vectorPaginaXMarco, pagina, keyAsignar, marco);
+    
+    if (!rta){
+        log_error(logger, "Error al agregar paginaXMarco en vectorPaginaXMarco para key: <%s>, nroPagina: %d, nroMarco: %d", 
+                  keyAsignar, pagina, marco);
+        free(keyAsignar);
+        exit(EXIT_FAILURE);
+    }
+    
+    ocuparMarco(marco);
+    log_debug(logger, "Marco %d asignado a <%s> [pág %d]", marco, keyAsignar, pagina);
+    
+    free(keyAsignar);
+}
+
+
+void asignarMarcoEntradaTabla(char* nombreFile, char* tag, int numeroPagina, int numeroMarco){
+    TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFile, tag); // (CON lock interno)
+    if(!tabla){
+        // Crear nueva tabla
+        tabla = agreagarTablaPorFileTagADicionario(nombreFile, tag); // (CON lock interno)
+        log_debug(logger, "Tabla de paginas creada para %s:%s al asignar marco", nombreFile, tag);
+        
+        if(!tabla){
+            log_error(logger, "Error al crear tabla de paginas para %s:%s", nombreFile, tag);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // Ahora sí, hacer operaciones críticas con lock
+    pthread_mutex_lock(&tabla_paginas_mutex);
+    
+    if (!tabla->entradas) {
+        log_error(logger, "ERROR CRÍTICO: tabla->entradas es NULL para %s:%s", nombreFile, tag);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        exit(EXIT_FAILURE);
+    }
+    
+    // Verificar validez del número de página
+    if (numeroPagina < 0) {
+        log_error(logger, "Numero de pagina %d invalido para %s:%s (max: %d)",numeroPagina, nombreFile, tag, tabla->capacidadEntradas - 1);
+        pthread_mutex_unlock(&tabla_paginas_mutex);
+        exit(EXIT_FAILURE);
+    }
+    
+    // Configurar la entrada de la página
+    log_debug(logger, "Capacidad de entradas de tabla: %d, Presentes: %d", tabla->capacidadEntradas, tabla->paginasPresentes);
+    EntradaDeTabla* entrada = &tabla->entradas[numeroPagina];
+
+    // Actualizar la entrada
+    entrada->numeroMarco = numeroMarco;
+    entrada->numeroPagina = numeroPagina;
+    entrada->bitPresencia = true;
+    entrada->ultimoAcceso = obtener_tiempo_actual();
+    entrada->bitUso = true; //revisar si esta correcto...
+
+    pthread_mutex_unlock(&tabla_paginas_mutex);
+
+    actualizarMetadataTablaPagina(tabla);
+    
+    return;
 }
 
 //poner el bit del bitmap en 0
@@ -248,14 +479,27 @@ void liberarMarco(int nro_marco){
     pthread_mutex_unlock(&memoria_mutex);
 }
 
+void ocuparMarco(int nro_marco){
+    pthread_mutex_lock(&memoria_mutex);
+
+    if(bitarray_test_bit(bitmap, nro_marco)){ //si el marco ya esta ocupado tira error
+        log_warning(logger, "El marco %d ya está ocupado", nro_marco);
+        pthread_mutex_unlock(&memoria_mutex);
+        return;
+    }
+    bitarray_set_bit(bitmap, nro_marco);
+
+    pthread_mutex_unlock(&memoria_mutex);
+}
+
 //Devuelve el contenido todo del marco pedido. Me traigo el contenido de un marco, para leer, escribir, enviarlo a storage.
 char* obtenerContenidoDelMarco(int nro_marco, int offset, int size){ //El limite es BlockSize o BlockSize-1??
     if (nro_marco < 0) return NULL;
 
-    if(offset < 0 || size < 0 || offset + size < configW->BLOCK_SIZE){
-        log_error(logger, "Error de lectura: offset %d + size %d excede el tamaño de la página %d", offset, size, configW->BLOCK_SIZE);
-        return NULL;
-    }
+    // if(offset < 0 || size < 0 || offset + size < configW->BLOCK_SIZE){
+    //     log_error(logger, "Error de lectura: offset %d + size %d excede el tamaño de la página %d", offset, size, configW->BLOCK_SIZE);
+    //     return NULL;
+    // }
 
     size_t bitInicialMarco = (size_t)nro_marco * configW->BLOCK_SIZE + (offset);
 
@@ -268,68 +512,77 @@ char* obtenerContenidoDelMarco(int nro_marco, int offset, int size){ //El limite
         log_error(logger, "Error al obtener el contenido del marco %d (malloc fallo)", nro_marco);
         return NULL;
     }
-
+    
+    //SUMAR RETARDO DE MEMORIA (marco accedido)
+    // log_info(logger,"“Query <QUERY_ID>: Acción: <LEER / ESCRIBIR> - Dirección Física: <DIRECCION_FISICA> - Valor: <VALOR LEIDO / ESCRITO>");
+    // aplicarRetardoMemoria(); //lo sacamos despues de prueba de fifo
     return contenido; // caller debe free(contenido)
 }
 
 
 //general a usar por query_interpreter
 int obtenerNumeroDeMarco(char* nombreFile, char* tag, int numeroPagina){
-    log_debug(logger, "Obteniendo marco para %s:%s pagina %d", nombreFile, tag, numeroPagina);
-
     int marco = obtenerMarcoDesdePagina(nombreFile, tag, numeroPagina);
-    // log_debug(logger, "La pagina %d de %s:%s ya está en memoria", numeroPagina, nombreFile, tag);
-
+    
+    
     if(marco != -1){
+        log_debug(logger, "devolvio el marco: %d", marco);
+        
         return marco;
     }
     else{
-        log_debug(logger, "La pagina %d de %s:%s no está en memoria, se solicitará a Storage", numeroPagina, nombreFile, tag);
+        log_info(logger,"Query <%d>: - Memoria Miss - File: <%s> - Tag: <%s> - Pagina: <%d>",contexto->query_id,nombreFile,tag,numeroPagina);
         char* contenido = traerPaginaDeStorage(nombreFile, tag, contexto->query_id, numeroPagina);
         if(!contenido){
-            log_error(logger, "Error al traer pagina de Storage %s:%s pagina %d", nombreFile, tag, numeroPagina);
+            log_debug(logger, "Error al traer pagina de Storage %s:%s pagina %d", nombreFile, tag, numeroPagina);
             return -1;
         }
-        int marcoLibre = obtenerMarcoLibre();
+        char* key = string_from_format("%s:%s", nombreFile, tag); //Convertir nombreFile y tag en la key
+        
+        int marcoLibre = obtenerMarcoReservado(key, numeroPagina);
         if(marcoLibre == -1){
             log_error(logger, "Error al obtener marco libre para cargar pagina %s:%s pagina %d", nombreFile, tag, numeroPagina);
             free(contenido);
-            return -1;
+            exit(EXIT_FAILURE);
         }
-
+        //esta funcion no va tener q reservar marco
         escribirEnMemoriaPaginaCompleta(nombreFile, tag, numeroPagina, marcoLibre, contenido, configW->BLOCK_SIZE);
+        log_info(logger,"Query <%d>: - Memoria Add - File: <%s> - Tag: <%s> - Pagina: <%d> - Marco: <%d>",contexto->query_id,nombreFile,tag,numeroPagina,marcoLibre);
+
+        free(key);
         free(contenido);
+
         return marcoLibre;
     }
 }
 
 int obtenerMarcoDesdePagina(char* nombreFile, char* tag, int numeroPagina){
-    TablaDePaginas* tabla =  obtenerTablaPorFileYTag(nombreFile, tag);
     log_debug(logger, "Obteniendo marco desde tabla de paginas para %s:%s pagina %d", nombreFile, tag, numeroPagina);
+    TablaDePaginas* tabla =  obtenerTablaPorFileYTag(nombreFile, tag);
 
-    pthread_mutex_lock(&tabla_paginas_mutex);
     if (!tabla) {
         log_debug(logger, "No existe tabla de paginas para %s:%s", nombreFile, tag);
-        pthread_mutex_unlock(&tabla_paginas_mutex);
-        free(tabla);
         return -1;
     }
-    if(tabla->cantidadEntradasUsadas <= 0){
-        log_debug(logger, "La pagina %d no existe en la tabla de paginas para el proceso %s:%s", numeroPagina, nombreFile, tag);
-        pthread_mutex_unlock(&tabla_paginas_mutex);
-        free(tabla);
+
+    if (numeroPagina < 0 || numeroPagina >= tabla->capacidadEntradas) {
+        log_error(logger, "Numero de pagina %d invalido para %s:%s (max: %d)", 
+                  numeroPagina, nombreFile, tag, tabla->capacidadEntradas - 1);
         return -1;
     }
-    if(tabla->entradas[numeroPagina].bitPresencia == false){
+
+    pthread_mutex_lock(&tabla_paginas_mutex);
+
+    EntradaDeTabla *entrada = &tabla->entradas[numeroPagina];
+
+    if(entrada->bitPresencia == false){
         log_debug(logger, "La pagina %d no está en memoria para el proceso %s:%s", numeroPagina, nombreFile, tag);
         pthread_mutex_unlock(&tabla_paginas_mutex);
-        free(tabla);
         return -1;
     }
-    int marco = tabla->entradas[numeroPagina].numeroFrame;
+    int marco = entrada->numeroMarco;
     pthread_mutex_unlock(&tabla_paginas_mutex);
 
-    free(tabla);
     return marco;
 }
 
@@ -364,6 +617,7 @@ int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
 
     enviarOpcode(WRITE_BLOCK, socketStorage);
     t_paquete* paquete = crearPaquete();
+    agregarIntAPaquete(paquete, contexto->query_id);
     agregarStringAPaquete(paquete, nombreFile);
     agregarStringAPaquete(paquete, tag);
     agregarIntAPaquete(paquete, numeroPagina);
@@ -375,7 +629,7 @@ int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
 
     int respuesta = escucharStorage();
     if (respuesta == -1){
-        log_error(logger, "Error al enviar pagina a Storage %s:%s pagina %d", nombreFile, tag, numeroPagina);
+        log_debug(logger, "Error al enviar pagina a Storage %s:%s pagina %d", nombreFile, tag, numeroPagina);
         return -1;
     }
 
@@ -386,30 +640,33 @@ int enviarPaginaAStorage(char* nombreFile, char* tag, int numeroPagina){
 // Lectura en "Memoria Interna"
 char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, int offset, int size){
     
-    pthread_mutex_lock(&memoria_mutex);
     // Validar que el offset y size sean correctos, con el tamaño de la página
+    // if(offset < 0 || size < 0 || offset + size > configW->BLOCK_SIZE){
+    //     log_error(logger, "Error de lectura: offset %d + size %d excede el tamaño de la página %d", offset, size, configW->BLOCK_SIZE);
+    //     return NULL;
+    // }
+    
+
 
     char* contenido = obtenerContenidoDelMarco(numeroMarco, offset, size);
     if(!contenido){
-        pthread_mutex_unlock(&memoria_mutex);
         return NULL;
     }
-    pthread_mutex_unlock(&memoria_mutex);
 
-    pthread_mutex_lock(&tabla_paginas_mutex);
     TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFile, tag);
     if(!tabla){
         log_error(logger, "Error al obtener tabla de paginas para %s:%s", nombreFile, tag);
         free(contenido);
-        pthread_mutex_unlock(&tabla_paginas_mutex);
         return NULL;
     }
 
+    pthread_mutex_lock(&tabla_paginas_mutex);
     EntradaDeTabla* entrada = &tabla->entradas[numeroPagina];
     actualizar_acceso_pagina(entrada);
 
     pthread_mutex_unlock(&tabla_paginas_mutex);
     
+    aplicarRetardoMemoria(); //este no estaba, lo agregamos despues de prueba de fifo.
     return contenido;
 }
 
@@ -417,25 +674,24 @@ char* leerContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, in
 //revisar si es necesario pasarle el size
 void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina, int numeroMarco, char* contenido, int offset, int size){
     if(offset + size > configW->BLOCK_SIZE){
-        log_error(logger, "Error de escritura: offset %d + size %d excede el tamaño de la página %d", offset, size, configW->BLOCK_SIZE);
+        log_error(logger, "Error de escritura: offset %d + size %d excede el tamanio de la pagina %d", offset, size, configW->BLOCK_SIZE);
         exit(EXIT_FAILURE);
         return;
     }
     
     TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFile, tag);
+    log_debug(logger, "1. Escribiendo en tabla de paginas para %s:%s pagina %d", nombreFile, tag, numeroPagina);
     if(!tabla){
         log_error(logger, "Error al obtener tabla de paginas para %s:%s", nombreFile, tag);
-        return;
+        exit(EXIT_FAILURE);
     }
     
-    if(tabla->keyProceso != (string_from_format("%s:%s", nombreFile, tag))){
-        log_error(logger, "EL Marco %d NO pertenece al FILE:TAG %s:%s", numeroMarco, nombreFile, tag);
-        return;
+    if(strcmp(tabla->keyProceso, (string_from_format("%s:%s", nombreFile, tag))) != 0){
+        log_error(logger, "El Marco %d NO pertenece al FILE:TAG %s:%s", numeroMarco, nombreFile, tag);
+        exit(EXIT_FAILURE);
     }
 
-    pthread_mutex_lock(&memoria_mutex);
-    memcpy(memoria + (numeroMarco * configW->BLOCK_SIZE) + offset, contenido, size);
-    pthread_mutex_unlock(&memoria_mutex);
+    escribirMarcoConOffset(numeroMarco, contenido, offset,size);
 
     pthread_mutex_lock(&tabla_paginas_mutex);
 
@@ -445,129 +701,67 @@ void escribirContenidoDesdeOffset(char* nombreFile, char* tag, int numeroPagina,
     modificar_pagina(entrada);
 
     pthread_mutex_unlock(&tabla_paginas_mutex);
+
+    log_debug(logger, "Antes de aplicar retardo de memoria en escribirContenidoDesdeOffset");   
+
+    aplicarRetardoMemoria();
+    return;
 }
 
-//Debe escribir todo el contenido de un marco
-void agregarContenidoAMarco(int numeroMarco, char* contenido){
+void escribirMarcoConOffset(int numeroMarco, char* contenido, int offset, int size){
     pthread_mutex_lock(&memoria_mutex);
-    memcpy(memoria + (numeroMarco * configW->BLOCK_SIZE), contenido, configW->BLOCK_SIZE);
+
+    if (offset == 0)
+    {
+        memset(memoria + (numeroMarco * configW->BLOCK_SIZE), 0, configW->BLOCK_SIZE);
+    }
+    
+    memcpy(memoria + (numeroMarco * configW->BLOCK_SIZE) + offset, contenido, size);
     pthread_mutex_unlock(&memoria_mutex);
+    return;
 }
 
-
-void* leerDesdeMemoriaPaginaCompleta(char* nombreFile, char* tag, int numeroMarco){
-    // pthread_mutex_lock(&memoria_mutex);
-
-    // int tam_pagina = configW->BLOCK_SIZE;
-    // if (nroPagina < 0 || nroPagina >= cant_paginas) {
-    //     log_error(logger, "Acceso inválido a memoria: página %d", nroPagina);
-    //     pthread_mutex_unlock(&memoria_mutex);
-    //     return NULL; // Valor inválido
-    // }
-
-    // void* buffer = malloc(tam_pagina);
-    // if (buffer == NULL) {
-    //     log_error(logger, "Error al asignar memoria para leer página %d", nroPagina);
-    //     pthread_mutex_unlock(&memoria_mutex);
-    //     return NULL;
-    // }
-
-    // memcpy(buffer, memoria + nroPagina * tam_pagina, tam_pagina);
-
-    // pthread_mutex_unlock(&memoria_mutex);
-    // return buffer;
-}
 
 //tiene que revisar si el file:tag ya tiene la pagina en la tabla de paginas. o revisar si la pagina esta en la tabla de paginas (aunque sea ausente)
 void escribirEnMemoriaPaginaCompleta(char* nombreFile, char* tag, int numeroPagina, int marcoLibre, char* contenidoPagina, int size){ // Solo se usa cuando se trae la pagina de Storage
     // Validación de tamaño
-    log_debug(logger, "Estamos por Escribir pagina %d de %s:%s en marco %d", numeroPagina, nombreFile, tag, marcoLibre);
     if (size > configW->BLOCK_SIZE) {
         log_error(logger, "Error: size %d excede BLOCK_SIZE %d", size, configW->BLOCK_SIZE);
-        return;
+        exit(EXIT_FAILURE);
     }
     
     // Validez del marco
-    if(marcoLibre < 0 || marcoLibre >= cant_frames){
-        log_error(logger, "Numero de marco %d invalido (max: %d)", marcoLibre, cant_frames - 1);
-        return;
+    if(marcoLibre < 0 || marcoLibre >= cant_marcos){
+        log_error(logger, "Numero de marco %d invalido (max: %d)", marcoLibre, cant_marcos - 1);
+        exit(EXIT_FAILURE);
     }
-    
-    // Obtener o crear tabla 
-    TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFile, tag); // (CON lock interno)
-    
+    log_debug(logger, "Escribiendo pagina completa en memoria para %s:%s pagina %d en marco %d", nombreFile, tag, numeroPagina, marcoLibre);
+    asignarMarcoEntradaTabla(nombreFile, tag, numeroPagina, marcoLibre);
+
+
+    TablaDePaginas* tabla = obtenerTablaPorFileYTag(nombreFile, tag);
     if(!tabla){
-        // Crear nueva tabla
-        agreagarTablaPorFileTagADicionario(nombreFile, tag); // (CON lock interno)
-        tabla = obtenerTablaPorFileYTag(nombreFile, tag); // (CON lock interno)
-        tabla->entradas[]
-        // agregarEntradaTablaPaginas(tabla,numeroPagina,false); // 
-        
-        if(!tabla){
-            log_error(logger, "Error al crear tabla de paginas para %s:%s", nombreFile, tag);
-            return;
-        }
+        log_error(logger, "Error al obtener tabla de paginas para %s:%s", nombreFile, tag);
+        exit(EXIT_FAILURE);
     }
-    
-    // Ahora sí, hacer operaciones críticas con lock
     pthread_mutex_lock(&tabla_paginas_mutex);
-    
-    if (!tabla->entradas) {
-        log_error(logger, "ERROR CRÍTICO: tabla->entradas es NULL para %s:%s", nombreFile, tag);
-        pthread_mutex_unlock(&tabla_paginas_mutex);
-        return;
-    }
-    
-    // Verificar validez del número de página
-    if (numeroPagina < 0) {
-        log_error(logger, "Numero de pagina %d invalido para %s:%s (max: %d)", 
-                  numeroPagina, nombreFile, tag, tabla->capacidadEntradas - 1);
-        pthread_mutex_unlock(&tabla_paginas_mutex);
-        return;
-    }
-    
-    // Configurar la entrada de la página
-    log_debug(logger,"se rompe aca!!!");
-    log_debug(logger, "Cantidad de entradas usadas: %d, Capacidad: %d", 
-              tabla->cantidadEntradasUsadas, tabla->capacidadEntradas);
     EntradaDeTabla* entrada = &tabla->entradas[numeroPagina];
 
-    // Si la página ya estaba presente en otro marco, liberar el marco anterior
-    // if(entrada->bitPresencia && entrada->numeroFrame != marcoLibre){
-    //     log_warning(logger, "Página %d ya estaba en marco %d, reemplazando con marco %d", 
-    //                 numeroPagina, entrada->numeroFrame, marcoLibre);
-    //     int marcoAnterior = entrada->numeroFrame;
-    //     tabla->paginasPresentes--;
-        
-    //     pthread_mutex_unlock(&tabla_paginas_mutex);
-    //     liberarMarco(marcoAnterior); // Tiene su propio lock
-    //     pthread_mutex_lock(&tabla_paginas_mutex);
-    // }
-    
-    // Si es una página nueva (no estaba presente)
-    if(!entrada->bitPresencia){
-        tabla->paginasPresentes++;
-        if(numeroPagina >= tabla->cantidadEntradasUsadas) {
-            tabla->cantidadEntradasUsadas = numeroPagina + 1;
-        }
-    }
-    
-    // Actualizar la entrada
-    entrada->numeroFrame = marcoLibre;
-    entrada->bitPresencia = true;
-    
-    pthread_mutex_unlock(&tabla_paginas_mutex);
-    
-    // Escribir en memoria física
-    agregarContenidoAMarco(marcoLibre, contenidoPagina);
-    
-    // Actualizar metadatos de la página
-    pthread_mutex_lock(&tabla_paginas_mutex);
-    modificar_pagina(entrada);
+    entrada->bitModificado = false;
+
     tabla->hayPaginasModificadas = true;
     pthread_mutex_unlock(&tabla_paginas_mutex);
+
+    log_info(logger,"Query <%d>: Se asigna el Marco: <%d> a la Página: <%d> perteneciente al - File: <%s> - Tag: <%s>",contexto->query_id,marcoLibre,numeroPagina,nombreFile,tag);
     
-    log_debug(logger, "Página %d de %s:%s escrita en marco %d", numeroPagina, nombreFile, tag, marcoLibre);
+    // Escribir en memoria fisica
+    escribirMarcoConOffset(marcoLibre, contenidoPagina,0,size);
+
+    // aplicarRetardoMemoria(); //lo sacamos despues de prueba de fifo
+    
+    actualizarMetadataTablaPagina(tabla);
+    
+    return;
 }
 
 
@@ -588,66 +782,29 @@ void escribirEnMemoriaPaginaCompleta(char* nombreFile, char* tag, int numeroPagi
 // }
 
 
-//Devuelve el marco liberado, donde se llame debe encargarse de ocupar el marco liberado
-int ejecutarAlgoritmoReemplazo() {
-    EntradaDeTabla* paginaAReemplazar = NULL;
-    char* key = NULL; //file:Tag
-    int marcoLiberado = -1;
+//Devuelve un FileTag a reemplazar
+key_Reemplazo* ejecutarAlgoritmoReemplazo() {
     if (string_equals_ignore_case(configW->algoritmoReemplazo, "LRU")) {
-       key = ReemplazoLRU(&paginaAReemplazar); 
-    } else if (string_equals_ignore_case(configW->algoritmoReemplazo, "CLOCK-M")) {
-        key = ReemplazoCLOCKM(&paginaAReemplazar);
-    } else {
+        return ReemplazoLRU(); 
+    }
+    else if (string_equals_ignore_case(configW->algoritmoReemplazo, "CLOCK-M")) {
+        return ReemplazoCLOCKM();
+    } 
+    else {
         log_error(logger, "Algoritmo de reemplazo desconocido: %s", configW->algoritmoReemplazo);
-        return marcoLiberado; // Error: algoritmo desconocido
-    }
-    if (!paginaAReemplazar) {
-        log_error(logger, "Error: paginaAReemplazar es NULL");
-        free(key);
-        return marcoLiberado;
-    }
-
-    char *fileName = NULL, *tagFile = NULL;
-    
-    if (!ObtenerNombreFileYTag(key, &fileName, &tagFile)) {
-        log_error(logger, "Error al obtener <FILE>:<TAG> en ejecutarAlgoritmoReemplazo. key: %s", key);
-        if (key) free(key);
-        return marcoLiberado;
     }
     
-    marcoLiberado = paginaAReemplazar->numeroFrame;
-    
-    int respuesta = enviarPaginaAStorage(fileName, tagFile, paginaAReemplazar->numeroPagina); // la funcion ya implementa la confirmacion de storage
-    if (respuesta == -1){
-        log_error(logger, "Error al enviar pagina a Storage %s:%s pagina %d", fileName, tagFile, paginaAReemplazar->numeroPagina);
-        free(fileName);
-        free(tagFile);
-        free(paginaAReemplazar);
-        free(key);
-        return -1;
-    }
-
-    liberarMarco(marcoLiberado);
-
-    free(fileName);
-    free(tagFile);
-    free(paginaAReemplazar);
-    free(key);
-    log_debug(logger, "Página %s reemplazada en marco %d", key, marcoLiberado);
-
-    return marcoLiberado;
+    return NULL;
 }
 
+
 int64_t obtener_tiempo_actual() {
-    t_temporal* temp = temporal_create();
-    int64_t tiempo = temporal_gettime(temp);
-    temporal_destroy(temp);
-    return tiempo;
+    return temporal_gettime(temp);
 }
 
 void inicializar_entrada(EntradaDeTabla* entrada, int numeroPagina) {
     entrada->numeroPagina = numeroPagina;
-    entrada->numeroFrame = -1;  // Sin frame asignado aún
+    entrada->numeroMarco = -1;  // Sin marco asignado aún
     entrada->ultimoAcceso = obtener_tiempo_actual();  // Timestamp de creación
     entrada->bitModificado = false;
     entrada->bitUso = false;
@@ -663,194 +820,8 @@ void actualizar_acceso_pagina(EntradaDeTabla* entrada) {
 // Al MODIFICAR una página (escritura)
 void modificar_pagina(EntradaDeTabla* entrada) {
     entrada->ultimoAcceso = obtener_tiempo_actual();  // Actualizar timestamp
+    log_debug(logger, "tiempo actual actualizado en modificar_pagina: %ld", entrada->ultimoAcceso);
     entrada->bitUso = true;
     entrada->bitModificado = true;
 }
 
-
-char* ReemplazoLRU(EntradaDeTabla** entradaAReemplazar) {
-    char* keyProceso = NULL;
-    EntradaDeTabla* entradaMenorTiempo = NULL;
-    int64_t menorTiempo = INT64_MAX;  // Empezamos con el valor maximo posible
-
-    pthread_mutex_lock(&tabla_paginas_mutex);
-    
-    t_list* keys = dictionary_keys(tablasDePaginas);
-    
-    for(int i = 0; i < list_size(keys); i++) {
-        char* currentKey = list_get(keys, i);
-        TablaDePaginas* tabla = dictionary_get(tablasDePaginas, currentKey);
-        
-        for(int j = 0; j < tabla->cantidadEntradasUsadas; j++) {
-            EntradaDeTabla* entrada = &(tabla->entradas[j]);
-            
-            // Solo considerar páginas que están presentes en memoria
-            if(entrada->bitPresencia) {
-                // Comparación directa de timestamps
-                if(entrada->ultimoAcceso < menorTiempo) {
-                    menorTiempo = entrada->ultimoAcceso;
-                    entradaMenorTiempo = entrada;
-                    keyProceso = currentKey;
-                }
-            }
-        }
-    }
-    
-    list_destroy(keys);
-    pthread_mutex_unlock(&tabla_paginas_mutex);
-    
-    // Asignar la entrada encontrada al puntero de salida
-    if(entradaAReemplazar != NULL) {
-        *entradaAReemplazar = entradaMenorTiempo;
-    }
-    
-    return keyProceso;
-}
-
-char* ReemplazoCLOCKM(EntradaDeTabla** entradaAReemplazar) {
-    char* key = NULL;
-    EntradaDeTabla* entradaVictima = NULL;
-    bool encontrado = false;
-
-    pthread_mutex_lock(&tabla_paginas_mutex);
-    
-    t_list* keys = dictionary_keys(tablasDePaginas);
-    int totalProcesos = list_size(keys);
-    
-    if(totalProcesos == 0) {
-        list_destroy(keys);
-        pthread_mutex_unlock(&tabla_paginas_mutex);
-        return NULL;
-    }
-    
-    // Inicializar puntero si es la primera vez
-    if(punteroClockMod.keyProceso == NULL) {
-        punteroClockMod.keyProceso = strdup(list_get(keys, 0));
-        punteroClockMod.indicePagina = 0;
-    }
-    
-    // PASO 1: Buscar (0,0) - bitUso=false, bitModificado=false
-    encontrado = buscar_victima_clock(keys, &entradaVictima, &key, false, false, false);
-    
-    if(!encontrado) {
-        // PASO 2: Buscar (0,1) - bitUso=false, bitModificado=true
-        //         Durante la búsqueda, poner bitUso=false en todas las páginas que no coincidan
-        encontrado = buscar_victima_clock(keys, &entradaVictima, &key, false, true, true);
-        
-        if(!encontrado) {
-            // PASO 3: Volver a buscar (0,0) porque pusimos todos los bitUso en false
-            encontrado = buscar_victima_clock(keys, &entradaVictima, &key, false, false, false);
-        }
-    }
-    
-    list_destroy(keys);
-    pthread_mutex_unlock(&tabla_paginas_mutex);
-    
-    // Asignar la entrada encontrada al puntero de salida
-    if(entradaAReemplazar != NULL) {
-        *entradaAReemplazar = entradaVictima;
-    }
-    
-    return key; // Devuelve la key del proceso cuya página será reemplazada
-}
-
-
-void limpiar_puntero_clockM() {
-    if(punteroClockMod.keyProceso != NULL) {
-        free(punteroClockMod.keyProceso);
-        punteroClockMod.keyProceso = NULL;
-    }
-}
-
-bool buscar_victima_clock(t_list* keys, EntradaDeTabla** victima, char** keyOut, 
-                          bool buscarBitUso, bool buscarBitMod, bool limpiarBitUso) {
-    int totalProcesos = list_size(keys);
-    int procesoActual = encontrar_indice_proceso(keys, punteroClockMod.keyProceso);
-    int paginaActual = punteroClockMod.indicePagina;
-    
-    int paginasRevisadas = 0;
-    int totalPaginasEnMemoria = contar_paginas_presentes(keys);
-    
-    if(totalPaginasEnMemoria == 0) {
-        return false;
-    }
-    
-    while(paginasRevisadas < totalPaginasEnMemoria) {
-        char* currentKey = list_get(keys, procesoActual);
-        TablaDePaginas* tabla = dictionary_get(tablasDePaginas, currentKey);
-        
-        for(int j = paginaActual; j < tabla-> cantidadEntradasUsadas; j++) { // reemplace capacidadEntradas a cantidadEntradasUsadas
-            EntradaDeTabla* entrada = &(tabla->entradas[j]);
-            
-            if(entrada->bitPresencia) {
-                paginasRevisadas++;
-                
-                // Verificar si cumple el criterio buscado
-                if(entrada->bitUso == buscarBitUso && 
-                   entrada->bitModificado == buscarBitMod) {
-                    // ¡Encontramos la víctima!
-                    *victima = entrada;
-                    *keyOut = currentKey;
-                    
-                    // Avanzar el puntero para la próxima vez
-                    punteroClockMod.indicePagina = j + 1;
-                    
-                    if(punteroClockMod.indicePagina >= tabla->cantidadEntradasUsadas) {
-                        // Si llegamos al final de esta tabla, pasar al siguiente proceso
-                        procesoActual = (procesoActual + 1) % totalProcesos;
-                        punteroClockMod.indicePagina = 0;
-                        
-                        if(punteroClockMod.keyProceso != NULL) {
-                            free(punteroClockMod.keyProceso);
-                        }
-                        punteroClockMod.keyProceso = strdup(list_get(keys, procesoActual));
-                    } else {
-                        if(punteroClockMod.keyProceso != NULL) {
-                            free(punteroClockMod.keyProceso);
-                        }
-                        punteroClockMod.keyProceso = strdup(currentKey);
-                    }
-                    
-                    return true;
-                }
-                
-                // Si debemos limpiar el bit de uso y no encontramos víctima
-                if(limpiarBitUso) {
-                    entrada->bitUso = false;
-                }
-            }
-        }
-        
-        // Avanzar al siguiente proceso
-        procesoActual = (procesoActual + 1) % totalProcesos;
-        paginaActual = 0;
-        
-        // Actualizar el puntero del reloj
-        if(punteroClockMod.keyProceso != NULL) {
-            free(punteroClockMod.keyProceso);
-        }
-        punteroClockMod.keyProceso = strdup(list_get(keys, procesoActual));
-        punteroClockMod.indicePagina = 0;
-    }
-    
-    return false;
-}
-
-int encontrar_indice_proceso(t_list* keys, char* keyBuscada) {
-    for(int i = 0; i < list_size(keys); i++) {
-        if(strcmp(list_get(keys, i), keyBuscada) == 0) {
-            return i;
-        }
-    }
-    return 0;
-}
-
-int contar_paginas_presentes(t_list* keys) {
-    int count = 0;
-    for(int i = 0; i < list_size(keys); i++) {
-        char* currentKey = list_get(keys, i);
-        TablaDePaginas* tabla = dictionary_get(tablasDePaginas, currentKey);
-        count += tabla->paginasPresentes;
-    }
-    return count;
-}

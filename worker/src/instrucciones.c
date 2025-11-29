@@ -1,27 +1,28 @@
 #include "instrucciones.h"  
 
 
-void ejecutar_create(char* fileName, char* tagFile, int query_id){
-    enviarOpcode(CREATE_FILE, socketStorage/*socket storage*/);
+bool ejecutar_create(char* fileName, char* tagFile, int query_id){
+    enviarOpcode(CREATE_FILE, socketStorage);
 
     t_paquete* paquete = crearPaquete();
     agregarIntAPaquete(paquete, query_id);
     agregarStringAPaquete(paquete, fileName);
     agregarStringAPaquete(paquete, tagFile);
     
-    enviarPaquete(paquete, socketStorage/*socket storage*/);
+    enviarPaquete(paquete, socketStorage);
 
     int respuesta = escucharStorage();
     if (respuesta == -1){
-        notificarMasterError();
+        notificarMasterError("Error al ejecutar CREATE");
+        return false;
     }
-    
     eliminarPaquete(paquete);
+    return true;
 }
 
 // Esperar confirmacion de storage luego de hacer un truncate antes de ejecutar la siguiente instruccion.
-void ejecutar_truncate(char* fileName, char* tagFile, int size, int query_id){
-    enviarOpcode(TRUNCATE_FILE, socketStorage/*socket storage*/);
+bool ejecutar_truncate(char* fileName, char* tagFile, int size, int query_id){
+    enviarOpcode(TRUNCATE_FILE, socketStorage);
 
     t_paquete* paquete = crearPaquete();
     agregarIntAPaquete(paquete, query_id);
@@ -29,65 +30,139 @@ void ejecutar_truncate(char* fileName, char* tagFile, int size, int query_id){
     agregarStringAPaquete(paquete, tagFile);
     agregarIntAPaquete(paquete, size); 
 
-    enviarPaquete(paquete, socketStorage/*socket storage*/);
+    enviarPaquete(paquete, socketStorage);
+    eliminarPaquete(paquete);
 
     int respuesta = escucharStorage();
     if (respuesta == -1){
-        notificarMasterError();
+        notificarMasterError("Error al ejecutar TRUNCATE");
+        return false;
+    }
+    return true;
+}
+
+bool ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* contenido, contexto_query_t* contexto){
+    
+    int offsetInicial = calcularOffsetDesdeDireccionBase(direccionBase);
+    int primerPagina = calcularPaginaDesdeDireccionBase(direccionBase);
+    int tamanioContenido = strlen(contenido);
+    
+    // Calcular última página que necesitamos
+    int ultimaPagina = (direccionBase + tamanioContenido - 1) / configW->BLOCK_SIZE;
+    
+    int offsetDentroContenido = 0;
+
+    for (int paginaActual = primerPagina; paginaActual <= ultimaPagina; paginaActual++) {
+        
+        int offsetEnPagina = (paginaActual == primerPagina) ? offsetInicial : 0;
+        
+        int bytesRestantesEnContenido = tamanioContenido - offsetDentroContenido;
+        int espacioDisponibleEnPagina = configW->BLOCK_SIZE - offsetEnPagina;
+        int bytesAEscribir = (bytesRestantesEnContenido < espacioDisponibleEnPagina) 
+                             ? bytesRestantesEnContenido 
+                             : espacioDisponibleEnPagina;
+        
+        int marco = obtenerNumeroDeMarco(fileName, tagFile, paginaActual);
+        if (marco == -1) {
+            log_error(logger, "Error al obtener marco para WRITE");
+            notificarMasterError("Error al obtener marco para WRITE");
+            return false;
+        }
+        
+        char* contenidoPagina = string_substring(contenido, offsetDentroContenido, bytesAEscribir);
+        if (!contenidoPagina) {
+            log_error(logger, "Error al extraer substring");
+            exit(EXIT_FAILURE);
+            return false;
+        }
+        log_debug(logger, "ESTO ES EL CONTENIDO ESCRITO EN LA PAGINA: <%s>", contenidoPagina);
+        
+        escribirContenidoDesdeOffset(fileName, tagFile, paginaActual, marco, 
+                                      contenidoPagina, offsetEnPagina, bytesAEscribir);
+        
+        log_info(logger, "Query <%d>: Accion: <ESCRIBIR> - Direccion Fisica: <%d %d> - Valor: <%s>", 
+                 contexto->query_id, marco, offsetEnPagina, contenidoPagina);
+        
+        free(contenidoPagina);
+        offsetDentroContenido += bytesAEscribir;
+    }
+
+    return true;
+}
+
+
+bool ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, contexto_query_t* contexto){
+    int offsetInicial = calcularOffsetDesdeDireccionBase(direccionBase);
+    int primerPagina = calcularPaginaDesdeDireccionBase(direccionBase);
+    int ultimaPagina = (direccionBase + size - 1) / configW->BLOCK_SIZE;
+    
+    // Usar string_new() para inicializar un string vacío
+    char* contenidoCompleto = string_new();
+    if (!contenidoCompleto) {
+        log_error(logger, "Error al asignar memoria para READ");
+        exit(EXIT_FAILURE);
     }
     
-    eliminarPaquete(paquete);
-}
-
-void ejecutar_write(char* fileName, char* tagFile, int direccionBase, char* contenido, contexto_query_t* contexto){
-    int numeroPagina = calcularPaginaDesdeDireccionBase(direccionBase);
-    int offset = calcularOffsetDesdeDireccionBase(direccionBase);
-
-    int marco = obtenerNumeroDeMarco(fileName, tagFile, numeroPagina);
-    log_debug(logger, "Marco obtenido para WRITE: %d", marco);
-    if (marco == -1){
-        log_error(logger, "Error al obtener o pedir pagina para WRITE en %s:%s direccionBase %d", fileName, tagFile, direccionBase);
-        notificarMasterError();
-        return;
+    int bytesLeidos = 0;
+    
+    for (int paginaActual = primerPagina; paginaActual <= ultimaPagina; paginaActual++) {
+        int offsetEnPagina = (paginaActual == primerPagina) ? offsetInicial : 0;
+        int bytesRestantes = size - bytesLeidos;
+        int espacioEnPagina = configW->BLOCK_SIZE - offsetEnPagina;
+        int bytesALeer = (bytesRestantes < espacioEnPagina) ? bytesRestantes : espacioEnPagina;
+        
+        int marco = obtenerNumeroDeMarco(fileName, tagFile, paginaActual);
+        if (marco == -1) {
+            log_error(logger, "Error al obtener marco para página %d", paginaActual);
+            free(contenidoCompleto);
+            notificarMasterError("Error al traer pagina de Storage");
+            return false;
+        }
+        
+        char* contenidoPagina = leerContenidoDesdeOffset(fileName, tagFile, paginaActual, 
+                                                         marco, offsetEnPagina, bytesALeer);
+        if (!contenidoPagina) {
+            log_error(logger, "Error al leer contenido de página");
+            free(contenidoCompleto);
+            notificarMasterError("Error al leer contenido de página");
+            return false;
+        }
+        
+        // Usar string_append para concatenar (maneja la reasignación automáticamente)
+        string_append(&contenidoCompleto, contenidoPagina);
+        
+        log_info(logger, "Query <%d>: Acción: <LEER> - Dirección Física: <%d %d> - Valor: <%s>", 
+                 contexto->query_id, marco, offsetEnPagina, contenidoPagina);
+        
+        free(contenidoPagina);
+        bytesLeidos += bytesALeer;
     }
-
-
-    escribirContenidoDesdeOffset(fileName, tagFile, numeroPagina, marco,  contenido, offset, strlen(contenido)); 
-
-    log_info(logger, "Query <%d>: Acción: <ESCRIBIR> - Dirección Física: <%d %d> - Valor: <%s>", contexto->query_id, marco, offset, contenido);
-}
-
-void ejecutar_read(char* fileName, char* tagFile, int direccionBase, int size, contexto_query_t* contexto){
-    int numeroPagina = calcularPaginaDesdeDireccionBase(direccionBase);
-    int offset = calcularOffsetDesdeDireccionBase(direccionBase);
-
-    int marco = obtenerNumeroDeMarco(fileName, tagFile, numeroPagina);
-
-    if (marco == -1){
-        log_error(logger, "Error al obtener o pedir pagina para READ en %s:%s direccionBase %d", fileName, tagFile, direccionBase);
-        notificarMasterError();
-        return;
+    
+    // Si necesitas recortar al tamaño exacto
+    log_debug(logger, "Tamaño leído: %d, Tamaño solicitado: %d, contenido completo sin recortar: %s", string_length(contenidoCompleto), size, contenidoCompleto);
+    if (string_length(contenidoCompleto) > size) {
+        char* contenidoRecortado = string_substring(contenidoCompleto, 0, size);
+        contenidoCompleto = contenidoRecortado;
+        log_debug(logger, "Contenido recortado al tamaño solicitado: %s", contenidoCompleto);
+        //free(contenidoCompleto);
     }
-
-    char* contenidoLeido = leerContenidoDesdeOffset(fileName, tagFile, numeroPagina, marco, offset, size);
-
-    enviarOpcode(READ_BLOCK, socketMaster/*socket master*/);
+    
+    // Enviar resultado
+    enviarOpcode(LECTURA_QUERY_CONTROL, socketMaster);
     t_paquete* paquete = crearPaquete();
     agregarIntAPaquete(paquete, contexto->query_id);
     agregarStringAPaquete(paquete, fileName);
     agregarStringAPaquete(paquete, tagFile);
-    agregarStringAPaquete(paquete, contenidoLeido);
+    agregarStringAPaquete(paquete, contenidoCompleto);
     
-    enviarPaquete(paquete, socketMaster/*socket master*/);
-
-    log_info(logger, "Query <%d>: Acción: <LEER> - Dirección Física: <%d %d> - Valor: <%s>", contexto->query_id, marco, offset, contenidoLeido);
-
+    enviarPaquete(paquete, socketMaster);
     eliminarPaquete(paquete);
-    free(contenidoLeido);
-    
+    free(contenidoCompleto);
+    return true;
 }
 
-void ejecutar_tag(char* fileNameOrigen, char* tagOrigen, char* fileNameDestino, char* tagDestino, int query_id){
+
+bool ejecutar_tag(char* fileNameOrigen, char* tagOrigen, char* fileNameDestino, char* tagDestino, int query_id){
     enviarOpcode(TAG_FILE, socketStorage/*socket storage*/);    
 
     t_paquete* paquete = crearPaquete();
@@ -99,9 +174,17 @@ void ejecutar_tag(char* fileNameOrigen, char* tagOrigen, char* fileNameDestino, 
 
     enviarPaquete(paquete, socketStorage/*socket storage*/);
     eliminarPaquete(paquete);
+
+    int resp = escucharStorage(); //esperar confirmacion de storage
+    if (resp == -1)
+    {
+        notificarMasterError("Error al ejecutar TAG");
+        return false;
+    }
+    return true;
 }   
 
-void ejecutar_commit(char* fileName, char* tagFile, int query_id){
+bool ejecutar_commit(char* fileName, char* tagFile, int query_id){
     enviarOpcode(COMMIT_FILE, socketStorage/*socket storage*/);    
 
     t_paquete* paquete = crearPaquete();
@@ -110,56 +193,93 @@ void ejecutar_commit(char* fileName, char* tagFile, int query_id){
     agregarStringAPaquete(paquete, tagFile);
     enviarPaquete(paquete, socketStorage/*socket storage*/);
     eliminarPaquete(paquete);
+
+    int resp = escucharStorage(); //esperar confirmacion de storage
+    if (resp == -1)
+    {
+        notificarMasterError("Error al ejecutar COMMIT");
+        return false;
+    }
     
+    return true;
 }   
 
-void ejecutar_flush(char* fileName, char* tagFile, int query_id){
+bool ejecutar_flush(char* fileName, char* tagFile, int query_id){
+    log_debug(logger, "Iniciando FLUSH para %s:%s", fileName, tagFile);
     TablaDePaginas* tabla = obtenerTablaPorFileYTag(fileName, tagFile);
     bool modificadas;
-    if (tabla != NULL){
+    if (tabla){
         modificadas = tabla->hayPaginasModificadas;
     }
     else{
         log_warning(logger, "No se encontró la tabla para %s:%s", fileName, tagFile);
-        return;
+        return false;
     }
-
+    
     if(modificadas){
-        t_paquete* paquete = crearPaquete();
-        agregarIntAPaquete(paquete, query_id);
-        agregarStringAPaquete(paquete, fileName);
-        agregarStringAPaquete(paquete, tagFile); 
-        for (int i = 0; i < tabla->cantidadEntradasUsadas; i++){
-            if(tabla->entradas[i].bitModificado){
-                int nroPagina = tabla->entradas[i].numeroPagina;
-                int nroFrame = tabla->entradas[i].numeroFrame;
-                char* contenidoPagina = obtenerContenidoDelMarco(nroFrame, 0, configW->BLOCK_SIZE); // antes se llamaba a leerDesdeMemoriaPaginaCompleta pero creo q esta bien asi
-                if (!contenidoPagina){
-                    log_error(logger, "Error al obtener el contenido del marco %d para hacer FLUSH de %s:%s pagina %d", nroFrame, fileName, tagFile, nroPagina);
-                    continue;
-                }
-
-                agregarIntAPaquete(paquete, nroPagina);
-                agregarStringAPaquete(paquete, contenidoPagina); //ver como mandar el bloque entero
-                free(contenidoPagina);
-                
-                tabla->entradas[i].bitModificado = false; //reseteo el bit modificado
+        int contadorPaginasModificadas = 0;
+        for (int i = 0; i < tabla->capacidadEntradas; i++){
+            if(tabla->entradas[i].bitModificado && tabla->entradas[i].bitPresencia){
+                contadorPaginasModificadas++;
             }
         }
-        enviarOpcode(FLUSH_FILE, socketStorage/*socket storage*/);  
-        enviarPaquete(paquete, socketStorage/*socket storage*/);
-        eliminarPaquete(paquete);
+        
+        t_paquete* paqueteAviso = crearPaquete();
+        
+        
+        agregarIntAPaquete(paqueteAviso, query_id);
+        agregarStringAPaquete(paqueteAviso, fileName);
+        agregarStringAPaquete(paqueteAviso, tagFile); 
+        agregarIntAPaquete(paqueteAviso, contadorPaginasModificadas);
+        
+        enviarOpcode(FLUSH_FILE, socketStorage);  
+        enviarPaquete(paqueteAviso, socketStorage);
+        eliminarPaquete(paqueteAviso);
+        
+        
+        for (int i = 0; i < tabla->capacidadEntradas; i++){
+            
+            if(tabla->entradas[i].bitModificado && tabla->entradas[i].bitPresencia){
+                t_paquete* paqueteContenido = crearPaquete();
+
+
+                int nroPagina = tabla->entradas[i].numeroPagina;
+                int nroMarco = tabla->entradas[i].numeroMarco;
+                char* contenidoPagina = obtenerContenidoDelMarco(nroMarco, 0, configW->BLOCK_SIZE);
+                
+                if (!contenidoPagina){
+                    log_error(logger, "Error al obtener el contenido del marco %d para hacer FLUSH de %s:%s pagina %d", 
+                              nroMarco, fileName, tagFile, nroPagina);
+                    continue;
+                }
+                
+                log_debug(logger, "contenidoPagina numero <%d> a mandar en FLUSH: <%s>", nroPagina, contenidoPagina);
+                agregarIntAPaquete(paqueteContenido, nroPagina);
+                agregarStringAPaquete(paqueteContenido, contenidoPagina);
+                free(contenidoPagina);
+                tabla->entradas[i].bitModificado = false;
+                
+                enviarPaquete(paqueteContenido, socketStorage);
+                
+                if(escucharStorage() == -1) {
+                    eliminarPaquete(paqueteContenido);
+                    notificarMasterError("Error al ejecutar FLUSH");
+                    return false;
+                }
+                eliminarPaquete(paqueteContenido);
+            }
+        }        
+        
+        log_debug(logger, "FLUSH completado para %s:%s", fileName, tagFile);
         tabla->hayPaginasModificadas = false;
     }
     else{
         log_debug(logger, "No hay páginas modificadas para hacer FLUSH en %s:%s", fileName, tagFile);
     }
+    return true;
+}
 
-    free(tabla);   
-    return;
-}       
-
-void ejecutar_delete(char* fileNam, char* tagFile, int query_id){
+bool ejecutar_delete(char* fileNam, char* tagFile, int query_id){
     enviarOpcode(DELETE_FILE, socketStorage/*socket storage*/);
 
     t_paquete* paquete = crearPaquete();
@@ -168,29 +288,41 @@ void ejecutar_delete(char* fileNam, char* tagFile, int query_id){
     agregarStringAPaquete(paquete, tagFile);
     enviarPaquete(paquete, socketStorage/*socket storage*/);
     eliminarPaquete(paquete);
+
+    if (escucharStorage() == -1) {
+        notificarMasterError("Error al ejecutar DELETE");
+        return false;
+    }
+
+    return true;
 }   
 
-void ejecutar_end(contexto_query_t* contexto){
-    enviarOpcode(END_QUERY, socketMaster/*socket master*/);
+bool ejecutar_end(contexto_query_t* contexto){
+    enviarOpcode(FINALIZACION_QUERY, socketMaster/*socket master*/);
     
     t_paquete* paquete = crearPaquete();
     agregarIntAPaquete(paquete, contexto->query_id);
-    //deberìa eleminiar la tabla de paginas??
+    agregarStringAPaquete(paquete, "Finalizacion de ejecucion de la query");
     enviarPaquete(paquete, socketMaster/*socket master*/);
     eliminarPaquete(paquete);
+    return true;
 }       
 
 //funcion  para todos las querys que llamen a escucharStorage(), se debe loggear el error (con el tipo de error) y finalizar la query
-void notificarMasterError(){
+void notificarMasterError(char* mensajeError){
     enviarOpcode(FINALIZACION_QUERY, socketMaster);
 
     t_paquete* paqueteAMaster = crearPaquete();
     if(!paqueteAMaster){
-        log_error(logger, "Error recibiendo paquete de RESPUESTA_ERROR");
+        log_error(logger, "Error al crear paquete para notificar error al Master");
         return;
     }
 
+    log_debug(logger, "Notificando al Master el error: %s", mensajeError);
+
     agregarIntAPaquete(paqueteAMaster, contexto->query_id);
+    agregarStringAPaquete(paqueteAMaster, mensajeError);
     enviarPaquete(paqueteAMaster, socketMaster);
     eliminarPaquete(paqueteAMaster);
+    sem_post(&sem_hayInterrupcion);
 }

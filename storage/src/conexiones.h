@@ -5,7 +5,7 @@
 #include "utils/paquete.h"
 #include "utils/config.h"
 #include "utils/globales.h"
-#include "globals.h"
+#include "estructuras.h"
 #include "operaciones.h"
 
 extern configStorage *configS;
@@ -18,7 +18,6 @@ void comprobacionModulo(modulo modulo_origen, modulo esperado, char *modulo, voi
 void *operarWorkers(void*socketClienteVoid);
 void incrementarWorkers(int workerId);
 void decrementarWorkers(int workerId);
-
 void registrarWorker(int socket, int workerId);
 int obtenerYRemoverWorker(int socket);
 #endif

@@ -22,5 +22,5 @@ pthread_mutex_t mutex_cantidadQueriesControl = PTHREAD_MUTEX_INITIALIZER;
 sem_t sem_desalojo;
 sem_t sem_workers_libres; 
 sem_t sem_ready;
-
+sem_t sem_execute;
 

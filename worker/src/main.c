@@ -20,22 +20,18 @@ int main(int argc, char* argv[]) {
 
     configW = malloc(sizeof(configWorker));
     iniciarConfiguracionWorker(archivoConfig,configW);
+    char* nombreLog = string_from_format("worker_%d", workerId);
+    logger = iniciar_logger(nombreLog, configW->logLevel);
 
-    logger = iniciar_logger("worker", configW->logLevel);
-
-    inicializarCosas();
-    // inicializarHilos(workerId);
-    
     conexionConMaster(workerId);
-    log_debug(logger,"Handshake con Master completado.");
     conexionConStorage(workerId);
-    log_debug(logger,"Handshake con Storage completado.");
-    //escucharStorage();
-    //log_debug(logger,"Escuchar Storage completado.");
-    escucharMaster();
-    log_debug(logger,"Escuchar Master completado.");
-
-    //return EXIT_SUCCESS;
+    inicializarEstructuras();
+    
+    conexionConMasterDesalojo(workerId);
+    
+    
+    escucharMaster(); 
+    
 
     return 0;
 }

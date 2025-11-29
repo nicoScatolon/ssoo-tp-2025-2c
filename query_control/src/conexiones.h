@@ -9,8 +9,6 @@
 
 void iniciarConexion(char* path, int prioridad);
 void esperarRespuesta();
-void finalizarQueryControl();
-void manejar_sigint(int sig);
 extern configQuery *configQ;
 extern t_log* logger;
 

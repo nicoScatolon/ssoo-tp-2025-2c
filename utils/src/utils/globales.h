@@ -2,8 +2,8 @@
 #define GLOBALES_H
 
 typedef enum
-{
-    FINALIZACION_QUERY = -1,
+{   DEAD=-1,
+    FINALIZACION_QUERY ,
     INICIAR_QUERY_CONTROL,
     INICIAR_WORKER,
     DESCONEXION_QUERY_CONTROL,
@@ -12,6 +12,7 @@ typedef enum
     DESALOJO_QUERY_PLANIFICADOR,
     DESALOJO_QUERY_DESCONEXION,
     NUEVA_QUERY,
+    CONEXION_DESALOJO,
     
     //Instrucciones Storage:
     HANDSHAKE_STORAGE_WORKER,
@@ -34,7 +35,8 @@ typedef enum{
     MASTER,
     QUERY_CONTROL,
     WORKER,
-    STORAGE
+    STORAGE,
+    WORKER_DESALOJO
 }modulo;
 
 #endif
