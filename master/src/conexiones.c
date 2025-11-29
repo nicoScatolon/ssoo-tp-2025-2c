@@ -499,6 +499,7 @@ void *operarWorker(void*socketClienteVoid){
         eliminarPaquete(paquete);
         break;
     }
+        liberarWorker(w);
                 query * queryDesalojada = sacarDePorId(&listaExecute,idQuery);
                     if (queryDesalojada == NULL) {
         // La query ya fue procesada por otro hilo (finalización o desconexión)
@@ -514,7 +515,6 @@ void *operarWorker(void*socketClienteVoid){
                 listaAdd(queryDesalojada,&listaReady);
                 pthread_mutex_unlock(&queryDesalojada->mutex);
                 log_info(logger,"## Se desaloja la Query <%d> (<%d>)-del Worker <%d>Motivo:<Planificacicon>",idQuery, queryDesalojada->qcb->prioridad, w->workerID);
-                liberarWorker(w);
                 sem_post(&sem_ready);
                 eliminarPaquete(paquete);
                 break;

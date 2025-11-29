@@ -4,14 +4,14 @@ void enviarQueryAWorker(worker* workerElegido,char* path,int PC,int queryID){
     pthread_mutex_lock(&workerElegido->mutex);
     workerElegido->pathActual = strdup(path);
     workerElegido->idActual = queryID;
-    pthread_mutex_unlock(&workerElegido->mutex);
-
+    
     t_paquete*paquete = crearPaquete();
+    enviarOpcode(NUEVA_QUERY,workerElegido->socket);
     agregarStringAPaquete(paquete,path);
     agregarIntAPaquete(paquete,queryID);
     agregarIntAPaquete(paquete,PC);
-    enviarOpcode(NUEVA_QUERY,workerElegido->socket);
     enviarPaquete(paquete,workerElegido->socket);
+    pthread_mutex_unlock(&workerElegido->mutex);
     log_debug(logger,"QueryId a enviar <%d>",queryID);
     eliminarPaquete(paquete);
     sem_post(&sem_execute);
