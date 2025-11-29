@@ -94,6 +94,10 @@ void* aging(void *arg){
         if(estaEnListaPorId(&listaReady,idQuery)){
             query* q = obtenerQueryPorID(idQuery);
             int prioridadVieja = q->qcb->prioridad;
+            if (prioridadVieja == 0) {
+                log_debug(logger,"##<%d> Prioridad ya es 0, no se reduce mas",q->qcb->queryID);
+                continue;
+            }
             pthread_mutex_lock(&q->mutex);
             q->qcb->prioridad-=1;
             pthread_mutex_unlock(&q->mutex);
