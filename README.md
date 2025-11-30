@@ -1,92 +1,59 @@
-# tp-scaffold
+# Master of Files – Sistema Distribuido (UTN FRBA)
 
-Esta es una plantilla de proyecto diseñada para generar un TP de Sistemas
-Operativos de la UTN FRBA.
+## Introduccion
 
-## Dependencias
+Implementación y simulación de un **Sistema Distribuido modular**, desarrollado para la **Cátedra de Sistemas Operativos (UTN FRBA)**.
+El objetivo principal es gestionar y persistir peticiones de manejo de **archivos (Files)** y **bloques** dentro de un entorno **concurrente**, aplicando conceptos de planificación, concurrencia, comunicación entre procesos y diseño de software de sistemas.
 
-Para poder compilar y ejecutar el proyecto, es necesario tener instalada la
-biblioteca [so-commons-library] de la cátedra:
+---
 
-```bash
-git clone https://github.com/sisoputnfrba/so-commons-library
-cd so-commons-library
-make debug
-make install
-```
+## Habilidades y Tecnologías Demostradas
 
-## Compilación y ejecución
+### Área de Competencia | Detalles Clave de la Implementación
 
-Cada módulo del proyecto se compila de forma independiente a través de un
-archivo `makefile`. Para compilar un módulo, es necesario ejecutar el comando
-`make` desde la carpeta correspondiente.
+#### Sistemas Distribuidos y Concurrencia
 
-El ejecutable resultante de la compilación se guardará en la carpeta `bin` del
-módulo. Ejemplo:
+* Diseño y desarrollo de una arquitectura de **cuatro módulos interconectados**: *Master*, *Worker*, *Query Control* y *Storage*.
+* Capaces de ejecutarse en distintas máquinas o máquinas virtuales.
+* Uso de mecanismos de **conectividad**, **serialización** y **sincronización** para garantizar consistencia y orden.
 
-```sh
-cd kernel
-make
-./bin/kernel
-```
+#### Planificación de Procesos (Scheduling)
 
-## Importar desde Visual Studio Code
+* Implementación del **Módulo Master** como planificador de corto plazo de Queries.
+* Soporte para dos algoritmos críticos:
 
-Para importar el workspace, debemos abrir el archivo `tp.code-workspace` desde
-la interfaz o ejecutando el siguiente comando desde la carpeta raíz del
-repositorio:
+  * **FIFO**
+  * **Prioridades con desalojo (Preemptive Priority)**
+* Implementación de **Aging** para evitar inanición (starvation) en Queries de baja prioridad.
 
-```bash
-code tp.code-workspace
-```
+#### Manejo de Memoria y Archivos
 
-## Checkpoint
+* Diseño del **Módulo Storage** orientado a la persistencia.
+* Simulación de un sistema de archivos con:
 
-Para cada checkpoint de control obligatorio, se debe crear un tag en el
-repositorio con el siguiente formato:
+  * *Superblock*
+  * *Bitmap*
+  * *Bloques físicos*
+* Implementación de operaciones fundamentales:
+  `CREATE`, `TRUNCATE`, `WRITE`, `READ`, `TAG`, `COMMIT`.
+* Control de integridad y consistencia de datos.
 
-```
-checkpoint-{número}
-```
+#### Desarrollo de Software de Sistemas
 
-Donde `{número}` es el número del checkpoint, ejemplo: `checkpoint-1`.
+Incluye:
 
-Para crear un tag y subirlo al repositorio, podemos utilizar los siguientes
-comandos:
+* Uso de **archivos de configuración** para parametrizar módulos sin recompilar (puertos, algoritmo de planificación, aging, etc.).
+* Implementación obligatoria de logs mínimos (nivel **LOG_LEVEL_INFO**).
+* Definición de la arquitectura, estados de Queries (`READY`, `EXEC`, `EXIT`) y protocolos de comunicación.
 
-```bash
-git tag -a checkpoint-{número} -m "Checkpoint {número}"
-git push origin checkpoint-{número}
-```
+---
 
-> [!WARNING]
-> Asegúrense de que el código compila y cumple con los requisitos del checkpoint
-> antes de subir el tag.
+## Estructura Modular y Responsabilidades
 
-## Entrega
+| Módulo            | Rol Principal                                                                                                                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Master**        | Control de flujo y planificación. Gestiona la cola de Queries, aplica el algoritmo configurado y coordina con Workers. Maneja conexión/desconexión dinámica de clientes y Workers. |
+| **Worker**        | Unidad de ejecución. Interpreta Queries, gestiona operaciones sobre Files y administra su **Memoria Interna** con algoritmos de reemplazo de páginas.                              |
+| **Storage**       | Persistencia física y lógica. Administra la asignación de bloques, metadatos y responde operaciones de lectura/escritura.                                                          |
+| **Query Control** | Interfaz del usuario. Envía Queries con prioridad al Master y espera resultados o lecturas.                                                                                        |
 
-Para desplegar el proyecto en una máquina Ubuntu Server, podemos utilizar el
-script [so-deploy] de la cátedra:
-
-```bash
-git clone https://github.com/sisoputnfrba/so-deploy.git
-cd so-deploy
-./deploy.sh -r=release -p=utils -p=query_control -p=master -p=worker -p=storage "tp-{año}-{cuatri}-{grupo}"
-```
-
-El mismo se encargará de instalar las Commons, clonar el repositorio del grupo
-y compilar el proyecto en la máquina remota.
-
-> [!NOTE]
-> Ante cualquier duda, pueden consultar la documentación en el repositorio de
-> [so-deploy], o utilizar el comando `./deploy.sh --help`.
-
-## Guías útiles
-
-- [Cómo interpretar errores de compilación](https://docs.utnso.com.ar/primeros-pasos/primer-proyecto-c#errores-de-compilacion)
-- [Cómo utilizar el debugger](https://docs.utnso.com.ar/guias/herramientas/debugger)
-- [Cómo configuramos Visual Studio Code](https://docs.utnso.com.ar/guias/herramientas/code)
-- **[Guía de despliegue de TP](https://docs.utnso.com.ar/guías/herramientas/deploy)**
-
-[so-commons-library]: https://github.com/sisoputnfrba/so-commons-library
-[so-deploy]: https://github.com/sisoputnfrba/so-deploy
